@@ -1,0 +1,5 @@
+*.pyc*
+launch.json
+__pycache__/
+venv/
+.env

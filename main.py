@@ -12,7 +12,7 @@ except Exception as e:
 
 # Fetch data
 instrument_token = 738561
-from_date = datetime.datetime.now() - datetime.timedelta(days=5)
+from_date = datetime.datetime.now() - datetime.timedelta(days=15)
 to_date = datetime.datetime.now()
 
 try:
@@ -23,7 +23,7 @@ try:
         interval="15minute"
     )
     print(f"📊 Fetched {len(candles)} candles")
-    for c in candles[:5]:
+    for c in candles:
         print(c)
 except Exception as e:
     print("❌ Error fetching historical data:", e)
