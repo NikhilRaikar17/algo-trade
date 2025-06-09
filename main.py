@@ -1,15 +1,16 @@
-from kite_client import kite
+from kite_client import get_kite_client
 import datetime
 
-# 1. Get profile
+kite = get_kite_client()
+
 try:
     profile = kite.profile()
-    print("Logged in as:", profile["user_name"])
+    print("✅ Logged in as:", profile["user_name"])
 except Exception as e:
-    print("Token may be expired or invalid:", e)
+    print("❌ Token may be invalid or expired:", e)
     exit()
 
-# 2. Historical data (example: INFY)
+# Fetch data
 instrument_token = 738561
 from_date = datetime.datetime.now() - datetime.timedelta(days=5)
 to_date = datetime.datetime.now()
@@ -19,10 +20,10 @@ try:
         instrument_token=instrument_token,
         from_date=from_date,
         to_date=to_date,
-        interval="5minute"
+        interval="15minute"
     )
-    print(f"Fetched {len(candles)} candles")
+    print(f"📊 Fetched {len(candles)} candles")
     for c in candles[:5]:
         print(c)
 except Exception as e:
-    print("Error fetching historical data:", e)
+    print("❌ Error fetching historical data:", e)

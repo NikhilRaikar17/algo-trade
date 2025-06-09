@@ -1,31 +1,24 @@
 import os
-from dotenv import load_dotenv
-from kite_client import kite
+from dotenv import load_dotenv, set_key
 from kiteconnect import KiteConnect
 
 load_dotenv()
+ENV_FILE = ".env"
 
 API_KEY = os.getenv("KITE_API_KEY")
 API_SECRET = os.getenv("KITE_API_SECRET")
-ENV_FILE = ".env"
-
 
 def get_login_url():
+    kite = KiteConnect(api_key=API_KEY)
     return kite.login_url()
 
-
-def generate_access_token(request_token: str) -> str:
+def generate_access_token() -> str:
     kite = KiteConnect(api_key=API_KEY)
+    print("🔐 Login URL:", kite.login_url())
+    request_token = input("📥 Paste the request_token from URL: ").strip()
     data = kite.generate_session(request_token, api_secret=API_SECRET)
-    access_token = data["access_token"]
 
-    # Save to .env
-    # with open(ENV_FILE, "r") as f:
-    #     lines = f.readlines()
-    # with open(ENV_FILE, "w") as f:
-    #     for line in lines:
-    #         if line.startswith("KITE_ACCESS_TOKEN="):
-    #             f.write(f"KITE_ACCESS_TOKEN={access_token}\n")
-    #         else:
-    #             f.write(line)
+    access_token = data["access_token"]
+    set_key(ENV_FILE, "KITE_ACCESS_TOKEN", access_token)
+    print("✅ Access token saved to .env")
     return access_token
