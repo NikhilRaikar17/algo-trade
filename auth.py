@@ -2,8 +2,8 @@ import os
 from dotenv import load_dotenv, set_key
 from kiteconnect import KiteConnect
 
-load_dotenv()
-ENV_FILE = ".env"
+ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path=ENV_FILE, override=True)
 
 API_KEY = os.getenv("KITE_API_KEY")
 API_SECRET = os.getenv("KITE_API_SECRET")
