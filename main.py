@@ -26,5 +26,10 @@ try:
     print(f"📊 Fetched {len(candles)} candles")
     df = pd.DataFrame(candles)
     print(df)
+    print(df[['close', 'open']])
+    print(df[0:5])
+    abc = df.set_index(df['date'])
+    print(abc)
+    print(abc['2025-09-18 09:15:00+05:30' : '2025-09-18 10:15:00+05:30'])
 except Exception as e:
     print("❌ Error fetching historical data:", e)
