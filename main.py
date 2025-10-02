@@ -1,5 +1,6 @@
 from kite_client import get_kite_client
 import datetime
+import pandas as pd
 
 kite = get_kite_client()
 
@@ -23,7 +24,7 @@ try:
         interval="15minute"
     )
     print(f"📊 Fetched {len(candles)} candles")
-    for c in candles:
-        print(c)
+    df = pd.DataFrame(candles)
+    print(df)
 except Exception as e:
     print("❌ Error fetching historical data:", e)
