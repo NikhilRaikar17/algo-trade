@@ -2,8 +2,6 @@
 from kite_client import get_kite_client
 import pandas as pd
 
-
-# Initialize Kite Connect
 kite = get_kite_client()
 
 
@@ -17,20 +15,26 @@ def fetch_all():
         print(f"❌ Error fetching all instruments: {e}")
 
 def fetch_specific():
-    symbol = input("Enter the trading symbol (e.g., RELIANCE): ").strip().upper()
-    exchange = input("Enter the exchange (e.g., NSE, BSE): ").strip().upper()
-    
+    symbol = input("Enter the trading symbol (e.g., RELIANCE, NIFTY24OCTFUT): ").strip().upper()
+    exchange = input("Enter the exchange (e.g., NSE, BSE, NFO): ").strip().upper()
+
     try:
-        df = pd.DataFrame(kite.instruments())
-        match = df[(df["tradingsymbol"] == symbol) & (df["exchange"] == exchange)]
+        df = pd.DataFrame(kite.instruments(exchange))
+
+        # Quick search ignoring case
+        match = df[df["tradingsymbol"].str.upper() == symbol]
 
         if not match.empty:
             print("✅ Instrument Found:")
-            print(match[["instrument_token", "tradingsymbol", "exchange", "name", "segment"]].to_string(index=False))
+            print(match[["instrument_token", "tradingsymbol", "exchange", "name", "segment", "expiry"]].to_string(index=False))
         else:
-            print("⚠️ Instrument not found. Please check symbol and exchange.")
+            # Debugging help
+            print(f"⚠️ Not found: {symbol} in {exchange}")
+            print("🔍 Did you mean one of these?")
+            print(df[df["tradingsymbol"].str.contains(symbol[:5], case=False)][["tradingsymbol", "expiry"]].head(10))
     except Exception as e:
         print(f"❌ Error fetching specific instrument: {e}")
+
 
 def main():
     print("Do you want to fetch:")
