@@ -1,5 +1,11 @@
 from Dhan_Tradehull import Tradehull
+import os
+from dotenv import load_dotenv
 
-client_code = "1108906427"
-token_id = "112233eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzYxMTI4Mjk2LCJpYXQiOjE3NjEwNDE4OTYsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTA4OTA2NDI3In0.upKRte6hwgq0kt8sr8GVuKT4d7q7aRhXdGAejsTwv5Q9YZc6oUl783xaYTebNhSqdHufe6jPSjXpSnBCineInw"
+ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path=ENV_FILE, override=True)
+
+client_code = os.getenv("DHAN_CLIENT_CODE")
+token_id = os.getenv("DHAN_TOKEN_ID")
+bot_token = os.getenv("DHAN_BOT_TOKEN")
 tsl = Tradehull(client_code, token_id)
