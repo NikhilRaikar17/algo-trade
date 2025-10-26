@@ -35,6 +35,8 @@ for name in watchlist:
         closing_price = charts['close'].iloc[-1]
         charts['rsi'] = talib.RSI(charts['close'], timeperiod=14)
         cc = charts.iloc[-2]
+        uptrend = cc['rsi'] > 50
+        downtrend = cc['rsi'] < 49
         rsi_value = round(cc['rsi'], 2)
 
         charts['sma20'] = talib.SMA(charts['close'], timeperiod=20)
@@ -52,11 +54,23 @@ for name in watchlist:
             trend = "Sideways"
             trend_emoji = "⚪️"
 
+        if uptrend:
+            print(name, "is in uptrend, Buy this script")
+            signal = "BUY"
+            sl_price = round((cc['close']*0.98),1)
+
+        if downtrend:
+            print(name, "is in downtrend, Sell this script")
+            signal = "SELL"
+            sl_price = round((cc['close']*1.02),1)
+
         message = (
                     f"Stock: {name}\n"
                     f"Closing Price: {closing_price}\n"
                     f"RSI: {rsi_value}\n"
                     f"Trend: {trend}{trend_emoji}\n"
+                    f"Signal:{signal}\n"
+                    f"StopLoss:{sl_price}\n"
                     f"Available Balance:{available_balance} \n"
                 )
         for rec in reciever_chat_id:
