@@ -17,3 +17,8 @@ dependencies = [
     "ta-lib>=0.6.7",
     "xlwings>=0.33.16",
 ]
+
+[tool.uv.workspace]
+members = [
+    "dhan_v2",
+]
