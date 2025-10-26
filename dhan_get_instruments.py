@@ -24,8 +24,9 @@ watchlist = ['MOTHERSON', 'OFSS', 'MANAPPURAM', 'BSOFT',
             'ABBOTINDIA', 'ATUL', 'UNITDSPR', 'PVRINOX', 'SIEMENS', 'SBILIFE', 'IRCTC', 'GUJGASLTD', 'BOSCHLTD', 'NTPC', 
             'POWERGRID', 'MARICO', 'HAVELLS', 'MPHASIS', 'COLPAL', 'CIPLA', 'MGL', 'ABB', 'PIDILITIND', 'MRF', 'LTIM', 
             'PAGEIND', 'PERSISTENT']
-# watchlist = ["TATAMOTORS", "ADANIPORTS", "SBIN", "CIPLA", "RELIANCE"]
+watchlist = ["ADANIPORTS", "SBIN", "CIPLA", "RELIANCE"]
 reciever_chat_id = ["8272803637", "1623717769"]
+available_balance = tsl.get_balance()
 
 for name in watchlist:
     try:
@@ -41,7 +42,6 @@ for name in watchlist:
         latest = charts.iloc[-1]
         prev = charts.iloc[-2]
 
-        # Determine trend
         if latest['sma20'] > latest['sma50']:
             trend = "Uptrend"
             trend_emoji = "🔺"
@@ -53,11 +53,11 @@ for name in watchlist:
             trend_emoji = "⚪️"
 
         message = (
-                    f"Bot: Algo-Bot\n"
                     f"Stock: {name}\n"
                     f"Closing Price: {closing_price}\n"
                     f"RSI: {rsi_value}\n"
-                    f"Trend: {trend}{trend_emoji}"
+                    f"Trend: {trend}{trend_emoji}\n"
+                    f"Available Balance:{available_balance} \n"
                 )
         for rec in reciever_chat_id:
             tsl.send_telegram_alert(message=message, receiver_chat_id=rec, bot_token=bot_token)
