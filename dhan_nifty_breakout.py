@@ -11,6 +11,7 @@ import time
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from telegram import send_alert_to_all
+from dhan_watchlist import watchlist
 
 
 # pre_market_watchlist        = ['ASIANPAINT', 'BAJAJ-AUTO', 'BERGEPAINT', 'BEL', 'BOSCHLTD', 'BRITANNIA', 'COALINDIA', 'COLPAL', 'DABUR', 'DIVISLAB', 'EICHERMOT', 'GODREJCP', 'HCLTECH', 'HDFCBANK', 'HAVELLS', 'HEROMOTOCO', 'HAL', 'HINDUNILVR', 'ITC', 'IRCTC', 'INFY', 'LTIM', 'MARICO', 'MARUTI', 'NESTLEIND', 'PIDILITIND', 'TCS', 'TECHM', 'WIPRO']
@@ -36,28 +37,6 @@ from telegram import send_alert_to_all
 
 # print(watchlist)
 # # pdb.set_trace()
-
-
-watchlist = [
-    "BEL",
-    "BOSCHLTD",
-    "COLPAL",
-    "HCLTECH",
-    "HDFCBANK",
-    "HAVELLS",
-    "HAL",
-    "ITC",
-    "IRCTC",
-    "INFY",
-    "LTIM",
-    "MARICO",
-    "MARUTI",
-    "NESTLEIND",
-    "PIDILITIND",
-    "TCS",
-    "TECHM",
-    "WIPRO",
-]
 
 
 single_order = {
@@ -88,15 +67,14 @@ completed_orders_sheet.range("A2:Z100").value = None
 for name in watchlist:
     orderbook[name] = single_order.copy()
 
-message = f"Algo is waiting to be started for {datetime.today()}"
+current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
+time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
+message = f"[{time_message}]\n Algo is waiting to be started"
 send_alert_to_all(message, receiver_chat_id, bot_token)
-
 
 while True:
 
     print("starting while Loop \n\n")
-
-    current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 
     # Market open and close times in IST
     market_open = time(9, 15)
@@ -111,7 +89,9 @@ while True:
         # Cancel all pending (simulated) orders
         # order_details = tsl.cancel_all_orders()  # only if using real API
         print(f"Market closed ({current_time}) — ending trading session.")
-        message = f"Algo wont be executed today as the markets are closed"
+        message = (
+            f"[{time_message}]\n Algo wont be executed today as the markets are closed"
+        )
         send_alert_to_all(message, receiver_chat_id, bot_token)
         break
 
