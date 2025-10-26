@@ -161,7 +161,7 @@ while True:
 
             except Exception as e:
                 print(e)
-                pdb.set_trace(header="error in entry order")
+                #pdb.set_trace(header="error in entry order")
 
         if orderbook[name]["traded"] == "yes":
             bought = orderbook[name]["buy_sell"] == "BUY"
@@ -178,7 +178,7 @@ while True:
                     tg_hit = ltp > orderbook[name]["tg"]
                 except Exception as e:
                     print(e)
-                    pdb.set_trace(header="error in sl order cheking")
+                    #pdb.set_trace(header="error in sl order cheking")
 
                 if sl_hit:
 
@@ -214,7 +214,7 @@ while True:
                             orderbook[name] = None
                     except Exception as e:
                         print(e)
-                        pdb.set_trace(header="error in sl_hit")
+                        #pdb.set_trace(header="error in sl_hit")
 
                 if tg_hit:
 
@@ -262,4 +262,4 @@ while True:
 
                     except Exception as e:
                         print(e)
-                        pdb.set_trace(header="error in tg_hit")
+                        #pdb.set_trace(header="error in tg_hit")
