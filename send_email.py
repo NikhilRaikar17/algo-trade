@@ -26,7 +26,7 @@ filename = f"AlgoTrade.xlsx"
 # Create a multipart message and set headers
 message = MIMEMultipart()
 message["From"] = sender_email
-message["To"] = ", ".join(receiver_email)
+message["To"] = receiver_email
 message["Subject"] = subject
 
 # Attach the body with the msg instance
