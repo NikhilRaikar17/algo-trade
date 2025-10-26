@@ -5,7 +5,8 @@ from kiteconnect import KiteTicker
 from dotenv import load_dotenv
 import pandas as pd
 
-load_dotenv()
+ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path=ENV_FILE, override=True)
 logging.basicConfig(level=logging.INFO)
 
 API_KEY = os.getenv("KITE_API_KEY")
