@@ -1,8 +1,3 @@
-import pdb
-import time
-import datetime
-import traceback
-from Dhan_Tradehull import Tradehull
 import pandas as pd
 from pprint import pprint
 import talib
@@ -12,6 +7,10 @@ import xlwings as xw
 import winsound
 from dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
 import pdb
+import time
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+from telegram import send_alert_to_all
 
 
 # pre_market_watchlist        = ['ASIANPAINT', 'BAJAJ-AUTO', 'BERGEPAINT', 'BEL', 'BOSCHLTD', 'BRITANNIA', 'COALINDIA', 'COLPAL', 'DABUR', 'DIVISLAB', 'EICHERMOT', 'GODREJCP', 'HCLTECH', 'HDFCBANK', 'HAVELLS', 'HEROMOTOCO', 'HAL', 'HINDUNILVR', 'ITC', 'IRCTC', 'INFY', 'LTIM', 'MARICO', 'MARUTI', 'NESTLEIND', 'PIDILITIND', 'TCS', 'TECHM', 'WIPRO']
@@ -89,213 +88,221 @@ completed_orders_sheet.range("A2:Z100").value = None
 for name in watchlist:
     orderbook[name] = single_order.copy()
 
+message = f"Algo is waiting to be started for {datetime.today()}"
+send_alert_to_all(message, receiver_chat_id, bot_token)
 
-# while True:
 
-#     print("starting while Loop \n\n")
+while True:
 
-#     current_time = datetime.datetime.now().time()
-#     if current_time < datetime.time(13, 55):
-#         print(f"Wait for market to start", current_time)
-#         time.sleep(1)
-#         continue
+    print("starting while Loop \n\n")
 
-#     if current_time > datetime.time(15, 15):
-#         order_details = tsl.cancel_all_orders()
-#         print(
-#             f"Market over Closing all trades !! Bye Bye See you Tomorrow", current_time
-#         )
-#         pdb.set_trace()
-#         break
+    current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 
-#     all_ltp = tsl.get_ltp_data(names=watchlist)
-#     for name in watchlist:
+    # Market open and close times in IST
+    market_open = time(9, 15)
+    market_close = time(15, 15)
 
-#         orderbook_df = pd.DataFrame(orderbook).T
-#         live_Trading.range("A1").value = orderbook_df
+    if current_time < market_open:
+        print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
+        time.sleep(1)
+        continue
 
-#         completed_orders_df = pd.DataFrame(completed_orders)
-#         completed_orders_sheet.range("A1").value = completed_orders_df
+    if current_time > market_close:
+        # Cancel all pending (simulated) orders
+        # order_details = tsl.cancel_all_orders()  # only if using real API
+        print(f"Market closed ({current_time}) — ending trading session.")
+        message = f"Algo wont be executed today as the markets are closed"
+        send_alert_to_all(message, receiver_chat_id, bot_token)
+        break
 
-#         current_time = datetime.datetime.now()
-#         print(f"Scanning        {name} {current_time}")
+    all_ltp = tsl.get_ltp_data(names=watchlist)
+    for name in watchlist:
 
-#         try:
-#             chart = tsl.get_historical_data(
-#                 tradingsymbol=name, exchange="NSE", timeframe="5"
-#             )
-#             chart["rsi"] = talib.RSI(chart["close"], timeperiod=14)
-#             cc = chart.iloc[-2]
+        orderbook_df = pd.DataFrame(orderbook).T
+        live_Trading.range("A1").value = orderbook_df
 
-#             # buy entry conditions
-#             bc1 = cc["rsi"] > 45
-#             bc2 = orderbook[name]["traded"] is None
-#         except Exception as e:
-#             print(e)
-#             continue
+        completed_orders_df = pd.DataFrame(completed_orders)
+        completed_orders_sheet.range("A1").value = completed_orders_df
 
-#         if bc1 and bc2:
-#             print("buy ", name, "\t")
+        current_time = datetime.datetime.now()
+        print(f"Scanning        {name} {current_time}")
 
-#             margin_avialable = tsl.get_balance()
-#             margin_required = cc["close"] / 4.5
+        try:
+            chart = tsl.get_historical_data(
+                tradingsymbol=name, exchange="NSE", timeframe="5"
+            )
+            chart["rsi"] = talib.RSI(chart["close"], timeperiod=14)
+            cc = chart.iloc[-2]
 
-#             if margin_avialable < margin_required:
-#                 print(
-#                     f"Less margin, not taking order : margin_avialable is {margin_avialable} and margin_required is {margin_required} for {name}"
-#                 )
-#                 continue
+            # buy entry conditions
+            bc1 = cc["rsi"] > 45
+            bc2 = orderbook[name]["traded"] is None
+        except Exception as e:
+            print(e)
+            continue
 
-#             orderbook[name]["name"] = name
-#             orderbook[name]["date"] = str(current_time.date())
-#             orderbook[name]["entry_time"] = str(current_time.time())[:8]
-#             orderbook[name]["buy_sell"] = "BUY"
-#             orderbook[name]["qty"] = 1
+        if bc1 and bc2:
+            print("buy ", name, "\t")
 
-#             try:
+            margin_avialable = tsl.get_balance()
+            margin_required = cc["close"] / 4.5
 
-#                 # entry_orderid = tsl.order_placement(
-#                 #     tradingsymbol=name,
-#                 #     exchange="NSE",
-#                 #     quantity=orderbook[name]["qty"],
-#                 #     price=0,
-#                 #     trigger_price=0,
-#                 #     order_type="MARKET",
-#                 #     transaction_type="BUY",
-#                 #     trade_type="MIS",
-#                 # )
-#                 orderbook[name]["entry_orderid"] = "1234"
-#                 # orderbook[name]["entry_price"] = tsl.get_executed_price(
-#                 #     orderid=orderbook[name]["entry_orderid"]
-#                 # )
-#                 orderbook[name]["entry_price"] = "1"
+            # if margin_avialable < margin_required:
+            #     print(
+            #         f"Less margin, not taking order : margin_avialable is {margin_avialable} and margin_required is {margin_required} for {name}"
+            #     )
+            #     continue
 
-#                 orderbook[name]["tg"] = round(
-#                     orderbook[name]["entry_price"] * 1.002, 1
-#                 )  # 1.01
-#                 orderbook[name]["sl"] = round(
-#                     orderbook[name]["entry_price"] * 0.998, 1
-#                 )  # 99
-#                 # sl_orderid = tsl.order_placement(
-#                 #     tradingsymbol=name,
-#                 #     exchange="NSE",
-#                 #     quantity=orderbook[name]["qty"],
-#                 #     price=0,
-#                 #     trigger_price=orderbook[name]["sl"],
-#                 #     order_type="STOPMARKET",
-#                 #     transaction_type="SELL",
-#                 #     trade_type="MIS",
-#                 # )
-#                 orderbook[name]["sl_orderid"] = "1234"
-#                 orderbook[name]["traded"] = "yes"
+            orderbook[name]["name"] = name
+            orderbook[name]["date"] = str(current_time.date())
+            orderbook[name]["entry_time"] = str(current_time.time())[:8]
+            orderbook[name]["buy_sell"] = "BUY"
+            orderbook[name]["qty"] = 1
 
-#                 message = "\n".join(
-#                     f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
-#                 )
-#                 message = f"Entry_done {name} \n\n {message}"
-#                 for reciever in receiver_chat_id:
-#                     tsl.send_telegram_alert(
-#                         message=message, receiver_chat_id=reciever, bot_token=bot_token
-#                     )
+            try:
 
-#             except Exception as e:
-#                 print(e)
-#                 pdb.set_trace(header="error in entry order")
+                #                 # entry_orderid = tsl.order_placement(
+                #                 #     tradingsymbol=name,
+                #                 #     exchange="NSE",
+                #                 #     quantity=orderbook[name]["qty"],
+                #                 #     price=0,
+                #                 #     trigger_price=0,
+                #                 #     order_type="MARKET",
+                #                 #     transaction_type="BUY",
+                #                 #     trade_type="MIS",
+                #                 # )
+                #                 orderbook[name]["entry_orderid"] = "1234"
+                #                 # orderbook[name]["entry_price"] = tsl.get_executed_price(
+                #                 #     orderid=orderbook[name]["entry_orderid"]
+                #                 # )
+                orderbook[name]["entry_price"] = cc["close"]
 
-#         if orderbook[name]["traded"] == "yes":
-#             bought = orderbook[name]["buy_sell"] == "BUY"
+                orderbook[name]["tg"] = round(
+                    orderbook[name]["entry_price"] * 1.002, 1
+                )  # 1.01
+                orderbook[name]["sl"] = round(
+                    orderbook[name]["entry_price"] * 0.998, 1
+                )  # 99
+                #                 # sl_orderid = tsl.order_placement(
+                #                 #     tradingsymbol=name,
+                #                 #     exchange="NSE",
+                #                 #     quantity=orderbook[name]["qty"],
+                #                 #     price=0,
+                #                 #     trigger_price=orderbook[name]["sl"],
+                #                 #     order_type="STOPMARKET",
+                #                 #     transaction_type="SELL",
+                #                 #     trade_type="MIS",
+                #                 # )
+                orderbook[name]["sl_orderid"] = "1234"
+                orderbook[name]["traded"] = "yes"
 
-#             if bought:
+                message = "\n".join(
+                    f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
+                )
+                message = f"Entry_done {name} \n\n {message}"
+                send_alert_to_all(message, receiver_chat_id, bot_token)
 
-#                 try:
-#                     ltp = all_ltp[name]
-#                     sl_hit = (
-#                         tsl.get_order_status(orderid=orderbook[name]["sl_orderid"])
-#                         == "TRADED"
-#                     )
-#                     tg_hit = ltp > orderbook[name]["tg"]
-#                 except Exception as e:
-#                     print(e)
-#                     pdb.set_trace(header="error in sl order cheking")
+            except Exception as e:
+                print(e)
+                pdb.set_trace(header="error in entry order")
 
-#                 if sl_hit:
+        if orderbook[name]["traded"] == "yes":
+            bought = orderbook[name]["buy_sell"] == "BUY"
 
-#                     try:
-#                         orderbook[name]["exit_time"] = str(current_time.time())[:8]
-#                         orderbook[name]["exit_price"] = tsl.get_executed_price(
-#                             orderid=orderbook[name]["sl_orderid"]
-#                         )
-#                         orderbook[name]["pnl"] = round(
-#                             (
-#                                 orderbook[name]["exit_price"]
-#                                 - orderbook[name]["entry_price"]
-#                             )
-#                             * orderbook[name]["qty"],
-#                             1,
-#                         )
-#                         orderbook[name]["remark"] = "Bought_SL_hit"
+            if bought:
 
-#                         message = "\n".join(
-#                             f"'{key}': {repr(value)}"
-#                             for key, value in orderbook[name].items()
-#                         )
-#                         message = f"SL_HIT {name} \n\n {message}"
-#                         tsl.send_telegram_alert(
-#                             message=message,
-#                             receiver_chat_id=receiver_chat_id,
-#                             bot_token=bot_token,
-#                         )
+                try:
+                    ltp = all_ltp[name]
+                    # sl_hit = (
+                    #     tsl.get_order_status(orderid=orderbook[name]["sl_orderid"])
+                    #     == "TRADED"
+                    # )
+                    sl_hit = ltp < orderbook[name]["sl"]
+                    tg_hit = ltp > orderbook[name]["tg"]
+                except Exception as e:
+                    print(e)
+                    pdb.set_trace(header="error in sl order cheking")
 
-#                         if reentry == "yes":
-#                             completed_orders.append(orderbook[name])
-#                             orderbook[name] = None
-#                     except Exception as e:
-#                         print(e)
-#                         pdb.set_trace(header="error in sl_hit")
+                if sl_hit:
 
-#                 if tg_hit:
+                    try:
+                        orderbook[name]["exit_time"] = str(current_time.time())[:8]
+                        # orderbook[name]["exit_price"] = tsl.get_executed_price(
+                        #     orderid=orderbook[name]["sl_orderid"]
+                        # )
+                        orderbook[name]["exit_price"] = ltp
+                        orderbook[name]["pnl"] = round(
+                            (
+                                orderbook[name]["exit_price"]
+                                - orderbook[name]["entry_price"]
+                            )
+                            * orderbook[name]["qty"],
+                            1,
+                        )
+                        orderbook[name]["remark"] = "Bought_SL_hit"
 
-#                     try:
-#                         tsl.cancel_order(OrderID=orderbook[name]["sl_orderid"])
-#                         time.sleep(2)
-#                         square_off_buy_order = tsl.order_placement(
-#                             tradingsymbol=orderbook[name]["name"],
-#                             exchange="NSE",
-#                             quantity=orderbook[name]["qty"],
-#                             price=0,
-#                             trigger_price=0,
-#                             order_type="MARKET",
-#                             transaction_type="SELL",
-#                             trade_type="MIS",
-#                         )
+                        message = "\n".join(
+                            f"'{key}': {repr(value)}"
+                            for key, value in orderbook[name].items()
+                        )
+                        message = f"SL_HIT {name} \n\n {message}"
+                        send_alert_to_all(
+                            message,
+                            receiver_chat_id,
+                            bot_token,
+                        )
 
-#                         orderbook[name]["exit_time"] = str(current_time.time())[:8]
-#                         orderbook[name]["exit_price"] = tsl.get_executed_price(
-#                             orderid=square_off_buy_order
-#                         )
-#                         orderbook[name]["pnl"] = (
-#                             orderbook[name]["exit_price"]
-#                             - orderbook[name]["entry_price"]
-#                         ) * orderbook[name]["qty"]
-#                         orderbook[name]["remark"] = "Bought_TG_hit"
+                        if reentry == "yes":
+                            completed_orders.append(orderbook[name])
+                            orderbook[name] = None
+                    except Exception as e:
+                        print(e)
+                        pdb.set_trace(header="error in sl_hit")
 
-#                         message = "\n".join(
-#                             f"'{key}': {repr(value)}"
-#                             for key, value in orderbook[name].items()
-#                         )
-#                         message = f"TG_HIT {name} \n\n {message}"
-#                         tsl.send_telegram_alert(
-#                             message=message,
-#                             receiver_chat_id=receiver_chat_id,
-#                             bot_token=bot_token,
-#                         )
+                if tg_hit:
 
-#                         if reentry == "yes":
-#                             completed_orders.append(orderbook[name])
-#                             orderbook[name] = None
+                    try:
+                        # tsl.cancel_order(OrderID=orderbook[name]["sl_orderid"])
+                        # time.sleep(2)
+                        # square_off_buy_order = tsl.order_placement(
+                        #     tradingsymbol=orderbook[name]["name"],
+                        #     exchange="NSE",
+                        #     quantity=orderbook[name]["qty"],
+                        #     price=0,
+                        #     trigger_price=0,
+                        #     order_type="MARKET",
+                        #     transaction_type="SELL",
+                        #     trade_type="MIS",
+                        # )
 
-#                         winsound.Beep(1500, 10000)
+                        orderbook[name]["exit_time"] = str(current_time.time())[:8]
+                        # orderbook[name]["exit_price"] = tsl.get_executed_price(
+                        #     orderid=square_off_buy_order
+                        # )
+                        orderbook[name]["exit_price"] = ltp
+                        orderbook[name]["pnl"] = (
+                            orderbook[name]["exit_price"]
+                            - orderbook[name]["entry_price"]
+                        ) * orderbook[name]["qty"]
+                        orderbook[name]["remark"] = "Bought_TG_hit"
 
-#                     except Exception as e:
-#                         print(e)
-#                         pdb.set_trace(header="error in tg_hit")
+                        message = "\n".join(
+                            f"'{key}': {repr(value)}"
+                            for key, value in orderbook[name].items()
+                        )
+                        message = f"TG_HIT {name} \n\n {message}"
+                        send_alert_to_all(
+                            message,
+                            receiver_chat_id,
+                            bot_token,
+                        )
+
+                        if reentry == "yes":
+                            completed_orders.append(orderbook[name])
+                            orderbook[name] = None
+
+                        # winsound.Beep(1500, 10000)
+
+                    except Exception as e:
+                        print(e)
+                        pdb.set_trace(header="error in tg_hit")
