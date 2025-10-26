@@ -28,7 +28,7 @@ single_order = {
     "traded": None,
 }
 orderbook = {}
-wb = xw.Book("Live Trade Data.xlsx")
+wb = xw.Book("AlgoTrade.xlsx")
 live_Trading = wb.sheets["Live_Trading"]
 completed_orders_sheet = wb.sheets["completed_orders"]
 reentry = "yes"  # "yes/no"
@@ -43,7 +43,7 @@ for name in watchlist:
 
 current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
-message = f"[{time_message}]\n Algo is waiting to be started"
+message = f"[{time_message}]\n Welcome to algo trading"
 send_alert_to_all(message, receiver_chat_id, bot_token)
 
 while True:
@@ -54,20 +54,20 @@ while True:
     market_open = time(9, 15)
     market_close = time(15, 15)
 
-    if current_time < market_open:
-        print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
-        time.sleep(1)
-        continue
+    # if current_time < market_open:
+    #     print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
+    #     time.sleep(1)
+    #     continue
 
-    if current_time > market_close:
-        # Cancel all pending (simulated) orders
-        # order_details = tsl.cancel_all_orders()  # only if using real API
-        print(f"Market closed ({current_time}) — ending trading session.")
-        message = (
-            f"[{time_message}]\n Algo wont be executed today as the markets are closed"
-        )
-        send_alert_to_all(message, receiver_chat_id, bot_token)
-        break
+    # if current_time > market_close:
+    #     # Cancel all pending (simulated) orders
+    #     # order_details = tsl.cancel_all_orders()  # only if using real API
+    #     print(f"Market closed ({current_time}) — ending trading session.")
+    #     message = (
+    #         f"[{time_message}]\n Algo wont be executed today as the markets are closed"
+    #     )
+    #     send_alert_to_all(message, receiver_chat_id, bot_token)
+    #     break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
@@ -78,7 +78,7 @@ while True:
         completed_orders_df = pd.DataFrame(completed_orders)
         completed_orders_sheet.range("A1").value = completed_orders_df
 
-        current_time = datetime.datetime.now()
+        current_time = datetime.now()
         print(f"Scanning        {name} {current_time}")
 
         try:
