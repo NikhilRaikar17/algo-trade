@@ -3,7 +3,8 @@ import talib
 
 # import pandas_ta as ta
 import xlwings as xw
-import winsound
+
+# import winsound
 from dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
 import pdb
 import time
