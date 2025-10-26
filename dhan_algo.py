@@ -7,7 +7,7 @@ import xlwings as xw
 # import winsound
 from dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
 import pdb
-import time
+import time as tim
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from telegram import send_alert_to_all
@@ -56,21 +56,21 @@ while True:
     market_open = time(9, 15)
     market_close = time(15, 15)
 
-    if current_time < market_open:
-        print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
-        time.sleep(1)
-        continue
+    # if current_time < market_open:
+    #     print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
+    #     tim.sleep(1)
+    #     continue
 
-    if current_time > market_close:
-        # Cancel all pending (simulated) orders
-        # order_details = tsl.cancel_all_orders()  # only if using real API
-        print(f"Market closed ({current_time}) — ending trading session.")
-        message = f"[{time_message}]\n Algo finished doing its trades, reports will be generated"
-        send_alert_to_all(message, receiver_chat_id, bot_token)
-        wb.save()
-        send_algo_report()
-        print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
-        break
+    # if current_time > market_close:
+    #     # Cancel all pending (simulated) orders
+    #     # order_details = tsl.cancel_all_orders()  # only if using real API
+    #     print(f"Market closed ({current_time}) — ending trading session.")
+    #     message = f"[{time_message}]\n Algo finished doing its trades, reports will be generated"
+    #     send_alert_to_all(message, receiver_chat_id, bot_token)
+    #     wb.save()
+    #     send_algo_report()
+    #     print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
+    #     break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
@@ -89,11 +89,20 @@ while True:
                 tradingsymbol=name, exchange="NSE", timeframe="5"
             )
             chart["rsi"] = talib.RSI(chart["close"], timeperiod=14)
+
+            upper, middle, lower = talib.BBANDS(
+                chart["close"], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0
+            )
+            chart["upper"] = upper
+            chart["middle"] = middle
+            chart["lower"] = lower
             cc = chart.iloc[-2]
 
             # buy entry conditions
-            bc1 = cc["rsi"] > 45
+            bc1 = cc["rsi"] > 55
             bc2 = orderbook[name]["traded"] is None
+            bc3 = cc["close"] < cc["lower"]
+
         except Exception as e:
             print(e)
             continue
@@ -161,7 +170,7 @@ while True:
 
             except Exception as e:
                 print(e)
-                #pdb.set_trace(header="error in entry order")
+                # pdb.set_trace(header="error in entry order")
 
         if orderbook[name]["traded"] == "yes":
             bought = orderbook[name]["buy_sell"] == "BUY"
@@ -178,7 +187,7 @@ while True:
                     tg_hit = ltp > orderbook[name]["tg"]
                 except Exception as e:
                     print(e)
-                    #pdb.set_trace(header="error in sl order cheking")
+                    # pdb.set_trace(header="error in sl order cheking")
 
                 if sl_hit:
 
@@ -214,13 +223,13 @@ while True:
                             orderbook[name] = None
                     except Exception as e:
                         print(e)
-                        #pdb.set_trace(header="error in sl_hit")
+                        # pdb.set_trace(header="error in sl_hit")
 
                 if tg_hit:
 
                     try:
                         # tsl.cancel_order(OrderID=orderbook[name]["sl_orderid"])
-                        # time.sleep(2)
+                        # tim.sleep(2)
                         # square_off_buy_order = tsl.order_placement(
                         #     tradingsymbol=orderbook[name]["name"],
                         #     exchange="NSE",
@@ -262,4 +271,4 @@ while True:
 
                     except Exception as e:
                         print(e)
-                        #pdb.set_trace(header="error in tg_hit")
+                        # pdb.set_trace(header="error in tg_hit")
