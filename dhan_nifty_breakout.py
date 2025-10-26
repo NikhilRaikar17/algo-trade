@@ -12,6 +12,7 @@ from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from telegram import send_alert_to_all
 from dhan_watchlist import watchlist
+from send_email import send_algo_report
 
 
 single_order = {
@@ -55,20 +56,21 @@ while True:
     market_open = time(9, 15)
     market_close = time(15, 15)
 
-    # if current_time < market_open:
-    #     print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
-    #     time.sleep(1)
-    #     continue
+    if current_time < market_open:
+        print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
+        time.sleep(1)
+        continue
 
-    # if current_time > market_close:
-    #     # Cancel all pending (simulated) orders
-    #     # order_details = tsl.cancel_all_orders()  # only if using real API
-    #     print(f"Market closed ({current_time}) — ending trading session.")
-    #     message = (
-    #         f"[{time_message}]\n Algo wont be executed today as the markets are closed"
-    #     )
-    #     send_alert_to_all(message, receiver_chat_id, bot_token)
-    #     break
+    if current_time > market_close:
+        # Cancel all pending (simulated) orders
+        # order_details = tsl.cancel_all_orders()  # only if using real API
+        print(f"Market closed ({current_time}) — ending trading session.")
+        message = f"[{time_message}]\n Algo finished doing its trades, reports will be generated"
+        send_alert_to_all(message, receiver_chat_id, bot_token)
+        wb.save()
+        send_algo_report()
+        print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
+        break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
