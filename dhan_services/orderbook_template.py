@@ -12,6 +12,7 @@ def get_empty_order():
         "pnl": None,
         "remark": None,
         "traded": None,
+        "direction": None,
     }
 
 

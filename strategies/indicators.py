@@ -22,3 +22,12 @@ def should_buy(cc, order):
     bc3 = cc["close"] < cc["lower"]
 
     return bc1 and bc2
+
+
+def should_short(cc, order):
+
+    sc1 = cc["rsi"] < 45
+    sc2 = order["traded"] is None
+    sc3 = cc["close"] > cc["upper"]
+
+    return sc1 and sc2

@@ -17,8 +17,12 @@ from dhan_services.market_opennings import market_session_status
 from dhan_services.excel_reporter import ExcelReporter
 from dhan_services.orderbook_template import init_orderbook
 from dhan_services.orderbook_template import get_empty_order
-from strategies.indicators import apply_indicators, should_buy
-from dhan_services.execution import execute_buy_entry, check_and_exit_position
+from strategies.indicators import apply_indicators, should_buy, should_short
+from dhan_services.execution import (
+    execute_buy_entry,
+    check_and_exit_position,
+    execute_sell_entry,
+)
 from dhan_login import PAPER_TRADING
 
 
@@ -108,6 +112,16 @@ while True:
             except Exception as e:
                 print(e)
                 pdb.set_trace(header="error in entry order")
+
+        elif should_short(cc, orderbook[name]):
+            execute_sell_entry(
+                tsl=tsl,
+                name=name,
+                cc=cc,
+                orderbook=orderbook,
+                current_time=current_time,
+                paper_trading=PAPER_TRADING,
+            )
 
         ltp = all_ltp.get(name)
 
