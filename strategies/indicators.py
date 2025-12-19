@@ -12,3 +12,13 @@ def apply_indicators(chart):
     chart["lower"] = lower
 
     return chart
+
+
+def should_buy(cc, order):
+    # if order["traded"] is not None:
+    #     return False
+    bc1 = cc["rsi"] > 55
+    bc2 = order["traded"] is None
+    bc3 = cc["close"] < cc["lower"]
+
+    return bc1 and bc2

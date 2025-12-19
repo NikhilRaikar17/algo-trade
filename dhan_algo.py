@@ -17,7 +17,8 @@ from dhan_services.market_opennings import market_session_status
 from dhan_services.excel_reporter import ExcelReporter
 from dhan_services.orderbook_template import init_orderbook
 from dhan_services.orderbook_template import get_empty_order
-from strategies.indicators import apply_indicators
+from strategies.indicators import apply_indicators, should_buy
+from dhan_services.execution import execute_buy_entry, check_and_exit_position
 
 
 excel = ExcelReporter()
@@ -71,17 +72,14 @@ while True:
             cc = chart.iloc[-2]
 
             # buy entry conditions
-            bc1 = cc["rsi"] > 55
-            bc2 = orderbook[name]["traded"] is None
-            bc3 = cc["close"] < cc["lower"]
 
         except Exception as e:
             print(e)
             raise Exception("Dont know") from e
             continue
 
-        if bc1 and bc2:
-            print("buy ", name, "\t")
+        if should_buy(cc, orderbook[name]):
+            print("BUY ", name, "\t")
 
             margin_avialable = tsl.get_balance()
             margin_required = cc["close"] / 4.5
@@ -92,48 +90,15 @@ while True:
             #     )
             #     continue
 
-            orderbook[name]["name"] = name
-            orderbook[name]["date"] = str(current_time.date())
-            orderbook[name]["entry_time"] = str(current_time.time())[:8]
-            orderbook[name]["buy_sell"] = "BUY"
-            orderbook[name]["qty"] = 1
-
             try:
 
-                #                 # entry_orderid = tsl.order_placement(
-                #                 #     tradingsymbol=name,
-                #                 #     exchange="NSE",
-                #                 #     quantity=orderbook[name]["qty"],
-                #                 #     price=0,
-                #                 #     trigger_price=0,
-                #                 #     order_type="MARKET",
-                #                 #     transaction_type="BUY",
-                #                 #     trade_type="MIS",
-                #                 # )
-                #                 orderbook[name]["entry_orderid"] = "1234"
-                #                 # orderbook[name]["entry_price"] = tsl.get_executed_price(
-                #                 #     orderid=orderbook[name]["entry_orderid"]
-                #                 # )
-                orderbook[name]["entry_price"] = cc["close"]
-
-                orderbook[name]["tg"] = round(
-                    orderbook[name]["entry_price"] * 1.002, 1
-                )  # 1.01
-                orderbook[name]["sl"] = round(
-                    orderbook[name]["entry_price"] * 0.998, 1
-                )  # 99
-                #                 # sl_orderid = tsl.order_placement(
-                #                 #     tradingsymbol=name,
-                #                 #     exchange="NSE",
-                #                 #     quantity=orderbook[name]["qty"],
-                #                 #     price=0,
-                #                 #     trigger_price=orderbook[name]["sl"],
-                #                 #     order_type="STOPMARKET",
-                #                 #     transaction_type="SELL",
-                #                 #     trade_type="MIS",
-                #                 # )
-                orderbook[name]["sl_orderid"] = "1234"
-                orderbook[name]["traded"] = "yes"
+                order = execute_buy_entry(
+                    tsl=tsl,
+                    name=name,
+                    cc=cc,
+                    orderbook=orderbook,
+                    current_time=current_time,
+                )
 
                 message = "\n".join(
                     f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
