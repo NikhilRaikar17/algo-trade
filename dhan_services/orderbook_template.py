@@ -7,7 +7,6 @@ def get_empty_order():
         "buy_sell": None,
         "qty": None,
         "sl": None,
-        "tg": None,
         "exit_time": None,
         "exit_price": None,
         "pnl": None,
