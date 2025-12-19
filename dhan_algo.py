@@ -30,31 +30,31 @@ reentry = "yes"
 current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
 message = f"[{time_message}]\n Welcome to algo trading"
-# send_alert_to_all(message, receiver_chat_id, bot_token)
+send_alert_to_all(message, receiver_chat_id, bot_token)
 
 last_status = None
 while True:
 
-    # status, now, ref_time = market_session_status()
+    status, now, ref_time = market_session_status()
 
-    # if status != last_status:
-    #     if status == "PRE_MARKET":
-    #         print(f"⏳ Market not open yet. Current time: {now.strftime('%H:%M:%S')}")
-    #     elif status == "OPEN":
-    #         print(f"✅ Market is OPEN. Current time: {now.strftime('%H:%M:%S')}")
-    #     elif status == "POST_MARKET":
-    #         print(f"🔴 Market is CLOSED. Current time: {now.strftime('%H:%M:%S')}")
+    if status != last_status:
+        if status == "PRE_MARKET":
+            print(f"⏳ Market not open yet. Current time: {now.strftime('%H:%M:%S')}")
+        elif status == "OPEN":
+            print(f"✅ Market is OPEN. Current time: {now.strftime('%H:%M:%S')}")
+        elif status == "POST_MARKET":
+            print(f"🔴 Market is CLOSED. Current time: {now.strftime('%H:%M:%S')}")
 
-    #     last_status = status
+        last_status = status
 
-    # if status == "PRE_MARKET":
-    #     sleep_seconds = min((ref_time - now).seconds, 60)
-    #     tim.sleep(sleep_seconds)
-    #     continue
+    if status == "PRE_MARKET":
+        sleep_seconds = min((ref_time - now).seconds, 60)
+        tim.sleep(sleep_seconds)
+        continue
 
-    # if status == "POST_MARKET":
-    #     print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
-    #     break
+    if status == "POST_MARKET":
+        print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
+        break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
@@ -71,12 +71,9 @@ while True:
             chart = apply_indicators(chart)
             cc = chart.iloc[-2]
 
-            # buy entry conditions
-
         except Exception as e:
             print(e)
             raise Exception("Dont know") from e
-            continue
 
         if should_buy(cc, orderbook[name]):
             print("BUY ", name, "\t")
