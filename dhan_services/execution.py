@@ -5,9 +5,7 @@ from dhan_services.orderbook_template import get_empty_order
 from dhan_login import PAPER_TRADING
 
 
-def execute_buy_entry(
-    tsl, name, cc, orderbook, current_time, paper_trading=PAPER_TRADING
-):
+def execute_buy_entry(tsl, name, cc, orderbook, current_time, paper_trading=True):
     """
     Executes BUY entry:
     - Places market order
@@ -72,12 +70,7 @@ def execute_buy_entry(
 
 
 def check_and_exit_position(
-    tsl,
-    name,
-    ltp,
-    orderbook,
-    completed_orders,
-    reentry,
+    tsl, name, ltp, orderbook, completed_orders, reentry, paper_trading=True
 ):
     order = orderbook[name]
 
@@ -87,8 +80,12 @@ def check_and_exit_position(
     if order["buy_sell"] != "BUY":
         return None
 
-    sl_hit = tsl.get_order_status(orderid=order["sl_orderid"]) == "TRADED"
-    tg_hit = ltp > order["tg"]
+    if paper_trading:
+        sl_hit = ltp < order["sl"]
+        tg_hit = ltp > order["tg"]
+    else:
+        sl_hit = tsl.get_order_status(orderid=order["sl_orderid"]) == "TRADED"
+        tg_hit = ltp > order["tg"]
 
     if not (sl_hit or tg_hit):
         return None
@@ -98,7 +95,10 @@ def check_and_exit_position(
     # ---- SL EXIT ----
     if sl_hit:
         order["exit_time"] = str(datetime.now().time())[:8]
-        order["exit_price"] = tsl.get_executed_price(orderid=order["sl_orderid"])
+        if paper_trading:
+            order["exit_price"] = ltp
+        else:
+            order["exit_price"] = tsl.get_executed_price(orderid=order["sl_orderid"])
         order["pnl"] = round(
             (order["exit_price"] - order["entry_price"]) * order["qty"], 1
         )
@@ -107,23 +107,26 @@ def check_and_exit_position(
 
     # ---- TG EXIT ----
     if tg_hit:
-        # tsl.cancel_order(OrderID=order["sl_orderid"])
-        # time.sleep(2)
+        if not paper_trading:
+            tsl.cancel_order(OrderID=order["sl_orderid"])
+            time.sleep(2)
 
-        # square_off_id = tsl.order_placement(
-        #     tradingsymbol=order["name"],
-        #     exchange="NSE",
-        #     quantity=order["qty"],
-        #     price=0,
-        #     trigger_price=0,
-        #     order_type="MARKET",
-        #     transaction_type="SELL",
-        #     trade_type="MIS",
-        # )
-        square_off_id = "1234"
+            square_off_id = tsl.order_placement(
+                tradingsymbol=order["name"],
+                exchange="NSE",
+                quantity=order["qty"],
+                price=0,
+                trigger_price=0,
+                order_type="MARKET",
+                transaction_type="SELL",
+                trade_type="MIS",
+            )
+
+            order["exit_price"] = tsl.get_executed_price(orderid=square_off_id)
+        else:
+            order["exit_price"] = ltp
 
         order["exit_time"] = str(datetime.now().time())[:8]
-        order["exit_price"] = tsl.get_executed_price(orderid=square_off_id)
         order["pnl"] = (order["exit_price"] - order["entry_price"]) * order["qty"]
         order["remark"] = "Bought_TG_hit"
         exit_type = "TG"
