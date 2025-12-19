@@ -14,35 +14,14 @@ from telegram import send_alert_to_all
 from dhan_watchlist import watchlist
 from send_email import send_algo_report
 from dhan_services.market_opennings import market_session_status
+from dhan_services.excel_reporter import ExcelReporter
+from dhan_services.orderbook_template import init_orderbook
 
 
-single_order = {
-    "name": None,
-    "date": None,
-    "entry_time": None,
-    "entry_price": None,
-    "buy_sell": None,
-    "qty": None,
-    "sl": None,
-    "exit_time": None,
-    "exit_price": None,
-    "pnl": None,
-    "remark": None,
-    "traded": None,
-}
-orderbook = {}
-wb = xw.Book("AlgoTrade.xlsx")
-live_Trading = wb.sheets["Live_Trading"]
-completed_orders_sheet = wb.sheets["completed_orders"]
-reentry = "yes"  # "yes/no"
+excel = ExcelReporter()
+orderbook = init_orderbook(watchlist)
 completed_orders = []
-
-
-live_Trading.range("A2:Z100").value = None
-completed_orders_sheet.range("A2:Z100").value = None
-
-for name in watchlist:
-    orderbook[name] = single_order.copy()
+last_status = None
 
 current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
@@ -75,12 +54,8 @@ while True:
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
-
-        orderbook_df = pd.DataFrame(orderbook).T
-        live_Trading.range("A1").value = orderbook_df
-
-        completed_orders_df = pd.DataFrame(completed_orders)
-        completed_orders_sheet.range("A1").value = completed_orders_df
+        excel.update_live_orders(orderbook)
+        excel.update_completed_orders(completed_orders)
 
         current_time = datetime.now()
         print(f"Scanning        {name} {current_time}")
