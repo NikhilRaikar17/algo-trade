@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from telegram import send_alert_to_all
 from dhan_watchlist import watchlist
 from send_email import send_algo_report
+from dhan_services.market_opennings import market_session_status
 
 
 single_order = {
@@ -46,31 +47,31 @@ for name in watchlist:
 current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
 message = f"[{time_message}]\n Welcome to algo trading"
-send_alert_to_all(message, receiver_chat_id, bot_token)
+# send_alert_to_all(message, receiver_chat_id, bot_token)
 
+last_status = None
 while True:
 
-    print("starting while Loop \n\n")
+    status, now, ref_time = market_session_status()
 
-    # Market open and close times in IST
-    market_open = time(9, 15)
-    market_close = time(15, 15)
+    if status != last_status:
+        if status == "PRE_MARKET":
+            print(f"⏳ Market not open yet. Current time: {now.strftime('%H:%M:%S')}")
+        elif status == "OPEN":
+            print(f"✅ Market is OPEN. Current time: {now.strftime('%H:%M:%S')}")
+        elif status == "POST_MARKET":
+            print(f"🔴 Market is CLOSED. Current time: {now.strftime('%H:%M:%S')}")
 
-    # if current_time < market_open:
-    #     print(f"Market not open yet ({current_time}), waiting until 09:15 IST")
-    #     tim.sleep(1)
-    #     continue
+        last_status = status
 
-    # if current_time > market_close:
-    #     # Cancel all pending (simulated) orders
-    #     # order_details = tsl.cancel_all_orders()  # only if using real API
-    #     print(f"Market closed ({current_time}) — ending trading session.")
-    #     message = f"[{time_message}]\n Algo finished doing its trades, reports will be generated"
-    #     send_alert_to_all(message, receiver_chat_id, bot_token)
-    #     wb.save()
-    #     send_algo_report()
-    #     print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
-    #     break
+    if status == "PRE_MARKET":
+        sleep_seconds = min((ref_time - now).seconds, 60)
+        tim.sleep(sleep_seconds)
+        continue
+
+    if status == "POST_MARKET":
+        print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
+        break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
@@ -105,6 +106,7 @@ while True:
 
         except Exception as e:
             print(e)
+            raise Exception("Dont know") from e
             continue
 
         if bc1 and bc2:
@@ -170,7 +172,7 @@ while True:
 
             except Exception as e:
                 print(e)
-                # pdb.set_trace(header="error in entry order")
+                pdb.set_trace(header="error in entry order")
 
         if orderbook[name]["traded"] == "yes":
             bought = orderbook[name]["buy_sell"] == "BUY"
@@ -187,7 +189,7 @@ while True:
                     tg_hit = ltp > orderbook[name]["tg"]
                 except Exception as e:
                     print(e)
-                    # pdb.set_trace(header="error in sl order cheking")
+                    pdb.set_trace(header="error in sl order cheking")
 
                 if sl_hit:
 
@@ -223,7 +225,7 @@ while True:
                             orderbook[name] = None
                     except Exception as e:
                         print(e)
-                        # pdb.set_trace(header="error in sl_hit")
+                        pdb.set_trace(header="error in sl_hit")
 
                 if tg_hit:
 
@@ -271,4 +273,4 @@ while True:
 
                     except Exception as e:
                         print(e)
-                        # pdb.set_trace(header="error in tg_hit")
+                        pdb.set_trace(header="error in tg_hit")
