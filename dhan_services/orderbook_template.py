@@ -1,5 +1,5 @@
-def init_orderbook(watchlist):
-    template = {
+def get_empty_order():
+    return {
         "name": None,
         "date": None,
         "entry_time": None,
@@ -14,4 +14,7 @@ def init_orderbook(watchlist):
         "remark": None,
         "traded": None,
     }
-    return {name: template.copy() for name in watchlist}
+
+
+def init_orderbook(watchlist):
+    return {name: get_empty_order() for name in watchlist}

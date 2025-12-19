@@ -16,12 +16,15 @@ from send_email import send_algo_report
 from dhan_services.market_opennings import market_session_status
 from dhan_services.excel_reporter import ExcelReporter
 from dhan_services.orderbook_template import init_orderbook
+from dhan_services.orderbook_template import get_empty_order
+from strategies.indicators import apply_indicators
 
 
 excel = ExcelReporter()
 orderbook = init_orderbook(watchlist)
 completed_orders = []
 last_status = None
+reentry = "yes"
 
 current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
@@ -31,26 +34,26 @@ message = f"[{time_message}]\n Welcome to algo trading"
 last_status = None
 while True:
 
-    status, now, ref_time = market_session_status()
+    # status, now, ref_time = market_session_status()
 
-    if status != last_status:
-        if status == "PRE_MARKET":
-            print(f"⏳ Market not open yet. Current time: {now.strftime('%H:%M:%S')}")
-        elif status == "OPEN":
-            print(f"✅ Market is OPEN. Current time: {now.strftime('%H:%M:%S')}")
-        elif status == "POST_MARKET":
-            print(f"🔴 Market is CLOSED. Current time: {now.strftime('%H:%M:%S')}")
+    # if status != last_status:
+    #     if status == "PRE_MARKET":
+    #         print(f"⏳ Market not open yet. Current time: {now.strftime('%H:%M:%S')}")
+    #     elif status == "OPEN":
+    #         print(f"✅ Market is OPEN. Current time: {now.strftime('%H:%M:%S')}")
+    #     elif status == "POST_MARKET":
+    #         print(f"🔴 Market is CLOSED. Current time: {now.strftime('%H:%M:%S')}")
 
-        last_status = status
+    #     last_status = status
 
-    if status == "PRE_MARKET":
-        sleep_seconds = min((ref_time - now).seconds, 60)
-        tim.sleep(sleep_seconds)
-        continue
+    # if status == "PRE_MARKET":
+    #     sleep_seconds = min((ref_time - now).seconds, 60)
+    #     tim.sleep(sleep_seconds)
+    #     continue
 
-    if status == "POST_MARKET":
-        print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
-        break
+    # if status == "POST_MARKET":
+    #     print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
+    #     break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
@@ -64,14 +67,7 @@ while True:
             chart = tsl.get_historical_data(
                 tradingsymbol=name, exchange="NSE", timeframe="5"
             )
-            chart["rsi"] = talib.RSI(chart["close"], timeperiod=14)
-
-            upper, middle, lower = talib.BBANDS(
-                chart["close"], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0
-            )
-            chart["upper"] = upper
-            chart["middle"] = middle
-            chart["lower"] = lower
+            chart = apply_indicators(chart)
             cc = chart.iloc[-2]
 
             # buy entry conditions
@@ -197,7 +193,7 @@ while True:
 
                         if reentry == "yes":
                             completed_orders.append(orderbook[name])
-                            orderbook[name] = None
+                            orderbook[name] = get_empty_order()
                     except Exception as e:
                         print(e)
                         pdb.set_trace(header="error in sl_hit")
@@ -242,7 +238,7 @@ while True:
 
                         if reentry == "yes":
                             completed_orders.append(orderbook[name])
-                            orderbook[name] = None
+                            orderbook[name] = get_empty_order()
 
                         # winsound.Beep(1500, 10000)
 
