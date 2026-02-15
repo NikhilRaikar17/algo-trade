@@ -13,13 +13,14 @@ API_KEY = os.getenv("KITE_API_KEY")
 ACCESS_TOKEN = os.getenv("KITE_ACCESS_TOKEN")
 
 instrument_token = 256265
-symbol = "NIFTY24OCTFUT"   
-lot_size = 50    
+symbol = "NIFTY24OCTFUT"
+lot_size = 50
 
 
 df = pd.DataFrame(columns=["timestamp", "price"])
-trades = []  
-position = None 
+trades = []
+position = None
+
 
 def record_trade(action, price):
     global trades, position
@@ -49,7 +50,6 @@ def on_ticks(ws, ticks):
     tick = ticks[0]
     price = tick["last_price"]
     ts = pd.Timestamp.now()
-
 
     df.loc[len(df)] = [ts, price]
 
@@ -88,6 +88,7 @@ def export_trades():
     filename = f"paper_trades_{datetime.now().strftime('%Y%m%d')}.xlsx"
     df_trades.to_excel(filename, index=False)
     print(f"✅ Trades exported to {filename}")
+
 
 kws = KiteTicker(API_KEY, ACCESS_TOKEN)
 kws.on_ticks = on_ticks

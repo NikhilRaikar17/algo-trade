@@ -22,22 +22,19 @@ to_date = datetime.datetime.now()
 
 try:
     candles = kite.historical_data(
-        instrument_token=instrument_token,
-        from_date=from_date,
-        to_date=to_date,
-        interval="15minute"
+        instrument_token=instrument_token, from_date=from_date, to_date=to_date, interval="15minute"
     )
     print(f"📊 Fetched {len(candles)} candles")
     df = pd.DataFrame(candles)
     print(df)
-    print(df[['close', 'open']])
+    print(df[["close", "open"]])
     print(df[0:5])
-    abc = df.set_index(df['date'])
+    abc = df.set_index(df["date"])
     print(abc)
-    print(abc['2025-09-18 09:15:00+05:30' : '2025-09-18 10:15:00+05:30'])
-    #print(abc.loc['2025-09-18'])
+    print(abc["2025-09-18 09:15:00+05:30":"2025-09-18 10:15:00+05:30"])
+    # print(abc.loc['2025-09-18'])
     print(abc.iloc[-2])
-    print(talib.SMA(df['close'], timeperiod=20))
+    print(talib.SMA(df["close"], timeperiod=20))
     pdb.set_trace()
 except Exception as e:
     print("❌ Error fetching historical data:", e)

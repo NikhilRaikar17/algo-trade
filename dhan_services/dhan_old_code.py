@@ -49,7 +49,6 @@ message = f"[{time_message}]\n Welcome to algo trading"
 send_alert_to_all(message, receiver_chat_id, bot_token)
 
 while True:
-
     print("starting while Loop \n\n")
 
     # Market open and close times in IST
@@ -74,7 +73,6 @@ while True:
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
-
         orderbook_df = pd.DataFrame(orderbook).T
         live_Trading.range("A1").value = orderbook_df
 
@@ -85,9 +83,7 @@ while True:
         print(f"Scanning        {name} {current_time}")
 
         try:
-            chart = tsl.get_historical_data(
-                tradingsymbol=name, exchange="NSE", timeframe="5"
-            )
+            chart = tsl.get_historical_data(tradingsymbol=name, exchange="NSE", timeframe="5")
             chart["rsi"] = talib.RSI(chart["close"], timeperiod=14)
 
             upper, middle, lower = talib.BBANDS(
@@ -126,7 +122,6 @@ while True:
             orderbook[name]["qty"] = 1
 
             try:
-
                 #                 # entry_orderid = tsl.order_placement(
                 #                 #     tradingsymbol=name,
                 #                 #     exchange="NSE",
@@ -143,12 +138,8 @@ while True:
                 #                 # )
                 orderbook[name]["entry_price"] = cc["close"]
 
-                orderbook[name]["tg"] = round(
-                    orderbook[name]["entry_price"] * 1.002, 1
-                )  # 1.01
-                orderbook[name]["sl"] = round(
-                    orderbook[name]["entry_price"] * 0.998, 1
-                )  # 99
+                orderbook[name]["tg"] = round(orderbook[name]["entry_price"] * 1.002, 1)  # 1.01
+                orderbook[name]["sl"] = round(orderbook[name]["entry_price"] * 0.998, 1)  # 99
                 #                 # sl_orderid = tsl.order_placement(
                 #                 #     tradingsymbol=name,
                 #                 #     exchange="NSE",
@@ -176,7 +167,6 @@ while True:
             bought = orderbook[name]["buy_sell"] == "BUY"
 
             if bought:
-
                 try:
                     ltp = all_ltp[name]
                     # sl_hit = (
@@ -190,7 +180,6 @@ while True:
                     # pdb.set_trace(header="error in sl order cheking")
 
                 if sl_hit:
-
                     try:
                         orderbook[name]["exit_time"] = str(current_time.time())[:8]
                         # orderbook[name]["exit_price"] = tsl.get_executed_price(
@@ -198,18 +187,14 @@ while True:
                         # )
                         orderbook[name]["exit_price"] = ltp
                         orderbook[name]["pnl"] = round(
-                            (
-                                orderbook[name]["exit_price"]
-                                - orderbook[name]["entry_price"]
-                            )
+                            (orderbook[name]["exit_price"] - orderbook[name]["entry_price"])
                             * orderbook[name]["qty"],
                             1,
                         )
                         orderbook[name]["remark"] = "Bought_SL_hit"
 
                         message = "\n".join(
-                            f"'{key}': {repr(value)}"
-                            for key, value in orderbook[name].items()
+                            f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
                         )
                         message = f"SL_HIT {name} \n\n {message}"
                         send_alert_to_all(
@@ -226,7 +211,6 @@ while True:
                         # pdb.set_trace(header="error in sl_hit")
 
                 if tg_hit:
-
                     try:
                         # tsl.cancel_order(OrderID=orderbook[name]["sl_orderid"])
                         # tim.sleep(2)
@@ -247,14 +231,12 @@ while True:
                         # )
                         orderbook[name]["exit_price"] = ltp
                         orderbook[name]["pnl"] = (
-                            orderbook[name]["exit_price"]
-                            - orderbook[name]["entry_price"]
+                            orderbook[name]["exit_price"] - orderbook[name]["entry_price"]
                         ) * orderbook[name]["qty"]
                         orderbook[name]["remark"] = "Bought_TG_hit"
 
                         message = "\n".join(
-                            f"'{key}': {repr(value)}"
-                            for key, value in orderbook[name].items()
+                            f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
                         )
                         message = f"TG_HIT {name} \n\n {message}"
                         send_alert_to_all(

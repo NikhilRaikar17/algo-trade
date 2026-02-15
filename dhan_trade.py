@@ -43,7 +43,6 @@ send_alert_to_all(message, receiver_chat_id, bot_token)
 
 last_status = None
 while True:
-
     market_open = check_market_open(last_status=last_status)
     if not market_open:
         break
@@ -54,12 +53,10 @@ while True:
         excel.update_completed_orders(completed_orders)
 
         current_time = datetime.now()
-        print(f"Scanning        {name} {current_time}")
+        print(f"Scanning {name} {current_time}")
 
         try:
-            chart = tsl.get_historical_data(
-                tradingsymbol=name, exchange="NSE", timeframe="5"
-            )
+            chart = tsl.get_historical_data(tradingsymbol=name, exchange="NSE", timeframe="5")
             chart = apply_indicators(chart)
             cc = chart.iloc[-2]
 
@@ -80,7 +77,6 @@ while True:
             #     continue
 
             try:
-
                 order = execute_buy_entry(
                     tsl=tsl,
                     name=name,

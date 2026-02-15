@@ -33,9 +33,7 @@ import asyncio
 async def main():
     # dhan = dhanhq(client_id=CLIENT_ID, access_token=ACCESS_TOKEN)
 
-    feed = DhanFeed(
-        client_id=client_id, access_token=access_token, instruments=INSTRUMENTS
-    )
+    feed = DhanFeed(client_id=client_id, access_token=access_token, instruments=INSTRUMENTS)
 
     feed.on_message = on_message
     feed.on_error = on_error
