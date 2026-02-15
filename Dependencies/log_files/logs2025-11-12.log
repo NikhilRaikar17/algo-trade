@@ -1,0 +1,576 @@
+INFO:2025-11-12 14:40:11,110:MainThread:Dhan.py  started system
+INFO:2025-11-12 14:40:11,110:MainThread:STARTED THE PROGRAM
+ERROR:2025-11-12 14:40:19,931:MainThread:Error processing AARTIIND: No expiry date found for AARTIIND
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for AARTIIND
+ERROR:2025-11-12 14:40:20,544:MainThread:Error processing ABBOTINDIA: No expiry date found for ABBOTINDIA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ABBOTINDIA
+ERROR:2025-11-12 14:40:20,646:MainThread:Error processing ACC: No expiry date found for ACC
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ACC
+ERROR:2025-11-12 14:40:21,272:MainThread:Error processing APOLLOTYRE: No expiry date found for APOLLOTYRE
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for APOLLOTYRE
+ERROR:2025-11-12 14:40:21,610:MainThread:Error processing ATUL: No expiry date found for ATUL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ATUL
+ERROR:2025-11-12 14:40:22,521:MainThread:Error processing BALKRISIND: No expiry date found for BALKRISIND
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BALKRISIND
+ERROR:2025-11-12 14:40:22,684:MainThread:Error processing BATAINDIA: No expiry date found for BATAINDIA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BATAINDIA
+ERROR:2025-11-12 14:40:22,945:MainThread:Error processing BERGEPAINT: No expiry date found for BERGEPAINT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BERGEPAINT
+ERROR:2025-11-12 14:40:23,860:MainThread:Error processing BSOFT: No expiry date found for BSOFT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BSOFT
+ERROR:2025-11-12 14:40:24,112:MainThread:Error processing CANFINHOME: No expiry date found for CANFINHOME
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CANFINHOME
+ERROR:2025-11-12 14:40:25,023:MainThread:Error processing COROMANDEL: No expiry date found for COROMANDEL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for COROMANDEL
+ERROR:2025-11-12 14:40:25,127:MainThread:Error processing CUB: No expiry date found for CUB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CUB
+ERROR:2025-11-12 14:40:25,584:MainThread:Error processing DEEPAKNTR: No expiry date found for DEEPAKNTR
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for DEEPAKNTR
+ERROR:2025-11-12 14:40:26,087:MainThread:Error processing ESCORTS: No expiry date found for ESCORTS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ESCORTS
+ERROR:2025-11-12 14:40:26,498:MainThread:Error processing GMRINFRA: No expiry date found for GMRINFRA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GMRINFRA
+ERROR:2025-11-12 14:40:26,587:MainThread:Error processing GNFC: No expiry date found for GNFC
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GNFC
+ERROR:2025-11-12 14:40:27,022:MainThread:Error processing GUJGASLTD: No expiry date found for GUJGASLTD
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GUJGASLTD
+ERROR:2025-11-12 14:40:28,010:MainThread:Error processing HINDCOPPER: No expiry date found for HINDCOPPER
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for HINDCOPPER
+ERROR:2025-11-12 14:40:29,033:MainThread:Error processing INDIAMART: No expiry date found for INDIAMART
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for INDIAMART
+ERROR:2025-11-12 14:40:29,531:MainThread:Error processing IPCALAB: No expiry date found for IPCALAB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for IPCALAB
+ERROR:2025-11-12 14:40:30,019:MainThread:Error processing JKCEMENT: No expiry date found for JKCEMENT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for JKCEMENT
+ERROR:2025-11-12 14:40:30,444:MainThread:Error processing LALPATHLAB: No expiry date found for LALPATHLAB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for LALPATHLAB
+ERROR:2025-11-12 14:40:30,831:MainThread:Error processing LTTS: No expiry date found for LTTS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for LTTS
+ERROR:2025-11-12 14:40:31,501:MainThread:Error processing METROPOLIS: No expiry date found for METROPOLIS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for METROPOLIS
+ERROR:2025-11-12 14:40:31,791:MainThread:Error processing MGL: No expiry date found for MGL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for MGL
+ERROR:2025-11-12 14:40:32,134:MainThread:Error processing MRF: No expiry date found for MRF
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for MRF
+ERROR:2025-11-12 14:40:32,632:MainThread:Error processing NAVINFLUOR: No expiry date found for NAVINFLUOR
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for NAVINFLUOR
+ERROR:2025-11-12 14:40:33,939:MainThread:Error processing PEL: No expiry date found for PEL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for PEL
+ERROR:2025-11-12 14:40:34,738:MainThread:Error processing PVRINOX: No expiry date found for PVRINOX
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for PVRINOX
+ERROR:2025-11-12 14:40:34,837:MainThread:Error processing RAMCOCEM: No expiry date found for RAMCOCEM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for RAMCOCEM
+ERROR:2025-11-12 14:40:36,443:MainThread:Error processing SUNTV: No expiry date found for SUNTV
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for SUNTV
+ERROR:2025-11-12 14:40:36,766:MainThread:Error processing TATACHEM: No expiry date found for TATACHEM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATACHEM
+ERROR:2025-11-12 14:40:36,883:MainThread:Error processing TATACOMM: No expiry date found for TATACOMM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATACOMM
+ERROR:2025-11-12 14:40:37,315:MainThread:Error processing TATAMOTORS: No expiry date found for TATAMOTORS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATAMOTORS
+ERROR:2025-11-12 14:40:38,322:MainThread:Error processing UBL: list index out of range
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 146, in correct_step_df_creation
+    step_value, max_frequency = difference_counts.most_common(1)[0]
+IndexError: list index out of range
+ERROR:2025-11-12 14:40:39,073:MainThread:Error processing ABFRL: No expiry date found for ABFRL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ABFRL
+ERROR:2025-11-12 14:40:39,556:MainThread:Error processing CHAMBLFERT: No expiry date found for CHAMBLFERT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CHAMBLFERT
+ERROR:2025-11-12 14:40:39,994:MainThread:Error processing GRANULES: No expiry date found for GRANULES
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GRANULES
+INFO:2025-11-12 14:44:19,311:MainThread:Dhan.py  started system
+INFO:2025-11-12 14:44:19,311:MainThread:STARTED THE PROGRAM
+ERROR:2025-11-12 14:44:22,934:MainThread:Error processing AARTIIND: No expiry date found for AARTIIND
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for AARTIIND
+ERROR:2025-11-12 14:44:23,137:MainThread:Error processing ABBOTINDIA: No expiry date found for ABBOTINDIA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ABBOTINDIA
+ERROR:2025-11-12 14:44:23,231:MainThread:Error processing ACC: No expiry date found for ACC
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ACC
+ERROR:2025-11-12 14:44:23,848:MainThread:Error processing APOLLOTYRE: No expiry date found for APOLLOTYRE
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for APOLLOTYRE
+ERROR:2025-11-12 14:44:24,252:MainThread:Error processing ATUL: No expiry date found for ATUL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ATUL
+ERROR:2025-11-12 14:44:25,061:MainThread:Error processing BALKRISIND: No expiry date found for BALKRISIND
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BALKRISIND
+ERROR:2025-11-12 14:44:25,188:MainThread:Error processing BATAINDIA: No expiry date found for BATAINDIA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BATAINDIA
+ERROR:2025-11-12 14:44:25,437:MainThread:Error processing BERGEPAINT: No expiry date found for BERGEPAINT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BERGEPAINT
+ERROR:2025-11-12 14:44:26,274:MainThread:Error processing BSOFT: No expiry date found for BSOFT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BSOFT
+ERROR:2025-11-12 14:44:26,524:MainThread:Error processing CANFINHOME: No expiry date found for CANFINHOME
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CANFINHOME
+ERROR:2025-11-12 14:44:27,190:MainThread:Error processing COROMANDEL: No expiry date found for COROMANDEL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for COROMANDEL
+ERROR:2025-11-12 14:44:27,300:MainThread:Error processing CUB: No expiry date found for CUB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CUB
+ERROR:2025-11-12 14:44:27,715:MainThread:Error processing DEEPAKNTR: No expiry date found for DEEPAKNTR
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for DEEPAKNTR
+ERROR:2025-11-12 14:44:28,215:MainThread:Error processing ESCORTS: No expiry date found for ESCORTS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ESCORTS
+ERROR:2025-11-12 14:44:28,621:MainThread:Error processing GMRINFRA: No expiry date found for GMRINFRA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GMRINFRA
+ERROR:2025-11-12 14:44:28,730:MainThread:Error processing GNFC: No expiry date found for GNFC
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GNFC
+ERROR:2025-11-12 14:44:29,150:MainThread:Error processing GUJGASLTD: No expiry date found for GUJGASLTD
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GUJGASLTD
+ERROR:2025-11-12 14:44:30,062:MainThread:Error processing HINDCOPPER: No expiry date found for HINDCOPPER
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for HINDCOPPER
+ERROR:2025-11-12 14:44:31,062:MainThread:Error processing INDIAMART: No expiry date found for INDIAMART
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for INDIAMART
+ERROR:2025-11-12 14:44:31,562:MainThread:Error processing IPCALAB: No expiry date found for IPCALAB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for IPCALAB
+ERROR:2025-11-12 14:44:31,932:MainThread:Error processing JKCEMENT: No expiry date found for JKCEMENT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for JKCEMENT
+ERROR:2025-11-12 14:44:32,318:MainThread:Error processing LALPATHLAB: No expiry date found for LALPATHLAB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for LALPATHLAB
+ERROR:2025-11-12 14:44:32,740:MainThread:Error processing LTTS: No expiry date found for LTTS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for LTTS
+ERROR:2025-11-12 14:44:33,366:MainThread:Error processing METROPOLIS: No expiry date found for METROPOLIS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for METROPOLIS
+ERROR:2025-11-12 14:44:33,589:MainThread:Error processing MGL: No expiry date found for MGL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for MGL
+ERROR:2025-11-12 14:44:33,903:MainThread:Error processing MRF: No expiry date found for MRF
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for MRF
+ERROR:2025-11-12 14:44:34,310:MainThread:Error processing NAVINFLUOR: No expiry date found for NAVINFLUOR
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for NAVINFLUOR
+ERROR:2025-11-12 14:44:35,100:MainThread:Error processing PEL: No expiry date found for PEL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for PEL
+ERROR:2025-11-12 14:44:35,698:MainThread:Error processing PVRINOX: No expiry date found for PVRINOX
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for PVRINOX
+ERROR:2025-11-12 14:44:35,800:MainThread:Error processing RAMCOCEM: No expiry date found for RAMCOCEM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for RAMCOCEM
+ERROR:2025-11-12 14:44:36,764:MainThread:Error processing SUNTV: No expiry date found for SUNTV
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for SUNTV
+ERROR:2025-11-12 14:44:36,967:MainThread:Error processing TATACHEM: No expiry date found for TATACHEM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATACHEM
+ERROR:2025-11-12 14:44:37,061:MainThread:Error processing TATACOMM: No expiry date found for TATACOMM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATACOMM
+ERROR:2025-11-12 14:44:37,264:MainThread:Error processing TATAMOTORS: No expiry date found for TATAMOTORS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATAMOTORS
+ERROR:2025-11-12 14:44:37,953:MainThread:Error processing UBL: list index out of range
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 146, in correct_step_df_creation
+    step_value, max_frequency = difference_counts.most_common(1)[0]
+IndexError: list index out of range
+ERROR:2025-11-12 14:44:38,429:MainThread:Error processing ABFRL: No expiry date found for ABFRL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ABFRL
+ERROR:2025-11-12 14:44:38,716:MainThread:Error processing CHAMBLFERT: No expiry date found for CHAMBLFERT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CHAMBLFERT
+ERROR:2025-11-12 14:44:39,001:MainThread:Error processing GRANULES: No expiry date found for GRANULES
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GRANULES
+INFO:2025-11-12 14:45:53,275:MainThread:Dhan.py  started system
+INFO:2025-11-12 14:45:53,275:MainThread:STARTED THE PROGRAM
+ERROR:2025-11-12 14:45:56,827:MainThread:Error processing AARTIIND: No expiry date found for AARTIIND
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for AARTIIND
+ERROR:2025-11-12 14:45:57,031:MainThread:Error processing ABBOTINDIA: No expiry date found for ABBOTINDIA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ABBOTINDIA
+ERROR:2025-11-12 14:45:57,125:MainThread:Error processing ACC: No expiry date found for ACC
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ACC
+ERROR:2025-11-12 14:45:57,737:MainThread:Error processing APOLLOTYRE: No expiry date found for APOLLOTYRE
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for APOLLOTYRE
+ERROR:2025-11-12 14:45:58,024:MainThread:Error processing ATUL: No expiry date found for ATUL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ATUL
+ERROR:2025-11-12 14:45:58,805:MainThread:Error processing BALKRISIND: No expiry date found for BALKRISIND
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BALKRISIND
+ERROR:2025-11-12 14:45:58,899:MainThread:Error processing BATAINDIA: No expiry date found for BATAINDIA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BATAINDIA
+ERROR:2025-11-12 14:45:59,088:MainThread:Error processing BERGEPAINT: No expiry date found for BERGEPAINT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BERGEPAINT
+ERROR:2025-11-12 14:45:59,879:MainThread:Error processing BSOFT: No expiry date found for BSOFT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for BSOFT
+ERROR:2025-11-12 14:46:00,094:MainThread:Error processing CANFINHOME: No expiry date found for CANFINHOME
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CANFINHOME
+ERROR:2025-11-12 14:46:00,732:MainThread:Error processing COROMANDEL: No expiry date found for COROMANDEL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for COROMANDEL
+ERROR:2025-11-12 14:46:00,832:MainThread:Error processing CUB: No expiry date found for CUB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CUB
+ERROR:2025-11-12 14:46:01,287:MainThread:Error processing DEEPAKNTR: No expiry date found for DEEPAKNTR
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for DEEPAKNTR
+ERROR:2025-11-12 14:46:01,785:MainThread:Error processing ESCORTS: No expiry date found for ESCORTS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ESCORTS
+ERROR:2025-11-12 14:46:02,184:MainThread:Error processing GMRINFRA: No expiry date found for GMRINFRA
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GMRINFRA
+ERROR:2025-11-12 14:46:02,282:MainThread:Error processing GNFC: No expiry date found for GNFC
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GNFC
+ERROR:2025-11-12 14:46:02,663:MainThread:Error processing GUJGASLTD: No expiry date found for GUJGASLTD
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GUJGASLTD
+ERROR:2025-11-12 14:46:03,569:MainThread:Error processing HINDCOPPER: No expiry date found for HINDCOPPER
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for HINDCOPPER
+ERROR:2025-11-12 14:46:04,558:MainThread:Error processing INDIAMART: No expiry date found for INDIAMART
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for INDIAMART
+ERROR:2025-11-12 14:46:05,133:MainThread:Error processing IPCALAB: No expiry date found for IPCALAB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for IPCALAB
+ERROR:2025-11-12 14:46:05,567:MainThread:Error processing JKCEMENT: No expiry date found for JKCEMENT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for JKCEMENT
+ERROR:2025-11-12 14:46:05,973:MainThread:Error processing LALPATHLAB: No expiry date found for LALPATHLAB
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for LALPATHLAB
+ERROR:2025-11-12 14:46:06,385:MainThread:Error processing LTTS: No expiry date found for LTTS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for LTTS
+ERROR:2025-11-12 14:46:06,993:MainThread:Error processing METROPOLIS: No expiry date found for METROPOLIS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for METROPOLIS
+ERROR:2025-11-12 14:46:07,180:MainThread:Error processing MGL: No expiry date found for MGL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for MGL
+ERROR:2025-11-12 14:46:07,480:MainThread:Error processing MRF: No expiry date found for MRF
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for MRF
+ERROR:2025-11-12 14:46:07,870:MainThread:Error processing NAVINFLUOR: No expiry date found for NAVINFLUOR
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for NAVINFLUOR
+ERROR:2025-11-12 14:46:08,672:MainThread:Error processing PEL: No expiry date found for PEL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for PEL
+ERROR:2025-11-12 14:46:09,267:MainThread:Error processing PVRINOX: No expiry date found for PVRINOX
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for PVRINOX
+ERROR:2025-11-12 14:46:09,377:MainThread:Error processing RAMCOCEM: No expiry date found for RAMCOCEM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for RAMCOCEM
+ERROR:2025-11-12 14:46:10,349:MainThread:Error processing SUNTV: No expiry date found for SUNTV
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for SUNTV
+ERROR:2025-11-12 14:46:10,552:MainThread:Error processing TATACHEM: No expiry date found for TATACHEM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATACHEM
+ERROR:2025-11-12 14:46:10,648:MainThread:Error processing TATACOMM: No expiry date found for TATACOMM
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATACOMM
+ERROR:2025-11-12 14:46:10,836:MainThread:Error processing TATAMOTORS: No expiry date found for TATAMOTORS
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for TATAMOTORS
+ERROR:2025-11-12 14:46:11,581:MainThread:Error processing UBL: list index out of range
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 146, in correct_step_df_creation
+    step_value, max_frequency = difference_counts.most_common(1)[0]
+IndexError: list index out of range
+ERROR:2025-11-12 14:46:12,066:MainThread:Error processing ABFRL: No expiry date found for ABFRL
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for ABFRL
+ERROR:2025-11-12 14:46:12,363:MainThread:Error processing CHAMBLFERT: No expiry date found for CHAMBLFERT
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for CHAMBLFERT
+ERROR:2025-11-12 14:46:12,659:MainThread:Error processing GRANULES: No expiry date found for GRANULES
+Traceback (most recent call last):
+  File "C:\Users\nikhi\Desktop\freelanceProject\algotrading\.venv\lib\site-packages\Dhan_Tradehull\Dhan_Tradehull.py", line 127, in correct_step_df_creation
+    raise ValueError(f"No expiry date found for {name}")
+ValueError: No expiry date found for GRANULES
