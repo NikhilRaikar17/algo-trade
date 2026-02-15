@@ -1,8 +1,7 @@
-from dhan_services.dhan_login import tsl
-import pdb
-from dhan_services.dhan_login import bot_token
+
 import talib
 
+from dhan_services.dhan_login import bot_token, tsl
 
 watchlist = [
     "MOTHERSON",

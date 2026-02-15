@@ -1,4 +1,3 @@
-import time
 from dhanhq import dhanhq
 from dhanhq.marketfeed import DhanFeed
 

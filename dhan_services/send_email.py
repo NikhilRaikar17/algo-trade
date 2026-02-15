@@ -1,10 +1,11 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
 import os
+import smtplib
 from datetime import datetime
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from dotenv import load_dotenv
 
 ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
@@ -18,7 +19,7 @@ def send_algo_report(filename="AlgoTrade.xlsx"):
     receiver_emails = receiver_email.split(",")  # split into list
     receiver_emails = [email.strip() for email in receiver_emails]  # clean spaces
     subject = f"AlgoTrading results for {datetime.now().strftime('%Y-%m-%d (%A)')}"
-    body = f"""\
+    body = """\
         Hi Nikhil/Bharath,
 
         Hope you're doing well.

@@ -1,4 +1,3 @@
-from dhan_services.dhan_login import tsl
 
 
 def send_alert_to_all(message, receiver_chat_ids, bot_token):

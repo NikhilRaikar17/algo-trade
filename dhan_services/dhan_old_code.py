@@ -1,3 +1,6 @@
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+
 import pandas as pd
 import talib
 
@@ -5,15 +8,9 @@ import talib
 import xlwings as xw
 
 # import winsound
-from dhan_services.dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
-import pdb
-import time as tim
-from datetime import datetime, time
-from zoneinfo import ZoneInfo
-from dhan_services.telegram import send_alert_to_all
+from dhan_services.dhan_login import bot_token, reciever_chat_id as receiver_chat_id, tsl
 from dhan_services.dhan_watchlist import watchlist
-from dhan_services.send_email import send_algo_report
-
+from dhan_services.telegram import send_alert_to_all
 
 single_order = {
     "name": None,
@@ -154,7 +151,7 @@ while True:
                 orderbook[name]["traded"] = "yes"
 
                 message = "\n".join(
-                    f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
+                    f"'{key}': {value!r}" for key, value in orderbook[name].items()
                 )
                 message = f"Entry_done {name} \n\n {message}"
                 send_alert_to_all(message, receiver_chat_id, bot_token)
@@ -194,7 +191,7 @@ while True:
                         orderbook[name]["remark"] = "Bought_SL_hit"
 
                         message = "\n".join(
-                            f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
+                            f"'{key}': {value!r}" for key, value in orderbook[name].items()
                         )
                         message = f"SL_HIT {name} \n\n {message}"
                         send_alert_to_all(
@@ -236,7 +233,7 @@ while True:
                         orderbook[name]["remark"] = "Bought_TG_hit"
 
                         message = "\n".join(
-                            f"'{key}': {repr(value)}" for key, value in orderbook[name].items()
+                            f"'{key}': {value!r}" for key, value in orderbook[name].items()
                         )
                         message = f"TG_HIT {name} \n\n {message}"
                         send_alert_to_all(

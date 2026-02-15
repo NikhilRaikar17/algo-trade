@@ -1,10 +1,10 @@
-from zerodha_kite.kite_client import get_kite_client
 import datetime
-import pandas as pd
-import matplotlib.pyplot as plt
-import talib
 import pdb
 
+import pandas as pd
+import talib
+
+from zerodha_kite.kite_client import get_kite_client
 
 kite = get_kite_client()
 

@@ -1,9 +1,9 @@
-import os
 import logging
-from datetime import datetime, timedelta
-from kiteconnect import KiteTicker
+import os
+from datetime import datetime
+
 from dotenv import load_dotenv
-import pandas as pd
+from kiteconnect import KiteTicker
 
 ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=ENV_FILE, override=True)
