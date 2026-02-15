@@ -1,3 +1,4 @@
+from dhan_services.dhan_login import tsl
 
 
 def send_alert_to_all(message, receiver_chat_ids, bot_token):
@@ -9,13 +10,13 @@ def send_alert_to_all(message, receiver_chat_ids, bot_token):
         receiver_chat_ids (list): List of chat IDs to send to.
         bot_token (str): Telegram bot token for authentication.
     """
-    pass
-    # for receiver in receiver_chat_ids:
-    #     try:
-    #         tsl.send_telegram_alert(
-    #             message=message,
-    #             receiver_chat_id=receiver,
-    #             bot_token=bot_token,
-    #         )
-    #     except Exception as e:
-    #         print(f"⚠️ Error sending message to {receiver}: {e}")
+    # pass
+    for receiver in receiver_chat_ids:
+        try:
+            tsl.send_telegram_alert(
+                message=message,
+                receiver_chat_id=receiver,
+                bot_token=bot_token,
+            )
+        except Exception as e:
+            print(f"⚠️ Error sending message to {receiver}: {e}")

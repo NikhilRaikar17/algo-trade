@@ -1,4 +1,3 @@
-
 # import pandas_ta as ta
 
 # import winsound
@@ -39,6 +38,11 @@ last_status = None
 while True:
     market_open = check_market_open(last_status=last_status)
     if not market_open:
+        send_alert_to_all(
+            f"[{time_message}]\n Markets are closed at the moment",
+            receiver_chat_id,
+            bot_token,
+        )
         break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
@@ -50,7 +54,9 @@ while True:
         print(f"Scanning {name} {current_time}")
 
         try:
-            chart = tsl.get_historical_data(tradingsymbol=name, exchange="NSE", timeframe="5")
+            chart = tsl.get_historical_data(
+                tradingsymbol=name, exchange="NSE", timeframe="5"
+            )
             chart = apply_indicators(chart)
             cc = chart.iloc[-2]
 
