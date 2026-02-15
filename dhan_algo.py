@@ -5,7 +5,11 @@ import talib
 import xlwings as xw
 
 # import winsound
-from dhan_services.dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
+from dhan_services.dhan_login import (
+    tsl,
+    reciever_chat_id as receiver_chat_id,
+    bot_token,
+)
 import pdb
 import time as tim
 from datetime import datetime, time
@@ -13,7 +17,7 @@ from zoneinfo import ZoneInfo
 from dhan_services.telegram import send_alert_to_all
 from dhan_services.dhan_watchlist import watchlist
 from dhan_services.send_email import send_algo_report
-from dhan_services.market_opennings import market_session_status
+from dhan_services.market_opennings import check_market_open
 from dhan_services.excel_reporter import ExcelReporter
 from dhan_services.orderbook_template import init_orderbook
 from dhan_services.orderbook_template import get_empty_order
@@ -40,26 +44,9 @@ send_alert_to_all(message, receiver_chat_id, bot_token)
 last_status = None
 while True:
 
-    # status, now, ref_time = market_session_status()
-
-    # if status != last_status:
-    #     if status == "PRE_MARKET":
-    #         print(f"⏳ Market not open yet. Current time: {now.strftime('%H:%M:%S')}")
-    #     elif status == "OPEN":
-    #         print(f"✅ Market is OPEN. Current time: {now.strftime('%H:%M:%S')}")
-    #     elif status == "POST_MARKET":
-    #         print(f"🔴 Market is CLOSED. Current time: {now.strftime('%H:%M:%S')}")
-
-    #     last_status = status
-
-    # if status == "PRE_MARKET":
-    #     sleep_seconds = min((ref_time - now).seconds, 60)
-    #     tim.sleep(sleep_seconds)
-    #     continue
-
-    # if status == "POST_MARKET":
-    #     print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
-    #     break
+    market_open = check_market_open(last_status=last_status)
+    if not market_open:
+        break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:

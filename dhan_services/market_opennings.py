@@ -17,3 +17,26 @@ def market_session_status():
         return "POST_MARKET", now, market_close
 
     return "OPEN", now, market_close
+
+
+def check_market_open(last_status: bool) -> bool:
+    status, now, ref_time = market_session_status()
+
+    if status != last_status:
+        if status == "PRE_MARKET":
+            print(f"⏳ Market not open yet. Current time: {now.strftime('%H:%M:%S')}")
+        elif status == "OPEN":
+            print(f"✅ Market is OPEN. Current time: {now.strftime('%H:%M:%S')}")
+        elif status == "POST_MARKET":
+            print(f"🔴 Market is CLOSED. Current time: {now.strftime('%H:%M:%S')}")
+
+        last_status = status
+
+    if status == "PRE_MARKET":
+        sleep_seconds = min((ref_time - now).seconds, 60)
+        time.sleep(sleep_seconds)
+        return True
+
+    if status == "POST_MARKET":
+        print("💾 Workbook saved successfully (AlgoTrade.xlsx)")
+        return False
