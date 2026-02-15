@@ -7,6 +7,12 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+members = [
+    "algotrading",
+    "dhan-websockets",
+]
+
 [[package]]
 name = "algotrading"
 version = "0.1.0"
@@ -524,6 +530,17 @@ dependencies = [
 wheels = [
     { url = "https://files.pythonhosted.org/packages/29/bf/de8e0bb3f8714ea87c6a98553c1380eb0c7df8a94ddb5cb9dad5836c344d/Dhan_Tradehull-3.0.2-py3-none-any.whl", hash = "sha256:e2c1e8ea92e0ae055067efe3553175b750e68ec7c6d45939263a484fa8353f92", size = 20827, upload-time = "2024-12-11T10:04:31.559Z" },
 ]
+
+[[package]]
+name = "dhan-websockets"
+version = "0.1.0"
+source = { virtual = "dhan_websockets" }
+dependencies = [
+    { name = "dhanhq" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "dhanhq", specifier = ">=2.0.2" }]
 
 [[package]]
 name = "dhanhq"

@@ -21,6 +21,7 @@ dependencies = [
 [tool.uv.workspace]
 members = [
     "dhan_v2",
+    "dhan_websockets",
 ]
 
 [tool.ruff]
