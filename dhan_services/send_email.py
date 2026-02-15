@@ -18,7 +18,7 @@ def send_algo_report(filename="AlgoTrade.xlsx"):
     receiver_emails = receiver_email.split(",")  # split into list
     receiver_emails = [email.strip() for email in receiver_emails]  # clean spaces
     subject = f"AlgoTrading results for {datetime.now().strftime('%Y-%m-%d (%A)')}"
-    body = f"""\
+    body = """\
         Hi Nikhil/Bharath,
 
         Hope you're doing well.

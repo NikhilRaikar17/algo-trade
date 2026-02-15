@@ -5,14 +5,15 @@ import talib
 import xlwings as xw
 
 # import winsound
-from dhan_services.dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
-import pdb
-import time as tim
+from dhan_services.dhan_login import (
+    tsl,
+    reciever_chat_id as receiver_chat_id,
+    bot_token,
+)
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from dhan_services.telegram import send_alert_to_all
 from dhan_services.dhan_watchlist import watchlist
-from dhan_services.send_email import send_algo_report
 
 
 single_order = {
@@ -49,7 +50,6 @@ message = f"[{time_message}]\n Welcome to algo trading"
 send_alert_to_all(message, receiver_chat_id, bot_token)
 
 while True:
-
     print("starting while Loop \n\n")
 
     # Market open and close times in IST
@@ -74,7 +74,6 @@ while True:
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
-
         orderbook_df = pd.DataFrame(orderbook).T
         live_Trading.range("A1").value = orderbook_df
 
@@ -126,7 +125,6 @@ while True:
             orderbook[name]["qty"] = 1
 
             try:
-
                 #                 # entry_orderid = tsl.order_placement(
                 #                 #     tradingsymbol=name,
                 #                 #     exchange="NSE",
@@ -176,7 +174,6 @@ while True:
             bought = orderbook[name]["buy_sell"] == "BUY"
 
             if bought:
-
                 try:
                     ltp = all_ltp[name]
                     # sl_hit = (
@@ -190,7 +187,6 @@ while True:
                     # pdb.set_trace(header="error in sl order cheking")
 
                 if sl_hit:
-
                     try:
                         orderbook[name]["exit_time"] = str(current_time.time())[:8]
                         # orderbook[name]["exit_price"] = tsl.get_executed_price(
@@ -226,7 +222,6 @@ while True:
                         # pdb.set_trace(header="error in sl_hit")
 
                 if tg_hit:
-
                     try:
                         # tsl.cancel_order(OrderID=orderbook[name]["sl_orderid"])
                         # tim.sleep(2)

@@ -1,9 +1,8 @@
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from kiteconnect import KiteTicker
 from dotenv import load_dotenv
-import pandas as pd
 
 ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=ENV_FILE, override=True)
@@ -18,6 +17,7 @@ NIFTY_50_TOKEN = 256265
 current_candle = None
 candle_list = []
 
+
 def get_candle(timestamp, price):
     minute = timestamp.replace(second=0, microsecond=0)
     return {
@@ -28,10 +28,12 @@ def get_candle(timestamp, price):
         "close": price,
     }
 
+
 def update_candle(candle, price):
     candle["high"] = max(candle["high"], price)
     candle["low"] = min(candle["low"], price)
     candle["close"] = price
+
 
 def detect_swings(candles):
     if len(candles) < 3:

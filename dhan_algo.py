@@ -1,22 +1,18 @@
-import pandas as pd
-import talib
-
 # import pandas_ta as ta
-import xlwings as xw
 
 # import winsound
-from dhan_services.dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
+from dhan_services.dhan_login import (
+    tsl,
+    reciever_chat_id as receiver_chat_id,
+    bot_token,
+)
 import pdb
-import time as tim
-from datetime import datetime, time
+from datetime import datetime
 from zoneinfo import ZoneInfo
 from dhan_services.telegram import send_alert_to_all
 from dhan_services.dhan_watchlist import watchlist
-from dhan_services.send_email import send_algo_report
-from dhan_services.market_opennings import market_session_status
 from dhan_services.excel_reporter import ExcelReporter
 from dhan_services.orderbook_template import init_orderbook
-from dhan_services.orderbook_template import get_empty_order
 from strategies.indicators import apply_indicators, should_buy, should_short
 from dhan_services.execution import (
     execute_buy_entry,
@@ -39,7 +35,6 @@ send_alert_to_all(message, receiver_chat_id, bot_token)
 
 last_status = None
 while True:
-
     # status, now, ref_time = market_session_status()
 
     # if status != last_status:
@@ -93,7 +88,6 @@ while True:
             #     continue
 
             try:
-
                 order = execute_buy_entry(
                     tsl=tsl,
                     name=name,
