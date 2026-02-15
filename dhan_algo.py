@@ -5,14 +5,14 @@ import talib
 import xlwings as xw
 
 # import winsound
-from dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
+from dhan_services.dhan_login import tsl, reciever_chat_id as receiver_chat_id, bot_token
 import pdb
 import time as tim
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
-from telegram import send_alert_to_all
-from dhan_watchlist import watchlist
-from send_email import send_algo_report
+from dhan_services.telegram import send_alert_to_all
+from dhan_services.dhan_watchlist import watchlist
+from dhan_services.send_email import send_algo_report
 from dhan_services.market_opennings import market_session_status
 from dhan_services.excel_reporter import ExcelReporter
 from dhan_services.orderbook_template import init_orderbook
@@ -23,7 +23,7 @@ from dhan_services.execution import (
     check_and_exit_position,
     execute_sell_entry,
 )
-from dhan_login import PAPER_TRADING
+from dhan_services.dhan_login import PAPER_TRADING
 
 
 excel = ExcelReporter()

@@ -2,7 +2,7 @@ from datetime import datetime
 import time
 
 from dhan_services.orderbook_template import get_empty_order
-from dhan_login import PAPER_TRADING
+from dhan_services.dhan_login import PAPER_TRADING
 
 
 def execute_buy_entry(tsl, name, cc, orderbook, current_time, paper_trading=True):
