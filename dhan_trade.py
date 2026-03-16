@@ -5,12 +5,7 @@ import pdb
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from dhan_services.dhan_login import (
-    PAPER_TRADING,
-    bot_token,
-    reciever_chat_id as receiver_chat_id,
-    tsl,
-)
+from dhan_services.dhan_login import get_conf_obj
 from dhan_services.dhan_watchlist import watchlist
 from dhan_services.excel_reporter import ExcelReporter
 from dhan_services.execution import (
@@ -23,6 +18,7 @@ from dhan_services.orderbook_template import init_orderbook
 from dhan_services.telegram import send_alert_to_all
 from strategies.indicators import apply_indicators, should_buy, should_short
 
+tsl, receiver_chat_id, PAPER_TARDING, bot_token = get_conf_obj()
 excel = ExcelReporter()
 orderbook = init_orderbook(watchlist)
 completed_orders = []

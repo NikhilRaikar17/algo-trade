@@ -15,7 +15,8 @@ def get_conf_obj():
         if not client_code or not token_id or not paper_trading or not bot_token:
             raise Exception("Cannot continue as the envs are not loded")
         tsl = Tradehull(client_code, token_id)
-        tsl.get_ltp_data(names="ITC")
+        if not tsl:
+            raise Exception("Tradehull is not wokring properly")
         print("Logged in successfully and am able to connect to dhan")
         reciever_chat_id = ["8272803637", "1623717769"]
         return tsl, reciever_chat_id, paper_trading, bot_token
@@ -23,4 +24,4 @@ def get_conf_obj():
         raise e from e
 
 
-tsl, reciever_chat_id, paper_trading, bot_token = get_conf_obj()
+tsl, reciever_chat_id, PAPER_TARDING, bot_token = get_conf_obj()
