@@ -24,6 +24,7 @@ orderbook = init_orderbook(watchlist)
 completed_orders = []
 last_status = None
 reentry = "yes"
+check_market_time = False
 
 current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
@@ -32,14 +33,15 @@ send_alert_to_all(message, receiver_chat_id, bot_token)
 
 last_status = None
 while True:
-    market_open = check_market_open(last_status=last_status)
-    if not market_open:
-        send_alert_to_all(
-            f"[{time_message}]\n Markets are closed at the moment",
-            receiver_chat_id,
-            bot_token,
-        )
-        break
+    if check_market_time:
+        market_open = check_market_open(last_status=last_status)
+        if not market_open:
+            send_alert_to_all(
+                f"[{time_message}]\n Markets are closed at the moment",
+                receiver_chat_id,
+                bot_token,
+            )
+            break
 
     all_ltp = tsl.get_ltp_data(names=watchlist)
     for name in watchlist:
