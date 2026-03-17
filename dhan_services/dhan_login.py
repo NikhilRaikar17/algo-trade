@@ -3,7 +3,7 @@ import os
 from Dhan_Tradehull import Tradehull
 from dotenv import load_dotenv
 
-ENV_FILE = os.path.join(os.path.dirname(__file__), "...", ".env")
+ENV_FILE = os.path.join(os.path.dirname(__file__), "..", ".env")
 ENV_FILE = os.path.abspath(ENV_FILE)
 load_dotenv(dotenv_path=ENV_FILE, override=True)
 
