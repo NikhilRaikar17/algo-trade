@@ -537,10 +537,14 @@ version = "0.1.0"
 source = { virtual = "dhan_websockets" }
 dependencies = [
     { name = "dhanhq" },
+    { name = "dotenv" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dhanhq", specifier = ">=2.0.2" }]
+requires-dist = [
+    { name = "dhanhq", specifier = ">=2.0.2" },
+    { name = "dotenv", specifier = ">=0.9.9" },
+]
 
 [[package]]
 name = "dhanhq"
@@ -555,6 +559,17 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/97/53/b4989f54007ca26265dbd7a0b20515391d8184ab00cbbaa31db163a633e2/dhanhq-2.0.2.tar.gz", hash = "sha256:ed8a10dc436c8124cba53e9dcb9093317b10909c8acd0b65195ba9319eaf46ca", size = 21375, upload-time = "2024-11-29T08:58:18.698Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/99/824a8194cc1e3f6f593af2617d9552a3f384153ba4e6dc4a04474a180a09/dhanhq-2.0.2-py3-none-any.whl", hash = "sha256:cb3e4692eab40ca02e6721361e7dab6d1b8c339a5230a3b796271d6905228973", size = 18256, upload-time = "2024-11-29T08:58:06.355Z" },
+]
+
+[[package]]
+name = "dotenv"
+version = "0.9.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dotenv" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
 ]
 
 [[package]]

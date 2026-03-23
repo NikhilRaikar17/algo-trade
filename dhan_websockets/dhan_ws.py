@@ -5,9 +5,9 @@ from dhanhq import orderupdate
 import os
 from dotenv import load_dotenv
 
-# ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
-# load_dotenv(dotenv_path=ENV_FILE, override=True)
-load_dotenv()
+ENV_FILE = os.path.join(os.path.dirname(__file__), "..", ".env")
+load_dotenv(dotenv_path=ENV_FILE, override=True)
+# load_dotenv()
 CLIENT_ID = os.getenv("DHAN_CLIENT_CODE")
 ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
 
@@ -20,7 +20,8 @@ dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 # (exchange_segment, security_id, subscription_type)
 instruments = [
     (marketfeed.NSE, "11536", marketfeed.Ticker),  # Ticker data
-    (marketfeed.NSE, "11915", marketfeed.Full),  # Full depth/quote
+    # (marketfeed.NSE, "11536", marketfeed.Full),  # Full depth/quote
+    # (marketfeed.NSE, "256265", marketfeed.Full),
 ]
 
 # Create the feed connection

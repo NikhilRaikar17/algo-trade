@@ -9,7 +9,7 @@ watchlist = [
     "ITC",
     "IRCTC",
     "INFY",
-    "LTIM",
+    # "LTIM",
     "MARICO",
     "MARUTI",
     "NESTLEIND",
