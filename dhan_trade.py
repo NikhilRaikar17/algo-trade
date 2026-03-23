@@ -18,7 +18,7 @@ from dhan_services.orderbook_template import init_orderbook
 from dhan_services.telegram import send_alert_to_all
 from strategies.indicators import apply_indicators, should_buy, should_short
 
-tsl, receiver_chat_id, PAPER_TARDING, bot_token = get_conf_obj()
+tsl, receiver_chat_id, PAPER_TRADING, bot_token = get_conf_obj()
 excel = ExcelReporter()
 orderbook = init_orderbook(watchlist)
 completed_orders = []
@@ -29,7 +29,7 @@ check_market_time = False
 current_time = datetime.now(ZoneInfo("Asia/Kolkata")).time()
 time_message = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d (%A)")
 message = f"[{time_message}]\n Welcome to algo trading"
-send_alert_to_all(message, receiver_chat_id, bot_token)
+# send_alert_to_all(message, receiver_chat_id, bot_token)
 
 last_status = None
 while True:
