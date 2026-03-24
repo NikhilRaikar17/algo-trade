@@ -72,9 +72,7 @@ def fetch_option_chain(expiry):
                 "Strike":  strike,
                 "Type":    opt_type,
                 "LTP":     float(info.get("last_price", 0)),
-                "OI":      int(info.get("oi", 0)),
                 "IV (%)":  round(float(info.get("implied_volatility", 0)), 2),
-                "Volume":  int(info.get("volume", 0)),
                 "Delta":   round(float(greeks.get("delta", 0)), 4),
                 "Gamma":   round(float(greeks.get("gamma", 0)), 6),
                 "Theta":   round(float(greeks.get("theta", 0)), 4),
@@ -182,9 +180,6 @@ except Exception as e:
     st.error(f"Could not fetch expiries: {e}")
     st.stop()
 
-# Create tabs
-tabs = st.tabs([f"Expiry: {exp}" for exp in expiries])
-
 # Fetch all data upfront with delay between calls to avoid rate limit
 chain_data = {}
 for expiry in expiries:
@@ -194,6 +189,33 @@ for expiry in expiries:
     except Exception as e:
         chain_data[expiry] = e
     time.sleep(2)  # avoid Dhan rate limit
+
+# --- NIFTY spot price box at the top ---
+nifty_spot = None
+for result in chain_data.values():
+    if not isinstance(result, Exception):
+        nifty_spot = result[0]
+        break
+
+prev_spot = st.session_state.get("prev_spot")
+spot_delta = round(nifty_spot - prev_spot, 2) if (nifty_spot and prev_spot) else None
+if nifty_spot:
+    st.session_state["prev_spot"] = nifty_spot
+
+col_price, col_atm, col_time, _ = st.columns([1, 1, 1, 3])
+with col_price:
+    st.metric("NIFTY 50", f"{nifty_spot:,.2f}" if nifty_spot else "N/A",
+              delta=f"{spot_delta:+.2f}" if spot_delta else None)
+with col_atm:
+    atm_display = round(nifty_spot / 50) * 50 if nifty_spot else "N/A"
+    st.metric("ATM Strike", f"{atm_display:,}" if nifty_spot else "N/A")
+with col_time:
+    st.metric("Last Updated", datetime.now().strftime("%H:%M:%S"))
+
+st.divider()
+
+# Create tabs
+tabs = st.tabs([f"Expiry: {exp}" for exp in expiries])
 
 for tab, expiry in zip(tabs, expiries):
     with tab:
