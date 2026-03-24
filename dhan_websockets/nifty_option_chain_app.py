@@ -109,6 +109,67 @@ def highlight_atm(row, atm):
     return [""] * len(row)
 
 
+# ================= TREND LOGIC (SMA) =================
+SMA_PERIOD = 5  # number of refreshes for the moving average
+
+def add_trend(df, expiry, opt_type):
+    """Use SMA to determine trend. LTP > SMA = Uptrend, LTP < SMA = Downtrend."""
+    history_key = f"history_{expiry}_{opt_type}"
+
+    # history is a dict: strike -> list of recent LTPs
+    if history_key not in st.session_state:
+        st.session_state[history_key] = {}
+    history = st.session_state[history_key]
+
+    trends = []
+    sma_values = []
+    for _, row in df.iterrows():
+        strike = row["Strike"]
+        ltp = row["LTP"]
+
+        # Append current LTP to history, keep last SMA_PERIOD values
+        if strike not in history:
+            history[strike] = []
+        history[strike].append(ltp)
+        history[strike] = history[strike][-SMA_PERIOD:]
+
+        prices = history[strike]
+        if len(prices) < SMA_PERIOD:
+            trends.append("—")
+            sma_values.append("")
+        else:
+            sma = sum(prices) / SMA_PERIOD
+            sma_values.append(round(sma, 2))
+            if ltp > sma:
+                trends.append("UP")
+            elif ltp < sma:
+                trends.append("DOWN")
+            else:
+                trends.append("FLAT")
+
+    df = df.copy()
+    df["SMA"] = sma_values
+    df["Trend"] = trends
+    return df
+
+
+def highlight_row(row, atm):
+    styles = []
+    is_atm = row["Strike"] == atm
+    trend = row.get("Trend", "")
+    for col in row.index:
+        s = ""
+        if is_atm:
+            s = "background-color: #ffffb3; "
+        if col == "Trend":
+            if trend == "UP":
+                s += "color: green; font-weight: bold"
+            elif trend == "DOWN":
+                s += "color: red; font-weight: bold"
+        styles.append(s)
+    return styles
+
+
 # ================= STREAMLIT APP =================
 
 st.set_page_config(page_title="NIFTY Option Chain", layout="wide")
@@ -124,10 +185,23 @@ except Exception as e:
 # Create tabs
 tabs = st.tabs([f"Expiry: {exp}" for exp in expiries])
 
+# Fetch all data upfront with delay between calls to avoid rate limit
+chain_data = {}
+for expiry in expiries:
+    try:
+        spot, df = fetch_option_chain(expiry)
+        chain_data[expiry] = (spot, df)
+    except Exception as e:
+        chain_data[expiry] = e
+    time.sleep(2)  # avoid Dhan rate limit
+
 for tab, expiry in zip(tabs, expiries):
     with tab:
         try:
-            spot, df = fetch_option_chain(expiry)
+            result = chain_data[expiry]
+            if isinstance(result, Exception):
+                raise result
+            spot, df = result
             atm = round(spot / 50) * 50
             df = build_name_column(df, expiry)
 
@@ -135,18 +209,22 @@ for tab, expiry in zip(tabs, expiries):
 
             ce, pe = filter_and_split(df, atm)
 
+            # Add trend column
+            ce = add_trend(ce, expiry, "CE")
+            pe = add_trend(pe, expiry, "PE")
+
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("CALL (CE)")
                 st.dataframe(
-                    ce.style.apply(highlight_atm, atm=atm, axis=1),
+                    ce.style.apply(highlight_row, atm=atm, axis=1),
                     use_container_width=True,
                     hide_index=True,
                 )
             with col2:
                 st.subheader("PUT (PE)")
                 st.dataframe(
-                    pe.style.apply(highlight_atm, atm=atm, axis=1),
+                    pe.style.apply(highlight_row, atm=atm, axis=1),
                     use_container_width=True,
                     hide_index=True,
                 )
