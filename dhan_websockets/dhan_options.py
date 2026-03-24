@@ -127,40 +127,21 @@ for _, row in nifty_opt.iterrows():
         )
     )
 
-print(f"\nTotal instruments to subscribe: {len(instruments)}")
-print("Instruments being subscribed:")
-for inst in instruments:
-    print(f"  segment={inst[0]}  security_id={inst[1]}  type={inst[2]}")
+# TEST: add known-working instrument from dhan_ws.py to confirm feed is alive
+instruments.append((marketfeed.NSE, "11536", marketfeed.Ticker))
 
-# Add NIFTY 50 index as a known-valid test instrument (security_id=13, IDX segment)
-instruments.append((marketfeed.IDX, "13", marketfeed.Ticker))
-print("  + NIFTY 50 index (security_id=13) added as connectivity test")
+# Lookup: security_id (int) -> contract name
+sid_to_name = {
+    int(row["instrument_token"]): row["tradingsymbol"]
+    for _, row in nifty_opt.iterrows()
+}
+
+print(f"\nTotal instruments to subscribe: {len(instruments)}")
+print("Contracts subscribed:")
+for sid, name in sid_to_name.items():
+    print(f"  {name}  (security_id={sid})")
 
 # ================= WEBSOCKET FEED =================
-# In-memory store of latest LTPs keyed by security_id
-ltp_store = {}
-
-
-def process_tick(data):
-    """Process a single tick from the feed."""
-    print(f"[RAW] {data}")  # temporary: print everything to diagnose
-
-    security_id = str(data.get("security_id", ""))
-    ltp = data.get("LTP") or data.get("last_price")
-
-    if not ltp or not security_id:
-        return
-
-    ltp_store[security_id] = ltp
-
-    # Look up symbol details from our filtered DataFrame
-    row = nifty_opt[nifty_opt["instrument_token"].astype(str) == security_id]
-    if not row.empty:
-        symbol = row.iloc[0]["tradingsymbol"]
-        strike = row.iloc[0]["strike"]
-        opt_type = row.iloc[0]["instrument_type"]
-        print(f"  {symbol:30s}  Strike: {strike:7.0f}  {opt_type}  LTP: {ltp}")
-
 
 def run_feed():
     """Connect to Dhan websocket and stream live option premiums."""
@@ -174,7 +155,11 @@ def run_feed():
     while True:
         data = feed.get_data()
         if data:
-            process_tick(data)
+            security_id = data.get("security_id")
+            ltp = data.get("LTP") or data.get("last_price")
+            if security_id and ltp:
+                name = sid_to_name.get(int(float(security_id)), str(security_id))
+                print(f"  {name:30s}  LTP: {ltp}")
 
 
 # ================= ENTRY POINT =================
