@@ -29,8 +29,8 @@ NIFTY_SCRIP   = 13        # Dhan security_id for NIFTY 50
 NIFTY_SEGMENT = "IDX_I"   # exchange segment for index
 
 
-def get_nearest_expiry():
-    """Return the nearest future expiry date string (YYYY-MM-DD)."""
+def get_expiries(count=3):
+    """Return the nearest `count` future expiry date strings (YYYY-MM-DD)."""
     r = dhan.expiry_list(NIFTY_SCRIP, NIFTY_SEGMENT)
     if r.get("status") != "success":
         raise RuntimeError(f"expiry_list failed: {r}")
@@ -48,7 +48,7 @@ def get_nearest_expiry():
     )
     if not expiries:
         raise RuntimeError("No future expiries found.")
-    return expiries[0]
+    return expiries[:count]
 
 
 def fetch_option_chain(expiry):
@@ -68,6 +68,7 @@ def fetch_option_chain(expiry):
             info = sides.get(key, {})
             if not info:
                 continue
+            greeks = info.get("greeks", {})
             rows.append({
                 "strike":   strike,
                 "type":     opt_type,
@@ -75,6 +76,10 @@ def fetch_option_chain(expiry):
                 "oi":       int(info.get("oi", 0)),
                 "iv":       float(info.get("implied_volatility", 0)),
                 "volume":   int(info.get("volume", 0)),
+                "delta":    float(greeks.get("delta", 0)),
+                "gamma":    float(greeks.get("gamma", 0)),
+                "theta":    float(greeks.get("theta", 0)),
+                "vega":     float(greeks.get("vega", 0)),
             })
     return spot, rows
 
@@ -108,12 +113,14 @@ def write_to_excel(ws, spot, atm, expiry, rows, refreshed_at):
     strikes = sorted(strike_rows.keys())
 
     # Headers
-    headers = ["Name", "LTP", "OI", "IV", "Volume"]
+    headers = ["Name", "LTP", "OI", "IV", "Volume", "Delta", "Gamma", "Theta", "Vega"]
     for col, h in enumerate(headers, start=1):
         cell = ws.cells(3, col)
         cell.value = h
         cell.font.bold = True
         cell.color = (180, 198, 231)
+
+    num_cols = len(headers)
 
     # Data rows — all CEs first, then all PEs
     row_num = 4
@@ -129,42 +136,56 @@ def write_to_excel(ws, spot, atm, expiry, rows, refreshed_at):
             ws.cells(row_num, 1).value = name
             ws.cells(row_num, 2).value = info.get("ltp", "")
             ws.cells(row_num, 3).value = info.get("oi", "")
-            ws.cells(row_num, 4).value = info.get("iv", "")
+            iv = info.get("iv", "")
+            ws.cells(row_num, 4).value = f"{iv}%" if iv != "" else ""
             ws.cells(row_num, 5).value = info.get("volume", "")
+            ws.cells(row_num, 6).value = info.get("delta", "")
+            ws.cells(row_num, 7).value = info.get("gamma", "")
+            ws.cells(row_num, 8).value = info.get("theta", "")
+            ws.cells(row_num, 9).value = info.get("vega", "")
             if strike == atm:
-                for c in range(1, 6):
+                for c in range(1, num_cols + 1):
                     ws.cells(row_num, c).color = (255, 255, 153)
             row_num += 1
 
         row_num += 1  # blank row between CE and PE
 
     # Column widths
-    for col, w in zip("ABCDE", [24, 10, 12, 8, 10]):
+    for col, w in zip("ABCDEFGHI", [24, 10, 12, 8, 10, 8, 8, 8, 8]):
         ws.range(f"{col}:{col}").column_width = w
 
     print(f"  Written {len(strikes)} strikes to Excel")
 
 
 def main():
-    print("Fetching nearest expiry...")
-    expiry = get_nearest_expiry()
-    print(f"Expiry: {expiry}")
+    print("Fetching expiries...")
+    expiries = get_expiries(3)
+    print(f"Expiries: {expiries}")
 
     print("Setting up Excel...")
     app = xw.App(visible=True)
     wb = app.books.add()
-    ws = wb.sheets[0]
-    ws.name = "Option Chain"
+
+    # Create one sheet per expiry
+    sheets = {}
+    for i, expiry in enumerate(expiries):
+        if i == 0:
+            ws = wb.sheets[0]
+        else:
+            ws = wb.sheets.add(after=wb.sheets[wb.sheets.count - 1])
+        ws.name = f"Expiry {expiry}"
+        sheets[expiry] = ws
 
     while True:
         print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Refreshing...")
-        try:
-            spot, rows = fetch_option_chain(expiry)
-            atm = round(spot / 50) * 50
-            print(f"  Spot: {spot}  ATM: {atm}")
-            write_to_excel(ws, spot, atm, expiry, rows, datetime.now().strftime("%H:%M:%S"))
-        except Exception as e:
-            print(f"  [error] {e}")
+        for expiry in expiries:
+            try:
+                spot, rows = fetch_option_chain(expiry)
+                atm = round(spot / 50) * 50
+                print(f"  [{expiry}] Spot: {spot}  ATM: {atm}")
+                write_to_excel(sheets[expiry], spot, atm, expiry, rows, datetime.now().strftime("%H:%M:%S"))
+            except Exception as e:
+                print(f"  [{expiry}] [error] {e}")
 
         time.sleep(REFRESH_SECONDS)
 
