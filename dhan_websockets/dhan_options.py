@@ -1,5 +1,4 @@
 import os
-import asyncio
 import pandas as pd
 from dotenv import load_dotenv
 from dhanhq import dhanhq, marketfeed
@@ -84,12 +83,12 @@ def get_atm(price, step=50):
 
 atm = get_atm(nifty_price, step=50)
 print(f"ATM strike: {atm}")
-
+CONTRACTS = 500
 # ================= FILTER ± 500 POINTS AROUND ATM =================
 # Keeping range at ±500 (20 strikes × 2 = ~40 instruments) to stay
 # within Dhan WebSocket's ~100 instrument per connection limit.
-lower = atm - 2000
-upper = atm + 2000
+lower = atm - CONTRACTS
+upper = atm + CONTRACTS
 
 nifty_opt = nifty_opt[
     (nifty_opt["strike"] >= lower) & (nifty_opt["strike"] <= upper)
@@ -129,6 +128,13 @@ for _, row in nifty_opt.iterrows():
     )
 
 print(f"\nTotal instruments to subscribe: {len(instruments)}")
+print("Instruments being subscribed:")
+for inst in instruments:
+    print(f"  segment={inst[0]}  security_id={inst[1]}  type={inst[2]}")
+
+# Add NIFTY 50 index as a known-valid test instrument (security_id=13, IDX segment)
+instruments.append((marketfeed.IDX, "13", marketfeed.Ticker))
+print("  + NIFTY 50 index (security_id=13) added as connectivity test")
 
 # ================= WEBSOCKET FEED =================
 # In-memory store of latest LTPs keyed by security_id
@@ -137,6 +143,8 @@ ltp_store = {}
 
 def process_tick(data):
     """Process a single tick from the feed."""
+    print(f"[RAW] {data}")  # temporary: print everything to diagnose
+
     security_id = str(data.get("security_id", ""))
     ltp = data.get("LTP") or data.get("last_price")
 
@@ -154,27 +162,24 @@ def process_tick(data):
         print(f"  {symbol:30s}  Strike: {strike:7.0f}  {opt_type}  LTP: {ltp}")
 
 
-async def run_feed():
+def run_feed():
     """Connect to Dhan websocket and stream live option premiums."""
     print("\nConnecting to Dhan market feed...")
 
-    feed = marketfeed.DhanFeed(CLIENT_ID, ACCESS_TOKEN, instruments)
-    feed.on_message = process_tick
+    feed = marketfeed.DhanFeed(CLIENT_ID, ACCESS_TOKEN, instruments, version="v2")
+    feed.run_forever()  # blocks until connected
 
     print("WebSocket connected. Streaming live premiums...\n")
 
-    await feed.connect()
-
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        print("\nFeed stopped by user.")
+    while True:
+        data = feed.get_data()
+        if data:
+            process_tick(data)
 
 
 # ================= ENTRY POINT =================
 if __name__ == "__main__":
     try:
-        asyncio.run(run_feed())
+        run_feed()
     except KeyboardInterrupt:
-        print("Stopped by user.")
+        print("\nStopped by user.")
