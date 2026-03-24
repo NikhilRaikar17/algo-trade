@@ -1,7 +1,7 @@
 """
 nifty_option_chain_app.py
 -------------------------
-Streamlit app — NIFTY option chain with 3 expiry tabs.
+Streamlit app — NIFTY & BANKNIFTY option chain with 3 expiry tabs each.
 Run:  streamlit run dhan_websockets/nifty_option_chain_app.py
 """
 
@@ -22,16 +22,31 @@ ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
 dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 
 # ================= CONFIG =================
-NIFTY_SCRIP   = 13
-NIFTY_SEGMENT = "IDX_I"
-STRIKE_RANGE  = 500
 REFRESH_SECONDS = 30
+SMA_PERIOD = 5
+
+INDICES = {
+    "NIFTY": {
+        "scrip": 13,
+        "segment": "IDX_I",
+        "strike_step": 50,
+        "strike_range": 500,
+        "name_prefix": "NIFTY",
+    },
+    "BANKNIFTY": {
+        "scrip": 25,
+        "segment": "IDX_I",
+        "strike_step": 100,
+        "strike_range": 1000,
+        "name_prefix": "BANKNIFTY",
+    },
+}
 
 
 # ================= DATA FUNCTIONS =================
 
-def get_expiries(count=3):
-    r = dhan.expiry_list(NIFTY_SCRIP, NIFTY_SEGMENT)
+def get_expiries(scrip, segment, count=3):
+    r = dhan.expiry_list(scrip, segment)
     if r.get("status") != "success":
         raise RuntimeError(f"expiry_list failed: {r}")
 
@@ -51,8 +66,8 @@ def get_expiries(count=3):
     return expiries[:count]
 
 
-def fetch_option_chain(expiry):
-    r = dhan.option_chain(NIFTY_SCRIP, NIFTY_SEGMENT, expiry)
+def fetch_option_chain(scrip, segment, expiry):
+    r = dhan.option_chain(scrip, segment, expiry)
     if r.get("status") != "success":
         raise RuntimeError(f"option_chain failed: {r}")
 
@@ -81,18 +96,18 @@ def fetch_option_chain(expiry):
     return spot, pd.DataFrame(rows)
 
 
-def build_name_column(df, expiry):
+def build_name_column(df, expiry, prefix):
     exp_date = datetime.strptime(expiry, "%Y-%m-%d")
     exp_tag = exp_date.strftime("%d%b").upper()
     df.insert(0, "Name", df.apply(
-        lambda r: f"NIFTY {exp_tag} {int(r['Strike'])} {r['Type']}", axis=1
+        lambda r: f"{prefix} {exp_tag} {int(r['Strike'])} {r['Type']}", axis=1
     ))
     return df
 
 
-def filter_and_split(df, atm):
-    lower = atm - STRIKE_RANGE
-    upper = atm + STRIKE_RANGE
+def filter_and_split(df, atm, strike_range):
+    lower = atm - strike_range
+    upper = atm + strike_range
     df = df[(df["Strike"] >= lower) & (df["Strike"] <= upper)].copy()
     df = df.sort_values("Strike").reset_index(drop=True)
 
@@ -101,20 +116,11 @@ def filter_and_split(df, atm):
     return ce, pe
 
 
-def highlight_atm(row, atm):
-    if row["Strike"] == atm:
-        return ["background-color: #ffffb3"] * len(row)
-    return [""] * len(row)
-
-
 # ================= TREND LOGIC (SMA) =================
-SMA_PERIOD = 5  # number of refreshes for the moving average
 
-def add_trend(df, expiry, opt_type):
-    """Use SMA to determine trend. LTP > SMA = Uptrend, LTP < SMA = Downtrend."""
-    history_key = f"history_{expiry}_{opt_type}"
+def add_trend(df, index_name, expiry, opt_type):
+    history_key = f"history_{index_name}_{expiry}_{opt_type}"
 
-    # history is a dict: strike -> list of recent LTPs
     if history_key not in st.session_state:
         st.session_state[history_key] = {}
     history = st.session_state[history_key]
@@ -125,7 +131,6 @@ def add_trend(df, expiry, opt_type):
         strike = row["Strike"]
         ltp = row["LTP"]
 
-        # Append current LTP to history, keep last SMA_PERIOD values
         if strike not in history:
             history[strike] = []
         history[strike].append(ltp)
@@ -168,91 +173,120 @@ def highlight_row(row, atm):
     return styles
 
 
+# ================= RENDER ONE INDEX =================
+
+def render_index(index_name, cfg):
+    scrip = cfg["scrip"]
+    segment = cfg["segment"]
+    strike_step = cfg["strike_step"]
+    strike_range = cfg["strike_range"]
+    prefix = cfg["name_prefix"]
+
+    # Fetch expiries
+    try:
+        expiries = get_expiries(scrip, segment, 3)
+    except Exception as e:
+        st.error(f"Could not fetch {index_name} expiries: {e}")
+        return
+
+    # Fetch all chains with rate-limit delay
+    chain_data = {}
+    for expiry in expiries:
+        try:
+            spot, df = fetch_option_chain(scrip, segment, expiry)
+            chain_data[expiry] = (spot, df)
+        except Exception as e:
+            chain_data[expiry] = e
+        time.sleep(2)
+
+    # Spot price box
+    spot_val = None
+    for result in chain_data.values():
+        if not isinstance(result, Exception):
+            spot_val = result[0]
+            break
+
+    prev_key = f"prev_spot_{index_name}"
+    prev_spot = st.session_state.get(prev_key)
+    spot_delta = round(spot_val - prev_spot, 2) if (spot_val and prev_spot) else None
+    if spot_val:
+        st.session_state[prev_key] = spot_val
+
+    col_price, col_atm, col_time, _ = st.columns([1, 1, 1, 3])
+    with col_price:
+        st.metric(index_name, f"{spot_val:,.2f}" if spot_val else "N/A",
+                  delta=f"{spot_delta:+.2f}" if spot_delta else None)
+    with col_atm:
+        atm_display = round(spot_val / strike_step) * strike_step if spot_val else "N/A"
+        st.metric("ATM Strike", f"{atm_display:,}" if spot_val else "N/A")
+    with col_time:
+        st.metric("Last Updated", datetime.now().strftime("%H:%M:%S"))
+
+    st.divider()
+
+    # Expiry tabs
+    expiry_tabs = st.tabs([f"Expiry: {exp}" for exp in expiries])
+
+    for tab, expiry in zip(expiry_tabs, expiries):
+        with tab:
+            try:
+                result = chain_data[expiry]
+                if isinstance(result, Exception):
+                    raise result
+                spot, df = result
+                atm = round(spot / strike_step) * strike_step
+                df = build_name_column(df, expiry, prefix)
+
+                ce, pe = filter_and_split(df, atm, strike_range)
+                ce = add_trend(ce, index_name, expiry, "CE")
+                pe = add_trend(pe, index_name, expiry, "PE")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("CALL (CE)")
+                    st.dataframe(
+                        ce.style.apply(highlight_row, atm=atm, axis=1),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                with col2:
+                    st.subheader("PUT (PE)")
+                    st.dataframe(
+                        pe.style.apply(highlight_row, atm=atm, axis=1),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+            except Exception as e:
+                st.error(f"Error loading {expiry}: {e}")
+
+
 # ================= STREAMLIT APP =================
 
-st.set_page_config(page_title="NIFTY Option Chain", layout="wide")
-st.title("NIFTY Option Chain")
+st.set_page_config(page_title="Option Chain", layout="wide")
+st.title("Option Chain")
 
-# Fetch expiries
-try:
-    expiries = get_expiries(3)
-except Exception as e:
-    st.error(f"Could not fetch expiries: {e}")
-    st.stop()
+# Make tabs bigger
+st.markdown("""
+<style>
+    .stTabs [data-baseweb="tab-list"] button {
+        font-size: 1.2rem;
+        padding: 12px 24px;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Fetch all data upfront with delay between calls to avoid rate limit
-chain_data = {}
-for expiry in expiries:
-    try:
-        spot, df = fetch_option_chain(expiry)
-        chain_data[expiry] = (spot, df)
-    except Exception as e:
-        chain_data[expiry] = e
-    time.sleep(2)  # avoid Dhan rate limit
+# Top-level tabs: NIFTY and BANKNIFTY
+nifty_tab, banknifty_tab = st.tabs(["NIFTY", "BANKNIFTY"])
 
-# --- NIFTY spot price box at the top ---
-nifty_spot = None
-for result in chain_data.values():
-    if not isinstance(result, Exception):
-        nifty_spot = result[0]
-        break
+with nifty_tab:
+    render_index("NIFTY", INDICES["NIFTY"])
 
-prev_spot = st.session_state.get("prev_spot")
-spot_delta = round(nifty_spot - prev_spot, 2) if (nifty_spot and prev_spot) else None
-if nifty_spot:
-    st.session_state["prev_spot"] = nifty_spot
-
-col_price, col_atm, col_time, _ = st.columns([1, 1, 1, 3])
-with col_price:
-    st.metric("NIFTY 50", f"{nifty_spot:,.2f}" if nifty_spot else "N/A",
-              delta=f"{spot_delta:+.2f}" if spot_delta else None)
-with col_atm:
-    atm_display = round(nifty_spot / 50) * 50 if nifty_spot else "N/A"
-    st.metric("ATM Strike", f"{atm_display:,}" if nifty_spot else "N/A")
-with col_time:
-    st.metric("Last Updated", datetime.now().strftime("%H:%M:%S"))
-
-st.divider()
-
-# Create tabs
-tabs = st.tabs([f"Expiry: {exp}" for exp in expiries])
-
-for tab, expiry in zip(tabs, expiries):
-    with tab:
-        try:
-            result = chain_data[expiry]
-            if isinstance(result, Exception):
-                raise result
-            spot, df = result
-            atm = round(spot / 50) * 50
-            df = build_name_column(df, expiry)
-
-            st.markdown(f"**Spot:** {spot}  |  **ATM:** {atm}  |  **Expiry:** {expiry}  |  **Refreshed:** {datetime.now().strftime('%H:%M:%S')}")
-
-            ce, pe = filter_and_split(df, atm)
-
-            # Add trend column
-            ce = add_trend(ce, expiry, "CE")
-            pe = add_trend(pe, expiry, "PE")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("CALL (CE)")
-                st.dataframe(
-                    ce.style.apply(highlight_row, atm=atm, axis=1),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-            with col2:
-                st.subheader("PUT (PE)")
-                st.dataframe(
-                    pe.style.apply(highlight_row, atm=atm, axis=1),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-        except Exception as e:
-            st.error(f"Error loading {expiry}: {e}")
+with banknifty_tab:
+    render_index("BANKNIFTY", INDICES["BANKNIFTY"])
 
 # Auto-refresh
 st.markdown(f"_Auto-refreshes every {REFRESH_SECONDS}s_")
