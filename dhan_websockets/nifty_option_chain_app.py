@@ -12,6 +12,7 @@ import streamlit as st
 from datetime import datetime, date
 from dotenv import load_dotenv
 from dhanhq import dhanhq
+import plotly.graph_objects as go
 
 # ================= ENV =================
 ENV_FILE = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -86,7 +87,7 @@ def fetch_option_chain(scrip, segment, expiry):
             rows.append({
                 "Strike":  strike,
                 "Type":    opt_type,
-                "LTP":     float(info.get("last_price", 0)),
+                "LTP":     round(float(info.get("last_price", 0)), 2),
                 "IV (%)":  round(float(info.get("implied_volatility", 0)), 2),
                 "Delta":   round(float(greeks.get("delta", 0)), 4),
                 "Gamma":   round(float(greeks.get("gamma", 0)), 6),
@@ -261,6 +262,449 @@ def render_index(index_name, cfg):
                 st.error(f"Error loading {expiry}: {e}")
 
 
+# ================= ABCD PATTERN DETECTION =================
+
+def get_atm_security_ids(scrip, segment, expiry, spot):
+    """Get security IDs for ATM CE and PE from option chain."""
+    r = dhan.option_chain(scrip, segment, expiry)
+    if r.get("status") != "success":
+        return None, None, None
+
+    inner = r["data"]["data"]
+    oc = inner["oc"]
+    atm = round(spot / 50) * 50
+
+    # Find closest strike to ATM
+    strikes = sorted(oc.keys(), key=lambda s: abs(float(s) - atm))
+    if not strikes:
+        return None, None, atm
+
+    best = strikes[0]
+    sides = oc[best]
+    ce_id = sides.get("ce", {}).get("security_id")
+    pe_id = sides.get("pe", {}).get("security_id")
+    return ce_id, pe_id, atm
+
+
+def fetch_5min_candles(security_id):
+    """Fetch 5-min intraday candles for a security (last 5 days)."""
+    today = date.today().strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp.today() - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
+
+    r = dhan.intraday_minute_data(
+        security_id=str(security_id),
+        exchange_segment="NSE_FNO",
+        instrument_type="OPTIDX",
+        from_date=from_date,
+        to_date=today,
+        interval=5,
+    )
+    if r.get("status") != "success":
+        return pd.DataFrame()
+
+    d = r["data"]
+    df = pd.DataFrame({
+        "timestamp": d.get("timestamp", []),
+        "open":      d.get("open", []),
+        "high":      d.get("high", []),
+        "low":       d.get("low", []),
+        "close":     d.get("close", []),
+        "volume":    d.get("volume", []),
+    })
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
+    return df
+
+
+def find_swing_points(df, order=3):
+    """Find swing highs and lows using a rolling window comparison."""
+    swings = []
+    highs = df["high"].values
+    lows = df["low"].values
+
+    for i in range(order, len(df) - order):
+        # Swing high: high[i] is highest in window
+        if all(highs[i] >= highs[i - j] for j in range(1, order + 1)) and \
+           all(highs[i] >= highs[i + j] for j in range(1, order + 1)):
+            swings.append({"index": i, "type": "high", "price": highs[i],
+                           "time": df["timestamp"].iloc[i]})
+
+        # Swing low: low[i] is lowest in window
+        if all(lows[i] <= lows[i - j] for j in range(1, order + 1)) and \
+           all(lows[i] <= lows[i + j] for j in range(1, order + 1)):
+            swings.append({"index": i, "type": "low", "price": lows[i],
+                           "time": df["timestamp"].iloc[i]})
+
+    return sorted(swings, key=lambda s: s["index"])
+
+
+def detect_abcd_patterns(swings, tolerance=0.15):
+    """
+    Detect ABCD patterns from swing points.
+    Bullish ABCD: A(low) -> B(high) -> C(low) -> D(high) — sell at D
+    Bearish ABCD: A(high) -> B(low) -> C(high) -> D(low) — buy at D
+
+    BC should retrace 61.8%-78.6% of AB (with tolerance).
+    CD should be ~equal to AB in length (with tolerance).
+    """
+    patterns = []
+
+    for i in range(len(swings) - 3):
+        a, b, c, d = swings[i], swings[i+1], swings[i+2], swings[i+3]
+
+        # Bullish: low -> high -> low -> high
+        if a["type"] == "low" and b["type"] == "high" and \
+           c["type"] == "low" and d["type"] == "high":
+            ab = b["price"] - a["price"]
+            bc = b["price"] - c["price"]
+            cd = d["price"] - c["price"]
+
+            if ab <= 0:
+                continue
+
+            bc_ratio = bc / ab  # should be 0.618–0.786
+            cd_ab_ratio = cd / ab  # should be ~1.0
+
+            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and \
+               (1.0 - tolerance) <= cd_ab_ratio <= (1.618 + tolerance):
+                patterns.append({
+                    "type": "Bullish",
+                    "A": a, "B": b, "C": c, "D": d,
+                    "BC_retrace": round(bc_ratio, 3),
+                    "CD_AB_ratio": round(cd_ab_ratio, 3),
+                    "entry": d["price"],
+                    "target": d["price"] + ab,  # project AB from D
+                    "stop_loss": c["price"],
+                    "signal": "SELL CE / BUY PE at D",
+                })
+
+        # Bearish: high -> low -> high -> low
+        if a["type"] == "high" and b["type"] == "low" and \
+           c["type"] == "high" and d["type"] == "low":
+            ab = a["price"] - b["price"]
+            bc = c["price"] - b["price"]
+            cd = c["price"] - d["price"]
+
+            if ab <= 0:
+                continue
+
+            bc_ratio = bc / ab
+            cd_ab_ratio = cd / ab
+
+            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and \
+               (1.0 - tolerance) <= cd_ab_ratio <= (1.618 + tolerance):
+                patterns.append({
+                    "type": "Bearish",
+                    "A": a, "B": b, "C": c, "D": d,
+                    "BC_retrace": round(bc_ratio, 3),
+                    "CD_AB_ratio": round(cd_ab_ratio, 3),
+                    "entry": d["price"],
+                    "target": d["price"] - ab,
+                    "stop_loss": c["price"],
+                    "signal": "BUY CE / SELL PE at D",
+                })
+
+    return patterns
+
+
+def classify_trades(patterns, current_price):
+    """Split patterns into active and completed trades."""
+    active = []
+    completed = []
+
+    for p in patterns:
+        entry = p["entry"]
+        target = p["target"]
+        sl = p["stop_loss"]
+
+        if p["type"] == "Bullish":
+            # Bearish reversal expected: price should fall from D
+            pnl = entry - current_price
+            if current_price <= target or current_price >= sl:
+                p["exit_price"] = current_price
+                p["pnl"] = round(pnl, 2)
+                p["status"] = "Target Hit" if current_price <= target else "SL Hit"
+                completed.append(p)
+            else:
+                p["unrealized_pnl"] = round(pnl, 2)
+                active.append(p)
+        else:
+            # Bullish reversal expected: price should rise from D
+            pnl = current_price - entry
+            if current_price >= target or current_price <= sl:
+                p["exit_price"] = current_price
+                p["pnl"] = round(pnl, 2)
+                p["status"] = "Target Hit" if current_price >= target else "SL Hit"
+                completed.append(p)
+            else:
+                p["unrealized_pnl"] = round(pnl, 2)
+                active.append(p)
+
+    return active, completed
+
+
+def fetch_option_chain_raw(scrip, segment, expiry):
+    """Fetch raw option chain response (includes security_id per strike)."""
+    r = dhan.option_chain(scrip, segment, expiry)
+    if r.get("status") != "success":
+        raise RuntimeError(f"option_chain failed: {r}")
+    return r["data"]["data"]
+
+
+def render_algo_trade():
+    """Render the Algo Trade tab."""
+    st.subheader("ABCD Pattern Scanner — NIFTY ATM (5-min candles)")
+
+    cfg = INDICES["NIFTY"]
+
+    # Step 1: Get spot, ATM, and security IDs from a single API call
+    try:
+        expiry = get_expiries(cfg["scrip"], cfg["segment"], 1)[0]
+        time.sleep(2)
+        raw = fetch_option_chain_raw(cfg["scrip"], cfg["segment"], expiry)
+    except Exception as e:
+        st.error(f"Could not fetch NIFTY data: {e}")
+        return
+
+    spot = float(raw["last_price"])
+    oc = raw["oc"]
+    atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
+
+    # Find closest strike and get CE/PE security IDs
+    strikes = sorted(oc.keys(), key=lambda s: abs(float(s) - atm))
+    if not strikes:
+        st.error("No strikes found in option chain")
+        return
+
+    best_strike = strikes[0]
+    sides = oc[best_strike]
+    ce_id = sides.get("ce", {}).get("security_id")
+    pe_id = sides.get("pe", {}).get("security_id")
+
+    if not ce_id or not pe_id:
+        st.error(f"No security IDs for ATM strike {best_strike}. CE: {ce_id}, PE: {pe_id}")
+        st.write("Available strikes near ATM:", strikes[:5])
+        st.write("CE data:", sides.get("ce", {}))
+        st.write("PE data:", sides.get("pe", {}))
+        return
+
+    exp_date = datetime.strptime(expiry, "%Y-%m-%d")
+    exp_tag = exp_date.strftime("%d%b").upper()
+
+    col_price, col_atm, col_exp = st.columns(3)
+    with col_price:
+        st.metric("NIFTY Spot", f"{spot:,.2f}")
+    with col_atm:
+        st.metric("ATM Strike", f"{atm:,}")
+    with col_exp:
+        st.metric("Expiry", expiry)
+
+    st.divider()
+
+    # Step 3: Fetch 5-min candles for CE and PE
+    ce_tab, pe_tab = st.tabs([
+        f"ATM CE — NIFTY {exp_tag} {int(atm)} CE",
+        f"ATM PE — NIFTY {exp_tag} {int(atm)} PE",
+    ])
+
+    for opt_tab, sec_id, opt_type in [(ce_tab, ce_id, "CE"), (pe_tab, pe_id, "PE")]:
+        with opt_tab:
+            time.sleep(1)  # rate limit
+            candles = fetch_5min_candles(sec_id)
+
+            if candles.empty:
+                st.warning(f"No candle data for ATM {opt_type} (ID: {sec_id})")
+                continue
+
+            contract_name = f"NIFTY {exp_tag} {int(atm)} {opt_type}"
+            current_price = candles["close"].iloc[-1]
+
+            # Detect ABCD patterns (before chart so we can overlay)
+            swings = find_swing_points(candles, order=2)
+            patterns = detect_abcd_patterns(swings)
+
+            # Candlestick chart with ABCD overlay
+            st.markdown(f"**{contract_name}** — Last: **{current_price}** | Candles: **{len(candles)}**")
+
+            fig = go.Figure()
+
+            # Candlestick
+            fig.add_trace(go.Candlestick(
+                x=candles["timestamp"],
+                open=candles["open"],
+                high=candles["high"],
+                low=candles["low"],
+                close=candles["close"],
+                name="Price",
+                increasing_line_color="#26a69a",
+                decreasing_line_color="#ef5350",
+            ))
+
+            # Overlay swing points
+            if swings:
+                swing_highs = [s for s in swings if s["type"] == "high"]
+                swing_lows = [s for s in swings if s["type"] == "low"]
+
+                if swing_highs:
+                    fig.add_trace(go.Scatter(
+                        x=[s["time"] for s in swing_highs],
+                        y=[s["price"] for s in swing_highs],
+                        mode="markers",
+                        marker=dict(symbol="triangle-down", size=10, color="#ef5350"),
+                        name="Swing High",
+                    ))
+                if swing_lows:
+                    fig.add_trace(go.Scatter(
+                        x=[s["time"] for s in swing_lows],
+                        y=[s["price"] for s in swing_lows],
+                        mode="markers",
+                        marker=dict(symbol="triangle-up", size=10, color="#26a69a"),
+                        name="Swing Low",
+                    ))
+
+            # Overlay ABCD patterns as connected lines
+            colors = ["#ff9800", "#2196f3", "#9c27b0", "#00bcd4", "#e91e63"]
+            for idx, p in enumerate(patterns):
+                color = colors[idx % len(colors)]
+                pts = [p["A"], p["B"], p["C"], p["D"]]
+                fig.add_trace(go.Scatter(
+                    x=[pt["time"] for pt in pts],
+                    y=[pt["price"] for pt in pts],
+                    mode="lines+markers+text",
+                    line=dict(color=color, width=2, dash="dot"),
+                    marker=dict(size=12, color=color),
+                    text=["A", "B", "C", "D"],
+                    textposition="top center",
+                    textfont=dict(size=14, color=color),
+                    name=f"ABCD {idx+1} ({p['type']})",
+                ))
+
+                # Target and stop loss horizontal lines
+                fig.add_hline(
+                    y=p["target"], line_dash="dash", line_color="green",
+                    annotation_text=f"Target {p['target']:.2f}",
+                    annotation_position="bottom right",
+                )
+                fig.add_hline(
+                    y=p["stop_loss"], line_dash="dash", line_color="red",
+                    annotation_text=f"SL {p['stop_loss']:.2f}",
+                    annotation_position="bottom right",
+                )
+
+            fig.update_layout(
+                height=500,
+                xaxis_rangeslider_visible=False,
+                xaxis_title="Time",
+                yaxis_title="Price",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(l=0, r=0, t=30, b=0),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            if not patterns:
+                st.info("No ABCD patterns detected yet. Patterns will appear as price action develops.")
+
+            active, completed = classify_trades(patterns, current_price)
+
+            # Nested tabs: Active / Completed
+            active_tab, completed_tab = st.tabs(["Active Trades", "Completed Trades"])
+
+            with active_tab:
+                if not active:
+                    st.info("No active trades")
+                else:
+                    rows = []
+                    for t in active:
+                        rows.append({
+                            "Pattern":    t["type"],
+                            "Signal":     t["signal"],
+                            "Entry (D)":  round(t["entry"], 2),
+                            "Target":     round(t["target"], 2),
+                            "Stop Loss":  round(t["stop_loss"], 2),
+                            "Current":    current_price,
+                            "Unreal. PnL": t["unrealized_pnl"],
+                            "A Time":     t["A"]["time"].strftime("%d %b %H:%M") if hasattr(t["A"]["time"], "strftime") else str(t["A"]["time"]),
+                            "D Time":     t["D"]["time"].strftime("%d %b %H:%M") if hasattr(t["D"]["time"], "strftime") else str(t["D"]["time"]),
+                            "BC Retrace":  t["BC_retrace"],
+                            "CD/AB":       t["CD_AB_ratio"],
+                        })
+                    adf = pd.DataFrame(rows)
+
+                    def highlight_pnl_active(row):
+                        pnl = row["Unreal. PnL"]
+                        styles = [""] * len(row)
+                        pnl_idx = row.index.get_loc("Unreal. PnL")
+                        if pnl > 0:
+                            styles[pnl_idx] = "background-color: #c6efce; color: #006100; font-weight: bold"
+                        elif pnl < 0:
+                            styles[pnl_idx] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
+                        return styles
+
+                    st.dataframe(
+                        adf.style.apply(highlight_pnl_active, axis=1),
+                        use_container_width=True, hide_index=True,
+                    )
+
+            with completed_tab:
+                if not completed:
+                    st.info("No completed trades")
+                else:
+                    rows = []
+                    for t in completed:
+                        rows.append({
+                            "Pattern":   t["type"],
+                            "Signal":    t["signal"],
+                            "Entry (D)": round(t["entry"], 2),
+                            "Target":    round(t["target"], 2),
+                            "Stop Loss": round(t["stop_loss"], 2),
+                            "Exit":      round(t["exit_price"], 2),
+                            "PnL":       t["pnl"],
+                            "Status":    t["status"],
+                            "A Time":    t["A"]["time"].strftime("%d %b %H:%M") if hasattr(t["A"]["time"], "strftime") else str(t["A"]["time"]),
+                            "D Time":    t["D"]["time"].strftime("%d %b %H:%M") if hasattr(t["D"]["time"], "strftime") else str(t["D"]["time"]),
+                        })
+                    cdf = pd.DataFrame(rows)
+
+                    def highlight_pnl_completed(row):
+                        pnl = row["PnL"]
+                        status = row["Status"]
+                        styles = [""] * len(row)
+                        pnl_idx = row.index.get_loc("PnL")
+                        status_idx = row.index.get_loc("Status")
+                        if pnl > 0:
+                            styles[pnl_idx] = "background-color: #c6efce; color: #006100; font-weight: bold"
+                            styles[status_idx] = "background-color: #c6efce; color: #006100"
+                        elif pnl < 0:
+                            styles[pnl_idx] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
+                            styles[status_idx] = "background-color: #ffc7ce; color: #9c0006"
+                        return styles
+
+                    st.dataframe(
+                        cdf.style.apply(highlight_pnl_completed, axis=1),
+                        use_container_width=True, hide_index=True,
+                    )
+
+            # Show detected swing points
+            with st.expander("Swing Points & Pattern Details"):
+                if swings:
+                    swing_df = pd.DataFrame(swings)
+                    swing_df["time"] = swing_df["time"].dt.strftime("%d %b %H:%M")
+                    swing_df["price"] = swing_df["price"].round(2)
+                    st.dataframe(swing_df[["time", "type", "price"]], hide_index=True)
+                else:
+                    st.write("No swing points detected")
+
+                if patterns:
+                    for i, p in enumerate(patterns):
+                        st.markdown(
+                            f"**Pattern {i+1} ({p['type']})**: "
+                            f"A={p['A']['price']:.2f} → B={p['B']['price']:.2f} → "
+                            f"C={p['C']['price']:.2f} → D={p['D']['price']:.2f} | "
+                            f"BC retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
+                        )
+
+
 # ================= STREAMLIT APP =================
 
 st.set_page_config(page_title="Option Chain", layout="wide")
@@ -279,14 +723,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Top-level tabs: NIFTY and BANKNIFTY
-nifty_tab, banknifty_tab = st.tabs(["NIFTY", "BANKNIFTY"])
+# Top-level tabs: NIFTY, BANKNIFTY, Algo Trade
+nifty_tab, banknifty_tab, algo_tab = st.tabs(["NIFTY", "BANKNIFTY", "ALGO TRADE"])
 
 with nifty_tab:
     render_index("NIFTY", INDICES["NIFTY"])
 
 with banknifty_tab:
     render_index("BANKNIFTY", INDICES["BANKNIFTY"])
+
+with algo_tab:
+    render_algo_trade()
 
 # Auto-refresh
 st.markdown(f"_Auto-refreshes every {REFRESH_SECONDS}s_")
