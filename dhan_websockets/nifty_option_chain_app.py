@@ -1469,6 +1469,21 @@ if is_market_open():
     with pnl_tab:
         render_pnl_summary()
 
+    # Morning market open message (once per day)
+    today_str = now_ist().strftime("%Y-%m-%d")
+    open_msg_key = f"market_open_sent_{today_str}"
+    if not st.session_state.get(open_msg_key):
+        st.session_state[open_msg_key] = True
+        _send_telegram(
+            f"MARKET OPEN | {today_str}\n"
+            f"{'=' * 30}\n"
+            f"Paper trading started for {now_ist().strftime('%A, %d %b %Y')}\n"
+            f"Strategies active: ABCD, RSI+SMA\n"
+            f"Monitoring: NIFTY ATM options\n"
+            f"Refresh interval: {REFRESH_SECONDS}s\n"
+            f"Good luck today!"
+        )
+
     # Daily P&L Telegram at 3:30 PM IST
     send_daily_pnl_summary()
 
