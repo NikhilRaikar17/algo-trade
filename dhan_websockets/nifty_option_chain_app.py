@@ -562,6 +562,540 @@ def classify_trades(patterns, current_price, contract_name=""):
     return active, completed
 
 
+# ================= RSI + SMA CROSSOVER DETECTION =================
+
+RSI_PERIOD = 14
+SMA_FAST = 9
+SMA_SLOW = 21
+RSI_OVERSOLD = 30
+RSI_OVERBOUGHT = 70
+
+
+def compute_rsi(series, period=RSI_PERIOD):
+    """Compute RSI from a price series."""
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+    avg_gain = gain.rolling(window=period, min_periods=period).mean()
+    avg_loss = loss.rolling(window=period, min_periods=period).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
+def compute_sma(series, period):
+    return series.rolling(window=period, min_periods=period).mean()
+
+
+def detect_rsi_sma_signals(candles):
+    """
+    Detect RSI + SMA crossover signals on 5-min candles.
+
+    Buy signal:  SMA fast crosses above SMA slow AND RSI crosses above oversold (30)
+    Sell signal: SMA fast crosses below SMA slow AND RSI crosses below overbought (70)
+
+    Returns list of signal dicts.
+    """
+    df = candles.copy()
+    df["rsi"] = compute_rsi(df["close"])
+    df["sma_fast"] = compute_sma(df["close"], SMA_FAST)
+    df["sma_slow"] = compute_sma(df["close"], SMA_SLOW)
+    df = df.dropna().reset_index(drop=True)
+
+    if len(df) < 2:
+        return [], df
+
+    signals = []
+    for i in range(1, len(df)):
+        prev = df.iloc[i - 1]
+        curr = df.iloc[i]
+
+        # Bullish: SMA fast crosses above slow + RSI was below 30 and now above
+        if prev["sma_fast"] <= prev["sma_slow"] and curr["sma_fast"] > curr["sma_slow"] \
+                and curr["rsi"] > RSI_OVERSOLD:
+            target = curr["close"] * 1.02  # 2% target
+            sl = curr["close"] * 0.98      # 2% stop loss
+            signals.append({
+                "type": "Bullish",
+                "signal": "BUY CE — SMA crossover + RSI recovery",
+                "entry": round(curr["close"], 2),
+                "target": round(target, 2),
+                "stop_loss": round(sl, 2),
+                "time": curr["timestamp"],
+                "rsi": round(curr["rsi"], 2),
+                "sma_fast": round(curr["sma_fast"], 2),
+                "sma_slow": round(curr["sma_slow"], 2),
+            })
+
+        # Bearish: SMA fast crosses below slow + RSI was above 70 and now below
+        if prev["sma_fast"] >= prev["sma_slow"] and curr["sma_fast"] < curr["sma_slow"] \
+                and curr["rsi"] < RSI_OVERBOUGHT:
+            target = curr["close"] * 0.98
+            sl = curr["close"] * 1.02
+            signals.append({
+                "type": "Bearish",
+                "signal": "BUY PE — SMA crossover + RSI overbought",
+                "entry": round(curr["close"], 2),
+                "target": round(target, 2),
+                "stop_loss": round(sl, 2),
+                "time": curr["timestamp"],
+                "rsi": round(curr["rsi"], 2),
+                "sma_fast": round(curr["sma_fast"], 2),
+                "sma_slow": round(curr["sma_slow"], 2),
+            })
+
+    return signals, df
+
+
+def _rsi_signal_key(s):
+    return f"rsi_{s['time']}_{s['type']}"
+
+
+def classify_rsi_trades(signals, current_price, contract_name=""):
+    """Classify RSI+SMA signals into active/completed, send Telegram alerts."""
+    active = []
+    completed = []
+
+    if "alerted_rsi_active" not in st.session_state:
+        st.session_state["alerted_rsi_active"] = set()
+    if "alerted_rsi_completed" not in st.session_state:
+        st.session_state["alerted_rsi_completed"] = set()
+
+    for s in signals:
+        entry = s["entry"]
+        target = s["target"]
+        sl = s["stop_loss"]
+        key = _rsi_signal_key(s)
+
+        if s["type"] == "Bullish":
+            pnl = current_price - entry
+            hit_target = current_price >= target
+            hit_sl = current_price <= sl
+        else:
+            pnl = entry - current_price
+            hit_target = current_price <= target
+            hit_sl = current_price >= sl
+
+        pnl = round(pnl, 2)
+
+        if hit_target or hit_sl:
+            s["exit_price"] = current_price
+            s["pnl"] = pnl
+            s["status"] = "Target Hit" if hit_target else "SL Hit"
+            completed.append(s)
+
+            if key not in st.session_state["alerted_rsi_completed"]:
+                st.session_state["alerted_rsi_completed"].add(key)
+                emoji = "+" if pnl > 0 else ""
+                _send_telegram(
+                    f"TRADE CLOSED [RSI+SMA] | {contract_name}\n"
+                    f"Signal: {s['signal']}\n"
+                    f"Entry: {entry:.2f} | Exit: {current_price:.2f}\n"
+                    f"PnL: {emoji}{pnl:.2f}\n"
+                    f"Status: {s['status']}"
+                )
+        else:
+            s["unrealized_pnl"] = pnl
+            active.append(s)
+
+            if key not in st.session_state["alerted_rsi_active"]:
+                st.session_state["alerted_rsi_active"].add(key)
+                _send_telegram(
+                    f"NEW TRADE [RSI+SMA] | {contract_name}\n"
+                    f"Signal: {s['signal']}\n"
+                    f"Entry: {entry:.2f}\n"
+                    f"Target: {target:.2f} | SL: {sl:.2f}\n"
+                    f"RSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}"
+                )
+
+    return active, completed
+
+
+def render_rsi_expiry(cfg, expiry, raw):
+    """Render RSI+SMA scanner for a single expiry."""
+    spot = float(raw["last_price"])
+    oc = raw["oc"]
+    atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
+
+    strikes = sorted(oc.keys(), key=lambda s: abs(float(s) - atm))
+    if not strikes:
+        st.error("No strikes found")
+        return
+
+    best_strike = strikes[0]
+    sides = oc[best_strike]
+    ce_id = sides.get("ce", {}).get("security_id")
+    pe_id = sides.get("pe", {}).get("security_id")
+
+    if not ce_id or not pe_id:
+        st.error(f"No security IDs for ATM strike {best_strike}")
+        return
+
+    exp_date = datetime.strptime(expiry, "%Y-%m-%d")
+    exp_tag = exp_date.strftime("%d%b").upper()
+
+    col_price, col_atm, col_exp = st.columns(3)
+    with col_price:
+        st.metric("NIFTY Spot", f"{spot:,.2f}")
+    with col_atm:
+        st.metric("ATM Strike", f"{atm:,}")
+    with col_exp:
+        st.metric("Expiry", expiry)
+
+    st.divider()
+
+    ce_tab, pe_tab = st.tabs([
+        f"ATM CE — NIFTY {exp_tag} {int(atm)} CE",
+        f"ATM PE — NIFTY {exp_tag} {int(atm)} PE",
+    ])
+
+    for opt_tab, sec_id, opt_type in [(ce_tab, ce_id, "CE"), (pe_tab, pe_id, "PE")]:
+        with opt_tab:
+            time.sleep(1)
+            candles = fetch_5min_candles(sec_id)
+
+            if candles.empty:
+                st.warning(f"No candle data for ATM {opt_type} (ID: {sec_id})")
+                continue
+
+            contract_name = f"NIFTY {exp_tag} {int(atm)} {opt_type}"
+            current_price = candles["close"].iloc[-1]
+
+            # Detect RSI+SMA signals
+            signals, df_ind = detect_rsi_sma_signals(candles)
+
+            # Filter to today only
+            today_date = pd.Timestamp.today().normalize()
+            signals = [s for s in signals
+                       if pd.Timestamp(s["time"]).normalize() == today_date]
+
+            # Chart: candlestick + SMA lines + RSI signals
+            st.markdown(f"**{contract_name}** — Last: **{current_price}** | Candles: **{len(candles)}**")
+
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(
+                x=candles["timestamp"], open=candles["open"],
+                high=candles["high"], low=candles["low"], close=candles["close"],
+                name="Price", increasing_line_color="#26a69a", decreasing_line_color="#ef5350",
+            ))
+
+            if not df_ind.empty:
+                fig.add_trace(go.Scatter(
+                    x=df_ind["timestamp"], y=df_ind["sma_fast"],
+                    mode="lines", line=dict(color="#2196f3", width=1.5),
+                    name=f"SMA {SMA_FAST}",
+                ))
+                fig.add_trace(go.Scatter(
+                    x=df_ind["timestamp"], y=df_ind["sma_slow"],
+                    mode="lines", line=dict(color="#ff9800", width=1.5),
+                    name=f"SMA {SMA_SLOW}",
+                ))
+
+            # Mark buy/sell signals
+            buy_sigs = [s for s in signals if s["type"] == "Bullish"]
+            sell_sigs = [s for s in signals if s["type"] == "Bearish"]
+            if buy_sigs:
+                fig.add_trace(go.Scatter(
+                    x=[s["time"] for s in buy_sigs],
+                    y=[s["entry"] for s in buy_sigs],
+                    mode="markers", marker=dict(symbol="triangle-up", size=14, color="#26a69a"),
+                    name="Buy Signal",
+                ))
+            if sell_sigs:
+                fig.add_trace(go.Scatter(
+                    x=[s["time"] for s in sell_sigs],
+                    y=[s["entry"] for s in sell_sigs],
+                    mode="markers", marker=dict(symbol="triangle-down", size=14, color="#ef5350"),
+                    name="Sell Signal",
+                ))
+
+            fig.update_layout(
+                height=500, xaxis_rangeslider_visible=False,
+                xaxis_title="Time", yaxis_title="Price",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(l=0, r=0, t=30, b=0),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # RSI subplot
+            if not df_ind.empty:
+                fig_rsi = go.Figure()
+                fig_rsi.add_trace(go.Scatter(
+                    x=df_ind["timestamp"], y=df_ind["rsi"],
+                    mode="lines", line=dict(color="#9c27b0", width=1.5), name="RSI",
+                ))
+                fig_rsi.add_hline(y=RSI_OVERBOUGHT, line_dash="dash", line_color="red",
+                                  annotation_text="Overbought (70)")
+                fig_rsi.add_hline(y=RSI_OVERSOLD, line_dash="dash", line_color="green",
+                                  annotation_text="Oversold (30)")
+                fig_rsi.update_layout(
+                    height=200, yaxis_title="RSI", xaxis_title="Time",
+                    margin=dict(l=0, r=0, t=10, b=0),
+                )
+                st.plotly_chart(fig_rsi, use_container_width=True)
+
+            if not signals:
+                st.info("No RSI+SMA signals detected today.")
+
+            active, completed = classify_rsi_trades(signals, current_price, contract_name)
+
+            # Store trades in session state for P&L tab
+            rsi_key = f"rsi_trades_{contract_name}"
+            st.session_state[rsi_key] = {"active": active, "completed": completed}
+
+            active_tab, completed_tab = st.tabs(["Active Trades", "Completed Trades"])
+
+            with active_tab:
+                if not active:
+                    st.info("No active trades")
+                else:
+                    rows = [{
+                        "Signal":     t["signal"],
+                        "Entry":      t["entry"],
+                        "Target":     t["target"],
+                        "Stop Loss":  t["stop_loss"],
+                        "Current":    current_price,
+                        "Unreal. PnL": t["unrealized_pnl"],
+                        "RSI":        t["rsi"],
+                        "Time":       t["time"].strftime("%d %b %H:%M") if hasattr(t["time"], "strftime") else str(t["time"]),
+                    } for t in active]
+                    adf = pd.DataFrame(rows)
+
+                    def hl_pnl_a(row):
+                        styles = [""] * len(row)
+                        idx = row.index.get_loc("Unreal. PnL")
+                        if row["Unreal. PnL"] > 0:
+                            styles[idx] = "background-color: #c6efce; color: #006100; font-weight: bold"
+                        elif row["Unreal. PnL"] < 0:
+                            styles[idx] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
+                        return styles
+
+                    st.dataframe(adf.style.apply(hl_pnl_a, axis=1),
+                                 use_container_width=True, hide_index=True)
+
+            with completed_tab:
+                if not completed:
+                    st.info("No completed trades")
+                else:
+                    rows = [{
+                        "Signal":    t["signal"],
+                        "Entry":     t["entry"],
+                        "Target":    t["target"],
+                        "Stop Loss": t["stop_loss"],
+                        "Exit":      round(t["exit_price"], 2),
+                        "PnL":       t["pnl"],
+                        "Status":    t["status"],
+                        "Time":      t["time"].strftime("%d %b %H:%M") if hasattr(t["time"], "strftime") else str(t["time"]),
+                    } for t in completed]
+                    cdf = pd.DataFrame(rows)
+
+                    def hl_pnl_c(row):
+                        styles = [""] * len(row)
+                        pi = row.index.get_loc("PnL")
+                        si = row.index.get_loc("Status")
+                        if row["PnL"] > 0:
+                            styles[pi] = "background-color: #c6efce; color: #006100; font-weight: bold"
+                            styles[si] = "background-color: #c6efce; color: #006100"
+                        elif row["PnL"] < 0:
+                            styles[pi] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
+                            styles[si] = "background-color: #ffc7ce; color: #9c0006"
+                        return styles
+
+                    st.dataframe(cdf.style.apply(hl_pnl_c, axis=1),
+                                 use_container_width=True, hide_index=True)
+
+
+def render_rsi_sma_trade():
+    """Render the RSI+SMA Crossover tab with rolling expiry tabs."""
+    st.subheader("RSI + SMA Crossover Scanner — NIFTY ATM (5-min candles)")
+
+    cfg = INDICES["NIFTY"]
+
+    try:
+        expiries = get_expiries(cfg["scrip"], cfg["segment"], 2, for_algo=True)
+    except Exception as e:
+        st.error(f"Could not fetch expiries: {e}")
+        return
+
+    expiry_data = {}
+    for exp in expiries:
+        try:
+            raw = fetch_option_chain_raw(cfg["scrip"], cfg["segment"], exp)
+            expiry_data[exp] = raw
+        except Exception as e:
+            expiry_data[exp] = e
+        time.sleep(3)
+
+    expiry_tabs = st.tabs([f"Expiry: {exp}" for exp in expiries])
+
+    for tab, exp in zip(expiry_tabs, expiries):
+        with tab:
+            result = expiry_data[exp]
+            if isinstance(result, Exception):
+                st.error(f"Error loading {exp}: {result}")
+            else:
+                render_rsi_expiry(cfg, exp, result)
+
+
+# ================= P&L SUMMARY =================
+
+def collect_all_trades():
+    """Collect all trades from ABCD and RSI strategies stored in session state."""
+    all_active = []
+    all_completed = []
+
+    for key, val in st.session_state.items():
+        if isinstance(val, dict) and "active" in val and "completed" in val:
+            strategy = "ABCD" if key.startswith("abcd_") else "RSI+SMA" if key.startswith("rsi_") else "Unknown"
+            for t in val["active"]:
+                t["strategy"] = strategy
+                all_active.append(t)
+            for t in val["completed"]:
+                t["strategy"] = strategy
+                all_completed.append(t)
+
+    return all_active, all_completed
+
+
+def render_pnl_summary():
+    """Render the P&L summary tab."""
+    st.subheader("Profit / Loss Summary — All Strategies")
+
+    all_active, all_completed = collect_all_trades()
+
+    # --- Completed trades summary ---
+    st.markdown("### Completed Trades")
+    if not all_completed:
+        st.info("No completed trades today")
+    else:
+        rows = [{
+            "Strategy":  t.get("strategy", ""),
+            "Signal":    t.get("signal", ""),
+            "Entry":     t.get("entry", 0),
+            "Exit":      round(t.get("exit_price", 0), 2),
+            "PnL":       t.get("pnl", 0),
+            "Status":    t.get("status", ""),
+        } for t in all_completed]
+        cdf = pd.DataFrame(rows)
+
+        total_pnl = cdf["PnL"].sum()
+        winners = len(cdf[cdf["PnL"] > 0])
+        losers = len(cdf[cdf["PnL"] < 0])
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Total P&L", f"{total_pnl:+.2f}",
+                      delta_color="normal" if total_pnl >= 0 else "inverse")
+        with c2:
+            st.metric("Total Trades", len(cdf))
+        with c3:
+            st.metric("Winners", winners)
+        with c4:
+            st.metric("Losers", losers)
+
+        st.divider()
+
+        # Per-strategy breakdown
+        for strat in cdf["Strategy"].unique():
+            sdf = cdf[cdf["Strategy"] == strat]
+            spnl = sdf["PnL"].sum()
+            st.markdown(f"**{strat}**: {len(sdf)} trades | PnL: **{spnl:+.2f}**")
+
+        st.divider()
+
+        def hl_pnl(row):
+            styles = [""] * len(row)
+            pi = row.index.get_loc("PnL")
+            si = row.index.get_loc("Status")
+            if row["PnL"] > 0:
+                styles[pi] = "background-color: #c6efce; color: #006100; font-weight: bold"
+                styles[si] = "background-color: #c6efce; color: #006100"
+            elif row["PnL"] < 0:
+                styles[pi] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
+                styles[si] = "background-color: #ffc7ce; color: #9c0006"
+            return styles
+
+        st.dataframe(cdf.style.apply(hl_pnl, axis=1),
+                     use_container_width=True, hide_index=True)
+
+    # --- Active trades ---
+    st.markdown("### Active Trades")
+    if not all_active:
+        st.info("No active trades")
+    else:
+        rows = [{
+            "Strategy":    t.get("strategy", ""),
+            "Signal":      t.get("signal", ""),
+            "Entry":       t.get("entry", 0),
+            "Target":      t.get("target", 0),
+            "Stop Loss":   t.get("stop_loss", 0),
+            "Unreal. PnL": t.get("unrealized_pnl", 0),
+        } for t in all_active]
+        adf = pd.DataFrame(rows)
+
+        total_unreal = adf["Unreal. PnL"].sum()
+        st.metric("Unrealized P&L", f"{total_unreal:+.2f}")
+
+        def hl_upnl(row):
+            styles = [""] * len(row)
+            idx = row.index.get_loc("Unreal. PnL")
+            if row["Unreal. PnL"] > 0:
+                styles[idx] = "background-color: #c6efce; color: #006100; font-weight: bold"
+            elif row["Unreal. PnL"] < 0:
+                styles[idx] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
+            return styles
+
+        st.dataframe(adf.style.apply(hl_upnl, axis=1),
+                     use_container_width=True, hide_index=True)
+
+
+def send_daily_pnl_summary():
+    """Send daily P&L summary via Telegram at 3:30 PM IST (once per day)."""
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    summary_key = f"daily_pnl_sent_{today_str}"
+
+    # Only send once per day, after 3:30 PM
+    if now.hour < 15 or (now.hour == 15 and now.minute < 30):
+        return
+    if st.session_state.get(summary_key):
+        return
+
+    all_active, all_completed = collect_all_trades()
+
+    total_realized = sum(t.get("pnl", 0) for t in all_completed)
+    total_unrealized = sum(t.get("unrealized_pnl", 0) for t in all_active)
+    total_trades = len(all_completed)
+    winners = sum(1 for t in all_completed if t.get("pnl", 0) > 0)
+    losers = sum(1 for t in all_completed if t.get("pnl", 0) < 0)
+
+    # Per-strategy breakdown
+    strat_lines = []
+    strategies = set(t.get("strategy", "Unknown") for t in all_completed)
+    for strat in sorted(strategies):
+        strat_trades = [t for t in all_completed if t.get("strategy") == strat]
+        spnl = sum(t.get("pnl", 0) for t in strat_trades)
+        sw = sum(1 for t in strat_trades if t.get("pnl", 0) > 0)
+        sl = sum(1 for t in strat_trades if t.get("pnl", 0) < 0)
+        emoji = "+" if spnl > 0 else ""
+        strat_lines.append(f"  {strat}: {len(strat_trades)} trades | {sw}W/{sl}L | PnL: {emoji}{spnl:.2f}")
+
+    emoji_total = "+" if total_realized > 0 else ""
+    breakdown = "\n".join(strat_lines) if strat_lines else "  No trades today"
+    msg = (
+        f"DAILY P&L SUMMARY | {today_str}\n"
+        f"{'=' * 30}\n"
+        f"Realized P&L: {emoji_total}{total_realized:.2f}\n"
+        f"Unrealized P&L: {total_unrealized:+.2f}\n"
+        f"Total Trades: {total_trades} ({winners}W / {losers}L)\n"
+        f"\nStrategy Breakdown:\n{breakdown}"
+    )
+
+    _send_telegram(msg)
+    st.session_state[summary_key] = True
+    print(f"  [telegram] Daily P&L summary sent for {today_str}")
+
+
 def fetch_option_chain_raw(scrip, segment, expiry):
     """Fetch raw option chain response (includes security_id per strike)."""
     r = api_call(dhan.option_chain, scrip, segment, expiry)
@@ -717,6 +1251,10 @@ def render_algo_expiry(cfg, expiry, raw):
 
             active, completed = classify_trades(patterns, current_price, contract_name)
 
+            # Store trades in session state for P&L tab
+            abcd_key = f"abcd_trades_{contract_name}"
+            st.session_state[abcd_key] = {"active": active, "completed": completed}
+
             # Nested tabs: Active / Completed
             active_tab, completed_tab = st.tabs(["Active Trades", "Completed Trades"])
 
@@ -868,8 +1406,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Top-level tabs: NIFTY, BANKNIFTY, Algo Trade
-nifty_tab, banknifty_tab, algo_tab = st.tabs(["NIFTY", "BANKNIFTY", "ALGO TRADE"])
+# Top-level tabs
+nifty_tab, banknifty_tab, algo_tab, rsi_tab, pnl_tab = st.tabs([
+    "NIFTY", "BANKNIFTY", "ALGO TRADE (ABCD)", "ALGO TRADE (RSI+SMA)", "P&L SUMMARY"
+])
 
 with nifty_tab:
     render_index("NIFTY", INDICES["NIFTY"])
@@ -879,6 +1419,15 @@ with banknifty_tab:
 
 with algo_tab:
     render_algo_trade()
+
+with rsi_tab:
+    render_rsi_sma_trade()
+
+with pnl_tab:
+    render_pnl_summary()
+
+# Daily P&L Telegram at 3:30 PM IST
+send_daily_pnl_summary()
 
 # Auto-refresh
 st.markdown(f"_Auto-refreshes every {REFRESH_SECONDS}s_")
