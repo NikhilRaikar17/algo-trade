@@ -30,8 +30,9 @@ BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
 RECEIVER_CHAT_IDS = ["8272803637", "1623717769"]
 
 # ================= CONFIG =================
-REFRESH_SECONDS = 30
+REFRESH_SECONDS = 120
 SMA_PERIOD = 5
+EXPIRY_ROLLOVER_HOUR = 15  # on expiry day, switch to next expiry after this hour (IST)
 
 INDICES = {
     "NIFTY": {
@@ -51,10 +52,40 @@ INDICES = {
 }
 
 
+# ================= API HELPER =================
+
+def api_call(fn, *args, retries=3, delay=3, **kwargs):
+    """Call a Dhan API function with retry on rate limit / failure."""
+    for attempt in range(retries):
+        r = fn(*args, **kwargs)
+        if isinstance(r, dict):
+            # Check for rate limit (HTTP 429 or 805 error)
+            err_data = r.get("data", {})
+            if isinstance(err_data, dict):
+                inner = err_data.get("data", {})
+                if isinstance(inner, dict) and any("Too many" in str(v) for v in inner.values()):
+                    print(f"  [rate limit] attempt {attempt+1}/{retries}, waiting {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+            if r.get("status") == "failure" and attempt < retries - 1:
+                print(f"  [api retry] attempt {attempt+1}/{retries}, waiting {delay}s...")
+                time.sleep(delay)
+                delay *= 2
+                continue
+        return r
+    return r  # return last response even if failed
+
+
 # ================= DATA FUNCTIONS =================
 
-def get_expiries(scrip, segment, count=3):
-    r = dhan.expiry_list(scrip, segment)
+def get_expiries(scrip, segment, count=3, for_algo=False):
+    """Return nearest future expiry dates.
+
+    If for_algo=True, on expiry day after EXPIRY_ROLLOVER_HOUR IST,
+    skip today's expiry and roll to the next one.
+    """
+    r = api_call(dhan.expiry_list, scrip, segment)
     if r.get("status") != "success":
         raise RuntimeError(f"expiry_list failed: {r}")
 
@@ -65,17 +96,35 @@ def get_expiries(scrip, segment, count=3):
         data = next(iter(data.values()))
 
     today = date.today()
-    expiries = sorted(
+    now_ist = datetime.now()  # system clock assumed IST
+
+    all_future = sorted(
         d for d in data
-        if isinstance(d, str) and datetime.strptime(d, "%Y-%m-%d").date() > today
+        if isinstance(d, str) and datetime.strptime(d, "%Y-%m-%d").date() >= today
     )
+
+    if for_algo:
+        # On expiry day after rollover hour, skip today's expiry
+        filtered = []
+        for d in all_future:
+            exp_date = datetime.strptime(d, "%Y-%m-%d").date()
+            if exp_date == today and now_ist.hour >= EXPIRY_ROLLOVER_HOUR:
+                continue  # skip — too close to expiry
+            if exp_date < today:
+                continue
+            filtered.append(d)
+        expiries = filtered
+    else:
+        # For option chain tabs, only strictly future
+        expiries = [d for d in all_future if datetime.strptime(d, "%Y-%m-%d").date() > today]
+
     if not expiries:
         raise RuntimeError("No future expiries found.")
     return expiries[:count]
 
 
 def fetch_option_chain(scrip, segment, expiry):
-    r = dhan.option_chain(scrip, segment, expiry)
+    r = api_call(dhan.option_chain, scrip, segment, expiry)
     if r.get("status") != "success":
         raise RuntimeError(f"option_chain failed: {r}")
 
@@ -205,7 +254,7 @@ def render_index(index_name, cfg):
             chain_data[expiry] = (spot, df)
         except Exception as e:
             chain_data[expiry] = e
-        time.sleep(2)
+        time.sleep(3)
 
     # Spot price box
     spot_val = None
@@ -273,7 +322,7 @@ def render_index(index_name, cfg):
 
 def get_atm_security_ids(scrip, segment, expiry, spot):
     """Get security IDs for ATM CE and PE from option chain."""
-    r = dhan.option_chain(scrip, segment, expiry)
+    r = api_call(dhan.option_chain, scrip, segment, expiry)
     if r.get("status") != "success":
         return None, None, None
 
@@ -298,13 +347,9 @@ def fetch_5min_candles(security_id):
     today = date.today().strftime("%Y-%m-%d")
     from_date = (pd.Timestamp.today() - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
 
-    r = dhan.intraday_minute_data(
-        security_id=str(security_id),
-        exchange_segment="NSE_FNO",
-        instrument_type="OPTIDX",
-        from_date=from_date,
-        to_date=today,
-        interval=5,
+    r = api_call(
+        dhan.intraday_minute_data,
+        str(security_id), "NSE_FNO", "OPTIDX", from_date, today, interval=5,
     )
     if r.get("status") != "success":
         return pd.DataFrame()
@@ -519,27 +564,14 @@ def classify_trades(patterns, current_price, contract_name=""):
 
 def fetch_option_chain_raw(scrip, segment, expiry):
     """Fetch raw option chain response (includes security_id per strike)."""
-    r = dhan.option_chain(scrip, segment, expiry)
+    r = api_call(dhan.option_chain, scrip, segment, expiry)
     if r.get("status") != "success":
         raise RuntimeError(f"option_chain failed: {r}")
     return r["data"]["data"]
 
 
-def render_algo_trade():
-    """Render the Algo Trade tab."""
-    st.subheader("ABCD Pattern Scanner — NIFTY ATM (5-min candles)")
-
-    cfg = INDICES["NIFTY"]
-
-    # Step 1: Get spot, ATM, and security IDs from a single API call
-    try:
-        expiry = get_expiries(cfg["scrip"], cfg["segment"], 1)[0]
-        time.sleep(2)
-        raw = fetch_option_chain_raw(cfg["scrip"], cfg["segment"], expiry)
-    except Exception as e:
-        st.error(f"Could not fetch NIFTY data: {e}")
-        return
-
+def render_algo_expiry(cfg, expiry, raw):
+    """Render ABCD scanner for a single expiry."""
     spot = float(raw["last_price"])
     oc = raw["oc"]
     atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
@@ -557,9 +589,6 @@ def render_algo_trade():
 
     if not ce_id or not pe_id:
         st.error(f"No security IDs for ATM strike {best_strike}. CE: {ce_id}, PE: {pe_id}")
-        st.write("Available strikes near ATM:", strikes[:5])
-        st.write("CE data:", sides.get("ce", {}))
-        st.write("PE data:", sides.get("pe", {}))
         return
 
     exp_date = datetime.strptime(expiry, "%Y-%m-%d")
@@ -575,7 +604,7 @@ def render_algo_trade():
 
     st.divider()
 
-    # Step 3: Fetch 5-min candles for CE and PE
+    # Fetch 5-min candles for CE and PE
     ce_tab, pe_tab = st.tabs([
         f"ATM CE — NIFTY {exp_tag} {int(atm)} CE",
         f"ATM PE — NIFTY {exp_tag} {int(atm)} PE",
@@ -784,6 +813,41 @@ def render_algo_trade():
                             f"C={p['C']['price']:.2f} → D={p['D']['price']:.2f} | "
                             f"BC retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
                         )
+
+
+def render_algo_trade():
+    """Render the Algo Trade tab with rolling expiry tabs."""
+    st.subheader("ABCD Pattern Scanner — NIFTY ATM (5-min candles)")
+
+    cfg = INDICES["NIFTY"]
+
+    # Get 2 nearest expiries (rolling window — auto-skips expired after 3 PM)
+    try:
+        expiries = get_expiries(cfg["scrip"], cfg["segment"], 2, for_algo=True)
+    except Exception as e:
+        st.error(f"Could not fetch expiries: {e}")
+        return
+
+    # Fetch raw option chain for each expiry
+    expiry_data = {}
+    for exp in expiries:
+        try:
+            raw = fetch_option_chain_raw(cfg["scrip"], cfg["segment"], exp)
+            expiry_data[exp] = raw
+        except Exception as e:
+            expiry_data[exp] = e
+        time.sleep(3)
+
+    # Create one tab per expiry
+    expiry_tabs = st.tabs([f"Expiry: {exp}" for exp in expiries])
+
+    for tab, exp in zip(expiry_tabs, expiries):
+        with tab:
+            result = expiry_data[exp]
+            if isinstance(result, Exception):
+                st.error(f"Error loading {exp}: {result}")
+            else:
+                render_algo_expiry(cfg, exp, result)
 
 
 # ================= STREAMLIT APP =================
