@@ -1469,15 +1469,17 @@ if is_market_open():
     with pnl_tab:
         render_pnl_summary()
 
-    # Morning market open message (once per day)
-    today_str = now_ist().strftime("%Y-%m-%d")
+    # Morning market open message — only between 9:15 and 9:20 AM IST
+    ist_now = now_ist()
+    today_str = ist_now.strftime("%Y-%m-%d")
     open_msg_key = f"market_open_sent_{today_str}"
-    if not st.session_state.get(open_msg_key):
+    is_open_window = (ist_now.hour == 9 and 15 <= ist_now.minute <= 20)
+    if is_open_window and not st.session_state.get(open_msg_key):
         st.session_state[open_msg_key] = True
         _send_telegram(
             f"MARKET OPEN | {today_str}\n"
             f"{'=' * 30}\n"
-            f"Paper trading started for {now_ist().strftime('%A, %d %b %Y')}\n"
+            f"Paper trading started for {ist_now.strftime('%A, %d %b %Y')}\n"
             f"Strategies active: ABCD, RSI+SMA\n"
             f"Monitoring: NIFTY ATM options\n"
             f"Refresh interval: {REFRESH_SECONDS}s\n"
@@ -1511,10 +1513,13 @@ else:
         unsafe_allow_html=True,
     )
 
+    # Send daily P&L summary at 3:30 PM even after market close
+    send_daily_pnl_summary()
+
     # Still show P&L summary from today even after market close
     st.markdown("---")
     render_pnl_summary()
 
-    # Refresh every 30s to update the countdown
+    # Refresh every 30s to update the countdown and auto-start when market opens
     time.sleep(30)
     st.rerun()
