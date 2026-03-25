@@ -13,6 +13,9 @@ from datetime import datetime, date
 from dotenv import load_dotenv
 from dhanhq import dhanhq
 import plotly.graph_objects as go
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from dhan_services.telegram import send_alert_to_all
 
 # ================= ENV =================
 ENV_FILE = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -21,6 +24,10 @@ load_dotenv(dotenv_path=ENV_FILE, override=True)
 CLIENT_ID    = os.getenv("DHAN_CLIENT_CODE")
 ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
 dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
+
+# ================= TELEGRAM CONFIG =================
+BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
+RECEIVER_CHAT_IDS = ["8272803637", "1623717769"]
 
 # ================= CONFIG =================
 REFRESH_SECONDS = 30
@@ -140,7 +147,7 @@ def add_trend(df, index_name, expiry, opt_type):
         prices = history[strike]
         if len(prices) < SMA_PERIOD:
             trends.append("—")
-            sma_values.append("")
+            sma_values.append(None)
         else:
             sma = sum(prices) / SMA_PERIOD
             sma_values.append(round(sma, 2))
@@ -407,38 +414,105 @@ def detect_abcd_patterns(swings, tolerance=0.15):
     return patterns
 
 
-def classify_trades(patterns, current_price):
-    """Split patterns into active and completed trades."""
+def _pattern_key(p):
+    """Unique key for a pattern based on A and D timestamps."""
+    return f"{p['A']['time']}_{p['D']['time']}_{p['type']}"
+
+
+def _send_telegram(message):
+    """Send a Telegram alert, silently ignore failures."""
+    try:
+        if BOT_TOKEN and RECEIVER_CHAT_IDS:
+            send_alert_to_all(message, RECEIVER_CHAT_IDS, BOT_TOKEN)
+    except Exception as e:
+        print(f"  [telegram] failed: {e}")
+
+
+def classify_trades(patterns, current_price, contract_name=""):
+    """Split patterns into active and completed trades, send Telegram alerts for new events."""
     active = []
     completed = []
+
+    # Track which patterns we've already alerted on
+    if "alerted_active" not in st.session_state:
+        st.session_state["alerted_active"] = set()
+    if "alerted_completed" not in st.session_state:
+        st.session_state["alerted_completed"] = set()
 
     for p in patterns:
         entry = p["entry"]
         target = p["target"]
         sl = p["stop_loss"]
+        key = _pattern_key(p)
 
         if p["type"] == "Bullish":
-            # Bearish reversal expected: price should fall from D
             pnl = entry - current_price
             if current_price <= target or current_price >= sl:
                 p["exit_price"] = current_price
                 p["pnl"] = round(pnl, 2)
                 p["status"] = "Target Hit" if current_price <= target else "SL Hit"
                 completed.append(p)
+
+                # Alert on trade completion
+                if key not in st.session_state["alerted_completed"]:
+                    st.session_state["alerted_completed"].add(key)
+                    emoji = "+" if p["pnl"] > 0 else ""
+                    _send_telegram(
+                        f"TRADE CLOSED | {contract_name}\n"
+                        f"Pattern: {p['type']} ABCD\n"
+                        f"Signal: {p['signal']}\n"
+                        f"Entry: {entry:.2f} | Exit: {current_price:.2f}\n"
+                        f"PnL: {emoji}{p['pnl']:.2f}\n"
+                        f"Status: {p['status']}"
+                    )
             else:
                 p["unrealized_pnl"] = round(pnl, 2)
                 active.append(p)
+
+                # Alert on new active trade
+                if key not in st.session_state["alerted_active"]:
+                    st.session_state["alerted_active"].add(key)
+                    _send_telegram(
+                        f"NEW TRADE | {contract_name}\n"
+                        f"Pattern: {p['type']} ABCD\n"
+                        f"Signal: {p['signal']}\n"
+                        f"Entry (D): {entry:.2f}\n"
+                        f"Target: {target:.2f} | SL: {sl:.2f}\n"
+                        f"BC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
+                    )
         else:
-            # Bullish reversal expected: price should rise from D
             pnl = current_price - entry
             if current_price >= target or current_price <= sl:
                 p["exit_price"] = current_price
                 p["pnl"] = round(pnl, 2)
                 p["status"] = "Target Hit" if current_price >= target else "SL Hit"
                 completed.append(p)
+
+                if key not in st.session_state["alerted_completed"]:
+                    st.session_state["alerted_completed"].add(key)
+                    emoji = "+" if p["pnl"] > 0 else ""
+                    _send_telegram(
+                        f"TRADE CLOSED | {contract_name}\n"
+                        f"Pattern: {p['type']} ABCD\n"
+                        f"Signal: {p['signal']}\n"
+                        f"Entry: {entry:.2f} | Exit: {current_price:.2f}\n"
+                        f"PnL: {emoji}{p['pnl']:.2f}\n"
+                        f"Status: {p['status']}"
+                    )
             else:
                 p["unrealized_pnl"] = round(pnl, 2)
                 active.append(p)
+
+                if key not in st.session_state["alerted_active"]:
+                    st.session_state["alerted_active"].add(key)
+                    _send_telegram(
+                        f"NEW TRADE | {contract_name}\n"
+                        f"Pattern: {p['type']} ABCD\n"
+                        f"Signal: {p['signal']}\n"
+                        f"Entry (D): {entry:.2f}\n"
+                        f"Target: {target:.2f} | SL: {sl:.2f}\n"
+                        f"BC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
+                    )
 
     return active, completed
 
@@ -602,10 +676,17 @@ def render_algo_trade():
 
             st.plotly_chart(fig, use_container_width=True)
 
-            if not patterns:
-                st.info("No ABCD patterns detected yet. Patterns will appear as price action develops.")
+            # Only keep patterns where D (entry point) is from today
+            today_date = pd.Timestamp.today().normalize()
+            patterns = [
+                p for p in patterns
+                if pd.Timestamp(p["D"]["time"]).normalize() == today_date
+            ]
 
-            active, completed = classify_trades(patterns, current_price)
+            if not patterns:
+                st.info("No ABCD patterns detected today. Patterns will appear as price action develops.")
+
+            active, completed = classify_trades(patterns, current_price, contract_name)
 
             # Nested tabs: Active / Completed
             active_tab, completed_tab = st.tabs(["Active Trades", "Completed Trades"])

@@ -582,6 +582,7 @@ name = "dhan-websockets"
 version = "0.1.0"
 source = { virtual = "dhan_websockets" }
 dependencies = [
+    { name = "dhan-tradehull" },
     { name = "dhanhq" },
     { name = "dotenv" },
     { name = "plotly" },
@@ -590,6 +591,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dhan-tradehull", specifier = "==3.0.2" },
     { name = "dhanhq", specifier = ">=2.0.2" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "plotly", specifier = ">=6.6.0" },
