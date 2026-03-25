@@ -13,6 +13,14 @@ from datetime import datetime, date
 from dotenv import load_dotenv
 from dhanhq import dhanhq
 import plotly.graph_objects as go
+import pytz
+
+IST = pytz.timezone("Asia/Kolkata")
+
+
+def now_ist():
+    """Current time in IST."""
+    return datetime.now(IST)
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dhan_services.telegram import send_alert_to_all
@@ -95,8 +103,8 @@ def get_expiries(scrip, segment, count=3, for_algo=False):
     if isinstance(data, dict):
         data = next(iter(data.values()))
 
-    today = date.today()
-    now_ist = datetime.now()  # system clock assumed IST
+    ist_now = now_ist()
+    today = ist_now.date()
 
     all_future = sorted(
         d for d in data
@@ -108,7 +116,7 @@ def get_expiries(scrip, segment, count=3, for_algo=False):
         filtered = []
         for d in all_future:
             exp_date = datetime.strptime(d, "%Y-%m-%d").date()
-            if exp_date == today and now_ist.hour >= EXPIRY_ROLLOVER_HOUR:
+            if exp_date == today and ist_now.hour >= EXPIRY_ROLLOVER_HOUR:
                 continue  # skip — too close to expiry
             if exp_date < today:
                 continue
@@ -277,7 +285,7 @@ def render_index(index_name, cfg):
         atm_display = round(spot_val / strike_step) * strike_step if spot_val else "N/A"
         st.metric("ATM Strike", f"{atm_display:,}" if spot_val else "N/A")
     with col_time:
-        st.metric("Last Updated", datetime.now().strftime("%H:%M:%S"))
+        st.metric("Last Updated", now_ist().strftime("%H:%M:%S"))
 
     st.divider()
 
@@ -344,8 +352,8 @@ def get_atm_security_ids(scrip, segment, expiry, spot):
 
 def fetch_5min_candles(security_id):
     """Fetch 5-min intraday candles for a security (last 5 days)."""
-    today = date.today().strftime("%Y-%m-%d")
-    from_date = (pd.Timestamp.today() - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
+    today = now_ist().strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
 
     r = api_call(
         dhan.intraday_minute_data,
@@ -765,7 +773,7 @@ def render_rsi_expiry(cfg, expiry, raw):
             signals, df_ind = detect_rsi_sma_signals(candles)
 
             # Filter to today only
-            today_date = pd.Timestamp.today().normalize()
+            today_date = pd.Timestamp(now_ist().date())
             signals = [s for s in signals
                        if pd.Timestamp(s["time"]).normalize() == today_date]
 
@@ -1051,7 +1059,7 @@ def render_pnl_summary():
 
 def send_daily_pnl_summary():
     """Send daily P&L summary via Telegram at 3:30 PM IST (once per day)."""
-    now = datetime.now()
+    now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
     summary_key = f"daily_pnl_sent_{today_str}"
 
@@ -1240,7 +1248,7 @@ def render_algo_expiry(cfg, expiry, raw):
             st.plotly_chart(fig, use_container_width=True)
 
             # Only keep patterns where D (entry point) is from today
-            today_date = pd.Timestamp.today().normalize()
+            today_date = pd.Timestamp(now_ist().date())
             patterns = [
                 p for p in patterns
                 if pd.Timestamp(p["D"]["time"]).normalize() == today_date
@@ -1388,6 +1396,40 @@ def render_algo_trade():
                 render_algo_expiry(cfg, exp, result)
 
 
+# ================= MARKET HOURS =================
+
+MARKET_OPEN_HOUR, MARKET_OPEN_MIN = 9, 15
+MARKET_CLOSE_HOUR, MARKET_CLOSE_MIN = 15, 30
+
+
+def is_market_open():
+    """Check if current time (IST) is within market hours (9:15 AM - 3:30 PM IST, weekdays)."""
+    now = now_ist()
+    if now.weekday() > 4:
+        return False
+    market_open = now.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
+    market_close = now.replace(hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MIN, second=0, microsecond=0)
+    return market_open <= now <= market_close
+
+
+def get_next_market_open():
+    """Get the next market open datetime in IST."""
+    now = now_ist()
+    target = now.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
+
+    # If today is a weekday and market hasn't opened yet
+    if now.weekday() <= 4 and now < target:
+        return target
+
+    # Otherwise, find next weekday
+    days_ahead = 1
+    while True:
+        next_day = now + pd.Timedelta(days=days_ahead)
+        if next_day.weekday() <= 4:
+            return next_day.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
+        days_ahead += 1
+
+
 # ================= STREAMLIT APP =================
 
 st.set_page_config(page_title="Option Chain", layout="wide")
@@ -1406,30 +1448,58 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Top-level tabs
-nifty_tab, banknifty_tab, algo_tab, rsi_tab, pnl_tab = st.tabs([
-    "NIFTY", "BANKNIFTY", "ALGO TRADE (ABCD)", "ALGO TRADE (RSI+SMA)", "P&L SUMMARY"
-])
+if is_market_open():
+    # Top-level tabs
+    nifty_tab, banknifty_tab, algo_tab, rsi_tab, pnl_tab = st.tabs([
+        "NIFTY", "BANKNIFTY", "ALGO TRADE (ABCD)", "ALGO TRADE (RSI+SMA)", "P&L SUMMARY"
+    ])
 
-with nifty_tab:
-    render_index("NIFTY", INDICES["NIFTY"])
+    with nifty_tab:
+        render_index("NIFTY", INDICES["NIFTY"])
 
-with banknifty_tab:
-    render_index("BANKNIFTY", INDICES["BANKNIFTY"])
+    with banknifty_tab:
+        render_index("BANKNIFTY", INDICES["BANKNIFTY"])
 
-with algo_tab:
-    render_algo_trade()
+    with algo_tab:
+        render_algo_trade()
 
-with rsi_tab:
-    render_rsi_sma_trade()
+    with rsi_tab:
+        render_rsi_sma_trade()
 
-with pnl_tab:
+    with pnl_tab:
+        render_pnl_summary()
+
+    # Daily P&L Telegram at 3:30 PM IST
+    send_daily_pnl_summary()
+
+    # Auto-refresh
+    st.markdown(f"_Auto-refreshes every {REFRESH_SECONDS}s_")
+    time.sleep(REFRESH_SECONDS)
+    st.rerun()
+
+else:
+    # Market is closed — show countdown
+    next_open = get_next_market_open()
+    remaining = next_open - now_ist()
+
+    hours, remainder = divmod(int(remaining.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    st.markdown("---")
+    st.markdown(
+        f"<div style='text-align:center; padding: 60px 0;'>"
+        f"<h2>Market is Closed</h2>"
+        f"<p style='font-size:1.2rem; color: #888;'>Next market open: <b>{next_open.strftime('%A, %d %b %Y at %I:%M %p')}</b></p>"
+        f"<h1 style='font-size:4rem; color: #2196f3;'>{hours:02d}h {minutes:02d}m {seconds:02d}s</h1>"
+        f"<p style='color: #888;'>Market hours: 9:15 AM — 3:30 PM IST (Mon–Fri)</p>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # Still show P&L summary from today even after market close
+    st.markdown("---")
     render_pnl_summary()
 
-# Daily P&L Telegram at 3:30 PM IST
-send_daily_pnl_summary()
-
-# Auto-refresh
-st.markdown(f"_Auto-refreshes every {REFRESH_SECONDS}s_")
-time.sleep(REFRESH_SECONDS)
-st.rerun()
+    # Refresh every 30s to update the countdown
+    time.sleep(30)
+    st.rerun()
