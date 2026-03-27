@@ -6,10 +6,12 @@ Run:  streamlit run dhan_websockets/nifty_option_chain_app.py
 """
 
 import os
+import sys
+import json
 import time
 import pandas as pd
 import streamlit as st
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
 from dhanhq import dhanhq
 import plotly.graph_objects as go
@@ -21,9 +23,91 @@ IST = pytz.timezone("Asia/Kolkata")
 def now_ist():
     """Current time in IST."""
     return datetime.now(IST)
-import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dhan_services.telegram import send_alert_to_all
+
+# ================= NSE HOLIDAYS (2025-2026) =================
+# Source: NSE official holiday list. Update annually.
+NSE_HOLIDAYS = {
+    # 2025
+    "2025-02-26",  # Mahashivratri
+    "2025-03-14",  # Holi
+    "2025-03-31",  # Id-Ul-Fitr (Ramadan)
+    "2025-04-10",  # Shri Mahavir Jayanti
+    "2025-04-14",  # Dr. Baba Saheb Ambedkar Jayanti
+    "2025-04-18",  # Good Friday
+    "2025-05-01",  # Maharashtra Day
+    "2025-06-07",  # Bakri Id (Eid ul-Adha)
+    "2025-08-15",  # Independence Day
+    "2025-08-16",  # Ashura
+    "2025-08-27",  # Ganesh Chaturthi
+    "2025-10-02",  # Mahatma Gandhi Jayanti
+    "2025-10-21",  # Diwali (Laxmi Pujan)
+    "2025-10-22",  # Diwali Balipratipada
+    "2025-11-05",  # Gurunanak Jayanti
+    "2025-12-25",  # Christmas
+    # 2026
+    "2026-01-26",  # Republic Day
+    "2026-02-17",  # Mahashivratri
+    "2026-03-03",  # Holi
+    "2026-03-20",  # Id-Ul-Fitr (Ramadan)
+    "2026-03-30",  # Shri Mahavir Jayanti
+    "2026-04-03",  # Good Friday
+    "2026-04-14",  # Dr. Baba Saheb Ambedkar Jayanti
+    "2026-05-01",  # Maharashtra Day
+    "2026-05-28",  # Bakri Id (Eid ul-Adha)
+    "2026-08-15",  # Independence Day
+    "2026-08-18",  # Ganesh Chaturthi
+    "2026-10-02",  # Mahatma Gandhi Jayanti
+    "2026-10-10",  # Dussehra
+    "2026-10-29",  # Diwali (Laxmi Pujan)
+    "2026-11-25",  # Gurunanak Jayanti
+    "2026-12-25",  # Christmas
+}
+
+
+def is_nse_holiday(dt=None):
+    """Check if a given date is an NSE holiday."""
+    if dt is None:
+        dt = now_ist()
+    return dt.strftime("%Y-%m-%d") in NSE_HOLIDAYS
+
+
+# ================= FILE-BASED DEDUP FOR TELEGRAM =================
+# Using a file instead of st.session_state so it survives restarts and works across tabs.
+_DEDUP_FILE = os.path.join(os.path.dirname(__file__), ".telegram_sent.json")
+
+
+def _load_dedup():
+    """Load sent-message tracking from file."""
+    try:
+        with open(_DEDUP_FILE, "r") as f:
+            data = json.load(f)
+        # Prune entries older than 3 days
+        cutoff = (now_ist() - timedelta(days=3)).strftime("%Y-%m-%d")
+        return {k: v for k, v in data.items() if k >= cutoff}
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_dedup(data):
+    """Save sent-message tracking to file."""
+    with open(_DEDUP_FILE, "w") as f:
+        json.dump(data, f)
+
+
+def _is_already_sent(key):
+    """Check if a Telegram message with this key was already sent today."""
+    data = _load_dedup()
+    return key in data
+
+
+def _mark_sent(key):
+    """Mark a Telegram message key as sent."""
+    data = _load_dedup()
+    data[key] = now_ist().strftime("%Y-%m-%d %H:%M:%S")
+    _save_dedup(data)
 
 # ================= ENV =================
 ENV_FILE = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -137,7 +221,7 @@ def fetch_option_chain(scrip, segment, expiry):
         raise RuntimeError(f"option_chain failed: {r}")
 
     inner = r["data"]["data"]
-    spot = float(inner["last_price"])
+    spot = round(float(inner["last_price"]), 2)
     oc = inner["oc"]
 
     rows = []
@@ -306,18 +390,22 @@ def render_index(index_name, cfg):
                 ce = add_trend(ce, index_name, expiry, "CE")
                 pe = add_trend(pe, index_name, expiry, "PE")
 
+                # Round all float columns to 2 decimals for display
+                float_fmt = {c: "{:.2f}" for c in ce.select_dtypes("number").columns}
+                float_fmt_pe = {c: "{:.2f}" for c in pe.select_dtypes("number").columns}
+
                 col1, col2 = st.columns(2)
                 with col1:
                     st.subheader("CALL (CE)")
                     st.dataframe(
-                        ce.style.apply(highlight_row, atm=atm, axis=1),
+                        ce.style.format(float_fmt).apply(highlight_row, atm=atm, axis=1),
                         use_container_width=True,
                         hide_index=True,
                     )
                 with col2:
                     st.subheader("PUT (PE)")
                     st.dataframe(
-                        pe.style.apply(highlight_row, atm=atm, axis=1),
+                        pe.style.format(float_fmt_pe).apply(highlight_row, atm=atm, axis=1),
                         use_container_width=True,
                         hide_index=True,
                     )
@@ -482,21 +570,18 @@ def _send_telegram(message):
 
 
 def classify_trades(patterns, current_price, contract_name=""):
-    """Split patterns into active and completed trades, send Telegram alerts for new events."""
+    """Split patterns into active and completed trades, send Telegram alerts for new events.
+    Uses file-based dedup so alerts aren't resent on app restart or tab refresh."""
     active = []
     completed = []
-
-    # Track which patterns we've already alerted on
-    if "alerted_active" not in st.session_state:
-        st.session_state["alerted_active"] = set()
-    if "alerted_completed" not in st.session_state:
-        st.session_state["alerted_completed"] = set()
 
     for p in patterns:
         entry = p["entry"]
         target = p["target"]
         sl = p["stop_loss"]
         key = _pattern_key(p)
+        active_key = f"abcd_active_{key}"
+        completed_key = f"abcd_closed_{key}"
 
         if p["type"] == "Bullish":
             pnl = entry - current_price
@@ -506,9 +591,8 @@ def classify_trades(patterns, current_price, contract_name=""):
                 p["status"] = "Target Hit" if current_price <= target else "SL Hit"
                 completed.append(p)
 
-                # Alert on trade completion
-                if key not in st.session_state["alerted_completed"]:
-                    st.session_state["alerted_completed"].add(key)
+                if not _is_already_sent(completed_key):
+                    _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
                     _send_telegram(
                         f"TRADE CLOSED | {contract_name}\n"
@@ -522,9 +606,8 @@ def classify_trades(patterns, current_price, contract_name=""):
                 p["unrealized_pnl"] = round(pnl, 2)
                 active.append(p)
 
-                # Alert on new active trade
-                if key not in st.session_state["alerted_active"]:
-                    st.session_state["alerted_active"].add(key)
+                if not _is_already_sent(active_key):
+                    _mark_sent(active_key)
                     _send_telegram(
                         f"NEW TRADE | {contract_name}\n"
                         f"Pattern: {p['type']} ABCD\n"
@@ -541,8 +624,8 @@ def classify_trades(patterns, current_price, contract_name=""):
                 p["status"] = "Target Hit" if current_price >= target else "SL Hit"
                 completed.append(p)
 
-                if key not in st.session_state["alerted_completed"]:
-                    st.session_state["alerted_completed"].add(key)
+                if not _is_already_sent(completed_key):
+                    _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
                     _send_telegram(
                         f"TRADE CLOSED | {contract_name}\n"
@@ -556,8 +639,8 @@ def classify_trades(patterns, current_price, contract_name=""):
                 p["unrealized_pnl"] = round(pnl, 2)
                 active.append(p)
 
-                if key not in st.session_state["alerted_active"]:
-                    st.session_state["alerted_active"].add(key)
+                if not _is_already_sent(active_key):
+                    _mark_sent(active_key)
                     _send_telegram(
                         f"NEW TRADE | {contract_name}\n"
                         f"Pattern: {p['type']} ABCD\n"
@@ -660,20 +743,18 @@ def _rsi_signal_key(s):
 
 
 def classify_rsi_trades(signals, current_price, contract_name=""):
-    """Classify RSI+SMA signals into active/completed, send Telegram alerts."""
+    """Classify RSI+SMA signals into active/completed, send Telegram alerts.
+    Uses file-based dedup so alerts aren't resent on app restart or tab refresh."""
     active = []
     completed = []
-
-    if "alerted_rsi_active" not in st.session_state:
-        st.session_state["alerted_rsi_active"] = set()
-    if "alerted_rsi_completed" not in st.session_state:
-        st.session_state["alerted_rsi_completed"] = set()
 
     for s in signals:
         entry = s["entry"]
         target = s["target"]
         sl = s["stop_loss"]
         key = _rsi_signal_key(s)
+        active_key = f"rsi_active_{key}"
+        completed_key = f"rsi_closed_{key}"
 
         if s["type"] == "Bullish":
             pnl = current_price - entry
@@ -692,8 +773,8 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
 
-            if key not in st.session_state["alerted_rsi_completed"]:
-                st.session_state["alerted_rsi_completed"].add(key)
+            if not _is_already_sent(completed_key):
+                _mark_sent(completed_key)
                 emoji = "+" if pnl > 0 else ""
                 _send_telegram(
                     f"TRADE CLOSED [RSI+SMA] | {contract_name}\n"
@@ -706,8 +787,8 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
             s["unrealized_pnl"] = pnl
             active.append(s)
 
-            if key not in st.session_state["alerted_rsi_active"]:
-                st.session_state["alerted_rsi_active"].add(key)
+            if not _is_already_sent(active_key):
+                _mark_sent(active_key)
                 _send_telegram(
                     f"NEW TRADE [RSI+SMA] | {contract_name}\n"
                     f"Signal: {s['signal']}\n"
@@ -721,7 +802,7 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
 
 def render_rsi_expiry(cfg, expiry, raw):
     """Render RSI+SMA scanner for a single expiry."""
-    spot = float(raw["last_price"])
+    spot = round(float(raw["last_price"]), 2)
     oc = raw["oc"]
     atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
 
@@ -767,7 +848,7 @@ def render_rsi_expiry(cfg, expiry, raw):
                 continue
 
             contract_name = f"NIFTY {exp_tag} {int(atm)} {opt_type}"
-            current_price = candles["close"].iloc[-1]
+            current_price = round(candles["close"].iloc[-1], 2)
 
             # Detect RSI+SMA signals
             signals, df_ind = detect_rsi_sma_signals(candles)
@@ -778,7 +859,7 @@ def render_rsi_expiry(cfg, expiry, raw):
                        if pd.Timestamp(s["time"]).normalize() == today_date]
 
             # Chart: candlestick + SMA lines + RSI signals
-            st.markdown(f"**{contract_name}** — Last: **{current_price}** | Candles: **{len(candles)}**")
+            st.markdown(f"**{contract_name}** — Last: **{current_price:.2f}** | Candles: **{len(candles)}**")
 
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
@@ -862,7 +943,7 @@ def render_rsi_expiry(cfg, expiry, raw):
                         "Entry":      t["entry"],
                         "Target":     t["target"],
                         "Stop Loss":  t["stop_loss"],
-                        "Current":    current_price,
+                        "Current":    round(current_price, 2),
                         "Unreal. PnL": t["unrealized_pnl"],
                         "RSI":        t["rsi"],
                         "Time":       t["time"].strftime("%d %b %H:%M") if hasattr(t["time"], "strftime") else str(t["time"]),
@@ -878,7 +959,8 @@ def render_rsi_expiry(cfg, expiry, raw):
                             styles[idx] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
                         return styles
 
-                    st.dataframe(adf.style.apply(hl_pnl_a, axis=1),
+                    adf_fmt = {c: "{:.2f}" for c in adf.select_dtypes("number").columns}
+                    st.dataframe(adf.style.format(adf_fmt).apply(hl_pnl_a, axis=1),
                                  use_container_width=True, hide_index=True)
 
             with completed_tab:
@@ -909,7 +991,8 @@ def render_rsi_expiry(cfg, expiry, raw):
                             styles[si] = "background-color: #ffc7ce; color: #9c0006"
                         return styles
 
-                    st.dataframe(cdf.style.apply(hl_pnl_c, axis=1),
+                    cdf_fmt = {c: "{:.2f}" for c in cdf.select_dtypes("number").columns}
+                    st.dataframe(cdf.style.format(cdf_fmt).apply(hl_pnl_c, axis=1),
                                  use_container_width=True, hide_index=True)
 
 
@@ -1023,7 +1106,8 @@ def render_pnl_summary():
                 styles[si] = "background-color: #ffc7ce; color: #9c0006"
             return styles
 
-        st.dataframe(cdf.style.apply(hl_pnl, axis=1),
+        cdf_fmt = {c: "{:.2f}" for c in cdf.select_dtypes("number").columns}
+        st.dataframe(cdf.style.format(cdf_fmt).apply(hl_pnl, axis=1),
                      use_container_width=True, hide_index=True)
 
     # --- Active trades ---
@@ -1053,20 +1137,24 @@ def render_pnl_summary():
                 styles[idx] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
             return styles
 
-        st.dataframe(adf.style.apply(hl_upnl, axis=1),
+        adf_fmt = {c: "{:.2f}" for c in adf.select_dtypes("number").columns}
+        st.dataframe(adf.style.format(adf_fmt).apply(hl_upnl, axis=1),
                      use_container_width=True, hide_index=True)
 
 
 def send_daily_pnl_summary():
-    """Send daily P&L summary via Telegram at 3:30 PM IST (once per day)."""
+    """Send daily P&L summary via Telegram at 3:30 PM IST (once per day).
+    Uses file-based dedup so it works even after app restarts or across tabs."""
     now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
-    summary_key = f"daily_pnl_sent_{today_str}"
+    summary_key = f"daily_pnl_{today_str}"
 
-    # Only send once per day, after 3:30 PM
+    # Only send on trading days, after 3:30 PM
+    if not _is_trading_day(now):
+        return
     if now.hour < 15 or (now.hour == 15 and now.minute < 30):
         return
-    if st.session_state.get(summary_key):
+    if _is_already_sent(summary_key):
         return
 
     all_active, all_completed = collect_all_trades()
@@ -1100,7 +1188,7 @@ def send_daily_pnl_summary():
     )
 
     _send_telegram(msg)
-    st.session_state[summary_key] = True
+    _mark_sent(summary_key)
     print(f"  [telegram] Daily P&L summary sent for {today_str}")
 
 
@@ -1114,7 +1202,7 @@ def fetch_option_chain_raw(scrip, segment, expiry):
 
 def render_algo_expiry(cfg, expiry, raw):
     """Render ABCD scanner for a single expiry."""
-    spot = float(raw["last_price"])
+    spot = round(float(raw["last_price"]), 2)
     oc = raw["oc"]
     atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
 
@@ -1162,14 +1250,14 @@ def render_algo_expiry(cfg, expiry, raw):
                 continue
 
             contract_name = f"NIFTY {exp_tag} {int(atm)} {opt_type}"
-            current_price = candles["close"].iloc[-1]
+            current_price = round(candles["close"].iloc[-1], 2)
 
             # Detect ABCD patterns (before chart so we can overlay)
             swings = find_swing_points(candles, order=2)
             patterns = detect_abcd_patterns(swings)
 
             # Candlestick chart with ABCD overlay
-            st.markdown(f"**{contract_name}** — Last: **{current_price}** | Candles: **{len(candles)}**")
+            st.markdown(f"**{contract_name}** — Last: **{current_price:.2f}** | Candles: **{len(candles)}**")
 
             fig = go.Figure()
 
@@ -1278,7 +1366,7 @@ def render_algo_expiry(cfg, expiry, raw):
                             "Entry (D)":  round(t["entry"], 2),
                             "Target":     round(t["target"], 2),
                             "Stop Loss":  round(t["stop_loss"], 2),
-                            "Current":    current_price,
+                            "Current":    round(current_price, 2),
                             "Unreal. PnL": t["unrealized_pnl"],
                             "A Time":     t["A"]["time"].strftime("%d %b %H:%M") if hasattr(t["A"]["time"], "strftime") else str(t["A"]["time"]),
                             "D Time":     t["D"]["time"].strftime("%d %b %H:%M") if hasattr(t["D"]["time"], "strftime") else str(t["D"]["time"]),
@@ -1297,8 +1385,9 @@ def render_algo_expiry(cfg, expiry, raw):
                             styles[pnl_idx] = "background-color: #ffc7ce; color: #9c0006; font-weight: bold"
                         return styles
 
+                    adf_fmt = {c: "{:.2f}" for c in adf.select_dtypes("number").columns}
                     st.dataframe(
-                        adf.style.apply(highlight_pnl_active, axis=1),
+                        adf.style.format(adf_fmt).apply(highlight_pnl_active, axis=1),
                         use_container_width=True, hide_index=True,
                     )
 
@@ -1336,8 +1425,9 @@ def render_algo_expiry(cfg, expiry, raw):
                             styles[status_idx] = "background-color: #ffc7ce; color: #9c0006"
                         return styles
 
+                    cdf_fmt = {c: "{:.2f}" for c in cdf.select_dtypes("number").columns}
                     st.dataframe(
-                        cdf.style.apply(highlight_pnl_completed, axis=1),
+                        cdf.style.format(cdf_fmt).apply(highlight_pnl_completed, axis=1),
                         use_container_width=True, hide_index=True,
                     )
 
@@ -1402,10 +1492,17 @@ MARKET_OPEN_HOUR, MARKET_OPEN_MIN = 9, 15
 MARKET_CLOSE_HOUR, MARKET_CLOSE_MIN = 15, 30
 
 
+def _is_trading_day(dt=None):
+    """Check if a given date is a trading day (weekday + not an NSE holiday)."""
+    if dt is None:
+        dt = now_ist()
+    return dt.weekday() <= 4 and not is_nse_holiday(dt)
+
+
 def is_market_open():
-    """Check if current time (IST) is within market hours (9:15 AM - 3:30 PM IST, weekdays)."""
+    """Check if current time (IST) is within market hours (9:15 AM - 3:30 PM IST, trading days)."""
     now = now_ist()
-    if now.weekday() > 4:
+    if not _is_trading_day(now):
         return False
     market_open = now.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
     market_close = now.replace(hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MIN, second=0, microsecond=0)
@@ -1413,21 +1510,23 @@ def is_market_open():
 
 
 def get_next_market_open():
-    """Get the next market open datetime in IST."""
+    """Get the next market open datetime in IST (skips weekends and NSE holidays)."""
     now = now_ist()
     target = now.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
 
-    # If today is a weekday and market hasn't opened yet
-    if now.weekday() <= 4 and now < target:
+    # If today is a trading day and market hasn't opened yet
+    if _is_trading_day(now) and now < target:
         return target
 
-    # Otherwise, find next weekday
+    # Otherwise, find next trading day
     days_ahead = 1
-    while True:
-        next_day = now + pd.Timedelta(days=days_ahead)
-        if next_day.weekday() <= 4:
+    while days_ahead < 30:  # safety limit
+        next_day = now + timedelta(days=days_ahead)
+        if _is_trading_day(next_day):
             return next_day.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
         days_ahead += 1
+    # Fallback: next weekday (shouldn't reach here)
+    return (now + timedelta(days=1)).replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
 
 
 # ================= STREAMLIT APP =================
@@ -1472,10 +1571,10 @@ if is_market_open():
     # Morning market open message — only between 9:15 and 9:20 AM IST
     ist_now = now_ist()
     today_str = ist_now.strftime("%Y-%m-%d")
-    open_msg_key = f"market_open_sent_{today_str}"
+    open_msg_key = f"market_open_{today_str}"
     is_open_window = (ist_now.hour == 9 and 15 <= ist_now.minute <= 20)
-    if is_open_window and not st.session_state.get(open_msg_key):
-        st.session_state[open_msg_key] = True
+    if is_open_window and not _is_already_sent(open_msg_key):
+        _mark_sent(open_msg_key)
         _send_telegram(
             f"MARKET OPEN | {today_str}\n"
             f"{'=' * 30}\n"
@@ -1502,13 +1601,22 @@ else:
     hours, remainder = divmod(int(remaining.total_seconds()), 3600)
     minutes, seconds = divmod(remainder, 60)
 
+    # Show reason for closure
+    ist_now = now_ist()
+    if is_nse_holiday(ist_now):
+        close_reason = "NSE Holiday"
+    elif ist_now.weekday() > 4:
+        close_reason = "Weekend"
+    else:
+        close_reason = "After Hours"
+
     st.markdown("---")
     st.markdown(
         f"<div style='text-align:center; padding: 60px 0;'>"
-        f"<h2>Market is Closed</h2>"
+        f"<h2>Market is Closed — {close_reason}</h2>"
         f"<p style='font-size:1.2rem; color: #888;'>Next market open: <b>{next_open.strftime('%A, %d %b %Y at %I:%M %p')}</b></p>"
         f"<h1 style='font-size:4rem; color: #2196f3;'>{hours:02d}h {minutes:02d}m {seconds:02d}s</h1>"
-        f"<p style='color: #888;'>Market hours: 9:15 AM — 3:30 PM IST (Mon–Fri)</p>"
+        f"<p style='color: #888;'>Market hours: 9:15 AM — 3:30 PM IST (Mon–Fri, excl. NSE holidays)</p>"
         f"</div>",
         unsafe_allow_html=True,
     )
