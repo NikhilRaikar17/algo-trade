@@ -1311,26 +1311,21 @@ async def index():
 
         market_open = is_market_open()
 
-        if market_open:
-            closed_container.set_visibility(False)
-            # Ensure all nav pages are accessible
-            for item in NAV_ITEMS:
-                page_containers[item["id"]].clear()
+        for item in NAV_ITEMS:
+            page_containers[item["id"]].clear()
 
-            refresh_fns.append(render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"]))
-            refresh_fns.append(render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]))
+        # Option chains + P&L always render (REST API works anytime)
+        refresh_fns.append(render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"]))
+        refresh_fns.append(render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]))
+        refresh_fns.append(render_pnl_tab(page_containers["pnl"]))
+
+        # Algo tabs need live candle data — show countdown when market is closed
+        if market_open:
             refresh_fns.append(render_algo_tab(page_containers["abcd"], "abcd"))
             refresh_fns.append(render_algo_tab(page_containers["rsi"], "rsi"))
-            refresh_fns.append(render_pnl_tab(page_containers["pnl"]))
         else:
-            # When market is closed, show countdown on main pages and P&L on its own page
-            for pid in ["nifty", "banknifty", "abcd", "rsi"]:
-                page_containers[pid].clear()
-                render_market_closed(page_containers[pid])
-
-            page_containers["pnl"].clear()
-            pnl_refresh = render_pnl_tab(page_containers["pnl"])
-            refresh_fns.append(pnl_refresh)
+            render_market_closed(page_containers["abcd"])
+            render_market_closed(page_containers["rsi"])
 
     async def full_refresh():
         """Rebuild UI if market state changed, then refresh data."""
