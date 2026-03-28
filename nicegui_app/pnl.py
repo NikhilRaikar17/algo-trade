@@ -1,8 +1,8 @@
 """
-P&L collection, daily summary, and market open messages.
+P&L collection, daily summary, and scheduled Telegram messages.
 """
 
-from config import now_ist, _is_trading_day, REFRESH_SECONDS
+from config import now_ist, _is_trading_day, is_nse_holiday, REFRESH_SECONDS
 from state import _trade_store, _is_already_sent, _mark_sent, _send_telegram
 
 
@@ -25,10 +25,49 @@ def collect_all_trades():
     return all_active, all_completed
 
 
+def send_morning_message():
+    """Send at 9:00 AM every day — trading day or not."""
+    now = now_ist()
+    today_str = now.strftime("%Y-%m-%d")
+    morning_key = f"morning_msg_{today_str}"
+
+    if not (now.hour == 9 and now.minute <= 5):
+        return
+    if _is_already_sent(morning_key):
+        return
+    _mark_sent(morning_key)
+
+    day_name = now.strftime("%A, %d %b %Y")
+
+    if now.weekday() > 4:
+        _send_telegram(
+            f"Good morning! | {day_name}\n{'=' * 30}\n"
+            f"It's the weekend — no trading today.\n"
+            f"Relax, recharge, and enjoy your {now.strftime('%A')}!"
+        )
+    elif is_nse_holiday(now):
+        _send_telegram(
+            f"Good morning! | {day_name}\n{'=' * 30}\n"
+            f"NSE is closed today (holiday).\n"
+            f"Take a break and enjoy the day off!"
+        )
+    else:
+        _send_telegram(
+            f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
+            f"Strategies: ABCD Harmonic + RSI+SMA Crossover\n"
+            f"Monitoring: NIFTY ATM options (5-min candles)\n"
+            f"Refresh interval: {REFRESH_SECONDS}s\n"
+            f"Market opens at 9:15 AM IST. Let's go!"
+        )
+    print(f"  [telegram] Morning message sent for {today_str}")
+
+
 def send_daily_pnl_summary():
+    """Send P&L summary + closing message at 3:30 PM on trading days."""
     now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
     summary_key = f"daily_pnl_{today_str}"
+
     if not _is_trading_day(now):
         return
     if now.hour < 15 or (now.hour == 15 and now.minute < 30):
@@ -57,30 +96,20 @@ def send_daily_pnl_summary():
 
     emoji_total = "+" if total_realized > 0 else ""
     breakdown = "\n".join(strat_lines) if strat_lines else "  No trades today"
+
+    day_name = now.strftime("%A, %d %b %Y")
+    result_emoji = "📈" if total_realized >= 0 else "📉"
+
     msg = (
-        f"DAILY P&L SUMMARY | {today_str}\n{'=' * 30}\n"
+        f"MARKET CLOSED — DAILY SUMMARY {result_emoji}\n"
+        f"{day_name}\n{'=' * 30}\n\n"
         f"Realized P&L: {emoji_total}{total_realized:.2f}\n"
         f"Unrealized P&L: {total_unrealized:+.2f}\n"
         f"Total Trades: {total_trades} ({winners}W / {losers}L)\n"
-        f"\nStrategy Breakdown:\n{breakdown}"
+        f"\nStrategy Breakdown:\n{breakdown}\n\n"
+        f"{'=' * 30}\n"
+        f"Trading session complete. See you tomorrow!"
     )
     _send_telegram(msg)
     _mark_sent(summary_key)
     print(f"  [telegram] Daily P&L summary sent for {today_str}")
-
-
-def send_market_open_msg():
-    now = now_ist()
-    today_str = now.strftime("%Y-%m-%d")
-    open_msg_key = f"market_open_{today_str}"
-    if not (now.hour == 9 and 15 <= now.minute <= 20):
-        return
-    if _is_already_sent(open_msg_key):
-        return
-    _mark_sent(open_msg_key)
-    _send_telegram(
-        f"MARKET OPEN | {today_str}\n{'=' * 30}\n"
-        f"Paper trading started for {now.strftime('%A, %d %b %Y')}\n"
-        f"Strategies active: ABCD, RSI+SMA\nMonitoring: NIFTY ATM options\n"
-        f"Refresh interval: {REFRESH_SECONDS}s\nGood luck today!"
-    )

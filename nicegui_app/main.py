@@ -10,7 +10,7 @@ from nicegui import ui, context
 
 from config import now_ist, REFRESH_SECONDS, INDICES, get_next_holiday
 from state import is_market_open, get_next_market_open
-from pnl import send_daily_pnl_summary, send_market_open_msg
+from pnl import send_daily_pnl_summary, send_morning_message
 from pages import (
     render_dashboard,
     render_index_tab,
@@ -291,8 +291,7 @@ async def index():
                 status_label.text = f"Refresh error: {e}"
             print(f"  [refresh error] {e}")
 
-        if is_market_open():
-            send_market_open_msg()
+        send_morning_message()
         send_daily_pnl_summary()
 
     # Initial build and refresh
