@@ -114,13 +114,15 @@ def render_dashboard(container):
 
         # Loading state
         with price_container:
-            with ui.row().classes("w-full gap-6 flex-wrap"):
+            with ui.element("div").classes("w-full").style(
+                "display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;"
+            ):
                 for name in ["NIFTY", "BANKNIFTY"]:
                     for ptype in ["SPOT", "FUT"]:
                         with ui.card().classes(
-                            "flex-1 min-w-[200px] !bg-white border border-gray-200 shadow-sm"
-                        ):
-                            with ui.column().classes("items-center w-full py-4"):
+                            "!bg-white border border-gray-200 shadow-sm"
+                        ).style("min-height: 140px"):
+                            with ui.column().classes("items-center justify-center w-full h-full"):
                                 ui.label(f"{name} {ptype}").classes(
                                     "text-xs font-semibold text-gray-400 uppercase tracking-wider"
                                 )
@@ -135,45 +137,45 @@ def render_dashboard(container):
 
         price_container.clear()
         with price_container:
-            with ui.row().classes("w-full gap-6 flex-wrap"):
+            with ui.element("div").classes("w-full").style(
+                "display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;"
+            ):
                 for name in ["NIFTY", "BANKNIFTY"]:
                     data = prices.get(name, {})
                     spot = data.get("spot")
                     fut = data.get("fut")
                     expiry = data.get("expiry")
 
-                    icon_name = "show_chart" if name == "NIFTY" else "candlestick_chart"
+                    accent = "border-l-blue-600" if name == "NIFTY" else "border-l-slate-800"
 
                     # Spot card
                     with ui.card().classes(
-                        "flex-1 min-w-[200px] !bg-white border border-gray-200 shadow-sm"
-                    ):
-                        with ui.column().classes("items-center w-full py-5"):
-                            ui.icon(icon_name, size="24px").classes("text-gray-400 mb-1")
+                        f"!bg-white border border-gray-200 shadow-sm border-l-4 {accent} !rounded-lg"
+                    ).style("min-height: 140px"):
+                        with ui.column().classes("w-full h-full justify-center py-5 pl-4"):
                             ui.label(f"{name} SPOT").classes(
-                                "text-xs font-semibold text-gray-400 uppercase tracking-wider"
+                                "text-[11px] font-bold text-gray-400 uppercase tracking-widest"
                             )
                             spot_text = f"{spot:,.2f}" if spot else "N/A"
                             ui.label(spot_text).classes(
-                                "text-3xl font-bold text-gray-900 mt-1 tracking-tight"
+                                "text-3xl font-bold text-gray-900 mt-2 tracking-tight"
                             )
 
                     # Futures card
                     with ui.card().classes(
-                        "flex-1 min-w-[200px] !bg-white border border-gray-200 shadow-sm"
-                    ):
-                        with ui.column().classes("items-center w-full py-5"):
-                            ui.icon("trending_up", size="24px").classes("text-gray-400 mb-1")
+                        f"!bg-white border border-gray-200 shadow-sm border-l-4 {accent} !rounded-lg"
+                    ).style("min-height: 140px"):
+                        with ui.column().classes("w-full h-full justify-center py-5 pl-4"):
                             exp_tag = ""
                             if expiry:
                                 exp_date = datetime.strptime(expiry, "%Y-%m-%d")
                                 exp_tag = f" ({exp_date.strftime('%d%b').upper()})"
                             ui.label(f"{name} FUT{exp_tag}").classes(
-                                "text-xs font-semibold text-gray-400 uppercase tracking-wider"
+                                "text-[11px] font-bold text-gray-400 uppercase tracking-widest"
                             )
                             fut_text = f"{fut:,.2f}" if fut else "N/A"
                             ui.label(fut_text).classes(
-                                "text-3xl font-bold text-gray-900 mt-1 tracking-tight"
+                                "text-3xl font-bold text-gray-900 mt-2 tracking-tight"
                             )
 
                             # Basis
@@ -181,9 +183,19 @@ def render_dashboard(container):
                                 basis = round(fut - spot, 2)
                                 basis_pct = round((basis / spot) * 100, 3)
                                 sign = "+" if basis >= 0 else ""
-                                ui.label(
-                                    f"Basis: {sign}{basis:,.2f} ({sign}{basis_pct}%)"
-                                ).classes("text-xs text-gray-500 mt-1")
+                                if basis >= 0:
+                                    bg = "bg-green-50 text-green-700"
+                                    icon = "arrow_drop_up"
+                                else:
+                                    bg = "bg-red-50 text-red-700"
+                                    icon = "arrow_drop_down"
+                                with ui.row().classes(
+                                    f"items-center gap-0 mt-2 px-2 py-0.5 rounded {bg}"
+                                ).style("width: fit-content"):
+                                    ui.icon(icon, size="18px")
+                                    ui.label(
+                                        f"{sign}{basis:,.2f} ({sign}{basis_pct}%)"
+                                    ).classes("text-xs font-semibold")
 
         update_time_label.set_text(
             f"Updated {now_ist().strftime('%H:%M:%S')} IST"
