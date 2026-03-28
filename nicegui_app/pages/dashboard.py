@@ -60,35 +60,35 @@ def render_dashboard(container):
         with ui.row().classes("w-full gap-4 sm:gap-6 mb-6 sm:mb-8 flex-wrap"):
             # IST Clock
             with ui.card().classes(
-                "flex-1 min-w-[140px] !bg-white border border-gray-200 shadow-sm"
+                "flex-1 min-w-[140px] clock-card-ist shadow-lg !rounded-xl"
             ):
-                with ui.column().classes("items-center w-full py-3 sm:py-5"):
-                    ui.icon("schedule", size="28px").classes("text-gray-400 mb-2 hidden sm:block")
-                    ui.label("IST").classes(
-                        "text-xs font-semibold text-gray-400 uppercase tracking-widest"
+                with ui.column().classes("items-center w-full py-4 sm:py-6"):
+                    ui.icon("schedule", size="28px").classes("text-blue-300 mb-2 hidden sm:block")
+                    ui.label("INDIA (IST)").classes(
+                        "text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]"
                     )
                     ist_time_label = ui.label(
                         now_ist().strftime("%I:%M:%S %p")
-                    ).classes("text-2xl sm:text-4xl font-bold text-gray-900 mt-2 tracking-tight")
+                    ).classes("text-2xl sm:text-4xl font-bold text-white mt-2 tracking-tight")
                     ist_date_label = ui.label(
                         now_ist().strftime("%A, %d %B %Y")
-                    ).classes("text-xs sm:text-sm text-gray-400 mt-1")
+                    ).classes("text-xs sm:text-sm text-slate-400 mt-1")
 
             # CEST Clock
             with ui.card().classes(
-                "flex-1 min-w-[140px] !bg-white border border-gray-200 shadow-sm"
+                "flex-1 min-w-[140px] clock-card-cest shadow-lg !rounded-xl"
             ):
-                with ui.column().classes("items-center w-full py-3 sm:py-5"):
-                    ui.icon("public", size="28px").classes("text-gray-400 mb-2 hidden sm:block")
-                    ui.label("CET / CEST").classes(
-                        "text-xs font-semibold text-gray-400 uppercase tracking-widest"
+                with ui.column().classes("items-center w-full py-4 sm:py-6"):
+                    ui.icon("public", size="28px").classes("text-sky-300 mb-2 hidden sm:block")
+                    ui.label("EUROPE (CET/CEST)").classes(
+                        "text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]"
                     )
                     cest_time_label = ui.label(
                         now_cest().strftime("%I:%M:%S %p")
-                    ).classes("text-2xl sm:text-4xl font-bold text-gray-900 mt-2 tracking-tight")
+                    ).classes("text-2xl sm:text-4xl font-bold text-white mt-2 tracking-tight")
                     cest_date_label = ui.label(
                         now_cest().strftime("%A, %d %B %Y")
-                    ).classes("text-xs sm:text-sm text-gray-400 mt-1")
+                    ).classes("text-xs sm:text-sm text-slate-400 mt-1")
 
         # Update clocks every second
         def update_clocks():
@@ -103,9 +103,11 @@ def render_dashboard(container):
 
         # ---- Section Header ----
         with ui.row().classes("w-full items-center mb-4"):
-            ui.label("Market Overview").classes(
-                "text-lg font-semibold text-gray-800"
-            )
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("monitoring", size="22px").classes("text-blue-500")
+                ui.label("Market Overview").classes(
+                    "text-lg font-semibold text-gray-800"
+                )
             ui.space()
             update_time_label = ui.label("").classes("text-xs text-gray-400")
 
@@ -116,11 +118,12 @@ def render_dashboard(container):
         with price_container:
             with ui.element("div").classes("w-full responsive-price-grid"):
                 for name in ["NIFTY", "BANKNIFTY"]:
+                    card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
                     for ptype in ["SPOT", "FUT"]:
                         with ui.card().classes(
-                            "!bg-white border border-gray-200 shadow-sm"
+                            f"{card_cls} border border-gray-200 shadow-sm !rounded-xl"
                         ).style("min-height: 120px"):
-                            with ui.column().classes("items-center justify-center w-full h-full"):
+                            with ui.column().classes("items-center justify-center w-full h-full py-4"):
                                 ui.label(f"{name} {ptype}").classes(
                                     "text-xs font-semibold text-gray-400 uppercase tracking-wider"
                                 )
@@ -142,16 +145,19 @@ def render_dashboard(container):
                     fut = data.get("fut")
                     expiry = data.get("expiry")
 
-                    accent = "border-l-blue-600" if name == "NIFTY" else "border-l-slate-800"
+                    card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
+                    dot_color = "bg-blue-500" if name == "NIFTY" else "bg-indigo-500"
 
                     # Spot card
                     with ui.card().classes(
-                        f"!bg-white border border-gray-200 shadow-sm border-l-4 {accent} !rounded-lg"
+                        f"{card_cls} border border-gray-200 shadow-sm !rounded-xl"
                     ).style("min-height: 120px"):
-                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-3 sm:pl-4"):
-                            ui.label(f"{name} SPOT").classes(
-                                "text-[11px] font-bold text-gray-400 uppercase tracking-widest"
-                            )
+                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
+                            with ui.row().classes("items-center gap-2"):
+                                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
+                                ui.label(f"{name} SPOT").classes(
+                                    "text-[11px] font-bold text-gray-500 uppercase tracking-widest"
+                                )
                             spot_text = f"{spot:,.2f}" if spot else "N/A"
                             ui.label(spot_text).classes(
                                 "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
@@ -159,16 +165,18 @@ def render_dashboard(container):
 
                     # Futures card
                     with ui.card().classes(
-                        f"!bg-white border border-gray-200 shadow-sm border-l-4 {accent} !rounded-lg"
+                        f"{card_cls} border border-gray-200 shadow-sm !rounded-xl"
                     ).style("min-height: 120px"):
-                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-3 sm:pl-4"):
-                            exp_tag = ""
-                            if expiry:
-                                exp_date = datetime.strptime(expiry, "%Y-%m-%d")
-                                exp_tag = f" ({exp_date.strftime('%d%b').upper()})"
-                            ui.label(f"{name} FUT{exp_tag}").classes(
-                                "text-[11px] font-bold text-gray-400 uppercase tracking-widest"
-                            )
+                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
+                            with ui.row().classes("items-center gap-2"):
+                                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
+                                exp_tag = ""
+                                if expiry:
+                                    exp_date = datetime.strptime(expiry, "%Y-%m-%d")
+                                    exp_tag = f" ({exp_date.strftime('%d%b').upper()})"
+                                ui.label(f"{name} FUT{exp_tag}").classes(
+                                    "text-[11px] font-bold text-gray-500 uppercase tracking-widest"
+                                )
                             fut_text = f"{fut:,.2f}" if fut else "N/A"
                             ui.label(fut_text).classes(
                                 "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
@@ -186,7 +194,7 @@ def render_dashboard(container):
                                     bg = "bg-red-50 text-red-700"
                                     icon = "arrow_drop_down"
                                 with ui.row().classes(
-                                    f"items-center gap-0 mt-2 px-2 py-0.5 rounded {bg}"
+                                    f"items-center gap-0 mt-2 px-2 py-0.5 rounded-md {bg}"
                                 ).style("width: fit-content"):
                                     ui.icon(icon, size="18px")
                                     ui.label(

@@ -50,6 +50,30 @@ async def index():
         .nav-btn-active { background: rgba(59, 130, 246, 0.12) !important; color: #3b82f6 !important; font-weight: 600 !important; }
         .header-bar { backdrop-filter: blur(8px); }
 
+        /* ---- Dashboard clock cards ---- */
+        .clock-card-ist {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+            border: none !important;
+        }
+        .clock-card-cest {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%) !important;
+            border: none !important;
+        }
+
+        /* ---- Dashboard price cards ---- */
+        .price-card-nifty {
+            background: #fafbff !important;
+            border-left: 4px solid #3b82f6 !important;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .price-card-nifty:hover { box-shadow: 0 4px 20px rgba(59,130,246,0.12) !important; transform: translateY(-2px); }
+        .price-card-bnf {
+            background: #fafafa !important;
+            border-left: 4px solid #6366f1 !important;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .price-card-bnf:hover { box-shadow: 0 4px 20px rgba(99,102,241,0.12) !important; transform: translateY(-2px); }
+
         /* ---- Responsive grid for price cards ---- */
         .responsive-price-grid {
             display: grid;
