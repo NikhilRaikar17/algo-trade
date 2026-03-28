@@ -25,20 +25,20 @@ def render_market_closed(container):
 
     with container:
         with ui.element("div").classes(
-            "w-full flex flex-col items-center justify-center py-20"
+            "w-full flex flex-col items-center justify-center py-10 sm:py-20 px-4"
         ):
             ui.icon("schedule", size="64px").classes("text-blue-300 mb-4")
             ui.label(f"Market is Closed — {close_reason}").classes(
-                "text-3xl font-bold text-gray-700"
+                "text-xl sm:text-3xl font-bold text-gray-700 text-center"
             )
             ui.label(
                 f"Next market open: {next_open.strftime('%A, %d %b %Y at %I:%M %p')}"
-            ).classes("text-lg text-gray-500 mt-2")
+            ).classes("text-sm sm:text-lg text-gray-500 mt-2 text-center")
             countdown_label = ui.label(
                 f"{hours:02d}h {minutes:02d}m {seconds:02d}s"
-            ).classes("text-6xl font-bold text-blue-500 mt-6")
+            ).classes("text-4xl sm:text-6xl font-bold text-blue-500 mt-6")
             ui.label(
                 "Market hours: 9:15 AM — 3:30 PM IST (Mon-Fri, excl. NSE holidays)"
-            ).classes("text-sm text-gray-400 mt-4")
+            ).classes("text-xs sm:text-sm text-gray-400 mt-4 text-center")
 
     return countdown_label

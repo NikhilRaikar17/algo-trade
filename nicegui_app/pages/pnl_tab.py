@@ -30,24 +30,24 @@ def render_pnl_tab(container):
                 winners = sum(1 for t in all_completed if t.get("pnl", 0) > 0)
                 losers = sum(1 for t in all_completed if t.get("pnl", 0) < 0)
 
-                with ui.row().classes("gap-8"):
-                    with ui.card().classes("p-4"):
+                with ui.row().classes("gap-4 sm:gap-8 flex-wrap"):
+                    with ui.card().classes("p-3 sm:p-4 min-w-[120px] flex-1"):
                         ui.label("Total P&L").classes("text-sm text-gray-500")
                         color = "text-green-600" if total_pnl >= 0 else "text-red-600"
                         ui.label(f"{total_pnl:+.2f}").classes(
-                            f"text-2xl font-bold {color}"
+                            f"text-xl sm:text-2xl font-bold {color}"
                         )
-                    with ui.card().classes("p-4"):
+                    with ui.card().classes("p-3 sm:p-4 min-w-[120px] flex-1"):
                         ui.label("Total Trades").classes("text-sm text-gray-500")
-                        ui.label(str(len(all_completed))).classes("text-2xl font-bold")
-                    with ui.card().classes("p-4"):
+                        ui.label(str(len(all_completed))).classes("text-xl sm:text-2xl font-bold")
+                    with ui.card().classes("p-3 sm:p-4 min-w-[120px] flex-1"):
                         ui.label("Winners").classes("text-sm text-gray-500")
                         ui.label(str(winners)).classes(
-                            "text-2xl font-bold text-green-600"
+                            "text-xl sm:text-2xl font-bold text-green-600"
                         )
-                    with ui.card().classes("p-4"):
+                    with ui.card().classes("p-3 sm:p-4 min-w-[120px] flex-1"):
                         ui.label("Losers").classes("text-sm text-gray-500")
-                        ui.label(str(losers)).classes("text-2xl font-bold text-red-600")
+                        ui.label(str(losers)).classes("text-xl sm:text-2xl font-bold text-red-600")
 
                 ui.separator()
 

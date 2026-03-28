@@ -92,20 +92,20 @@ def render_index_tab(container, index_name, cfg):
                             )
 
                             with ui.row().classes(
-                                "w-full gap-4 flex-nowrap items-start"
+                                "w-full gap-4 flex-wrap items-start"
                             ):
-                                with ui.column().classes("flex-1 min-w-0"):
+                                with ui.column().classes("flex-1 min-w-[300px]"):
                                     ui.label("CALL (CE)").classes(
                                         "text-lg font-bold text-green-600"
                                     )
-                                    ce_container = ui.element("div").classes("w-full")
+                                    ce_container = ui.element("div").classes("w-full overflow-x-auto")
                                     build_option_chain_table(ce_container, ce, atm)
 
-                                with ui.column().classes("flex-1 min-w-0"):
+                                with ui.column().classes("flex-1 min-w-[300px]"):
                                     ui.label("PUT (PE)").classes(
                                         "text-lg font-bold text-red-600"
                                     )
-                                    pe_container = ui.element("div").classes("w-full")
+                                    pe_container = ui.element("div").classes("w-full overflow-x-auto")
                                     build_option_chain_table(pe_container, pe, atm)
 
     return refresh

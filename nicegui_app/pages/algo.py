@@ -51,10 +51,10 @@ def _render_algo_option(container, cfg, expiry, raw, algo_type="abcd"):
 
     container.clear()
     with container:
-        with ui.row().classes("gap-8"):
-            ui.label(f"Spot: {spot:,.2f}").classes("text-lg font-bold")
-            ui.label(f"ATM: {atm:,}").classes("text-lg")
-            ui.label(f"Expiry: {expiry}").classes("text-lg text-gray-600")
+        with ui.row().classes("gap-4 sm:gap-8 flex-wrap"):
+            ui.label(f"Spot: {spot:,.2f}").classes("text-sm sm:text-lg font-bold")
+            ui.label(f"ATM: {atm:,}").classes("text-sm sm:text-lg")
+            ui.label(f"Expiry: {expiry}").classes("text-sm sm:text-lg text-gray-600")
 
         ui.separator()
 

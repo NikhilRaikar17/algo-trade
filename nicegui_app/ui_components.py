@@ -64,7 +64,7 @@ def build_trade_table(container, rows, pnl_col="PnL"):
             return
 
         columns = list(rows[0].keys())
-        with ui.element("div").classes("w-full overflow-x-auto"):
+        with ui.element("div").classes("w-full responsive-table-wrap"):
             with ui.element("table").classes("w-full border-collapse text-sm"):
                 with ui.element("thead"):
                     with ui.element("tr").classes("bg-gray-100"):

@@ -57,38 +57,38 @@ def render_dashboard(container):
     """Build the dashboard page with clocks and price cards."""
     with container:
         # ---- Time Cards ----
-        with ui.row().classes("w-full gap-6 mb-8"):
+        with ui.row().classes("w-full gap-4 sm:gap-6 mb-6 sm:mb-8 flex-wrap"):
             # IST Clock
             with ui.card().classes(
-                "flex-1 !bg-white border border-gray-200 shadow-sm"
+                "flex-1 min-w-[140px] !bg-white border border-gray-200 shadow-sm"
             ):
-                with ui.column().classes("items-center w-full py-5"):
-                    ui.icon("schedule", size="28px").classes("text-gray-400 mb-2")
+                with ui.column().classes("items-center w-full py-3 sm:py-5"):
+                    ui.icon("schedule", size="28px").classes("text-gray-400 mb-2 hidden sm:block")
                     ui.label("IST").classes(
                         "text-xs font-semibold text-gray-400 uppercase tracking-widest"
                     )
                     ist_time_label = ui.label(
                         now_ist().strftime("%I:%M:%S %p")
-                    ).classes("text-4xl font-bold text-gray-900 mt-2 tracking-tight")
+                    ).classes("text-2xl sm:text-4xl font-bold text-gray-900 mt-2 tracking-tight")
                     ist_date_label = ui.label(
                         now_ist().strftime("%A, %d %B %Y")
-                    ).classes("text-sm text-gray-400 mt-1")
+                    ).classes("text-xs sm:text-sm text-gray-400 mt-1")
 
             # CEST Clock
             with ui.card().classes(
-                "flex-1 !bg-white border border-gray-200 shadow-sm"
+                "flex-1 min-w-[140px] !bg-white border border-gray-200 shadow-sm"
             ):
-                with ui.column().classes("items-center w-full py-5"):
-                    ui.icon("public", size="28px").classes("text-gray-400 mb-2")
+                with ui.column().classes("items-center w-full py-3 sm:py-5"):
+                    ui.icon("public", size="28px").classes("text-gray-400 mb-2 hidden sm:block")
                     ui.label("CET / CEST").classes(
                         "text-xs font-semibold text-gray-400 uppercase tracking-widest"
                     )
                     cest_time_label = ui.label(
                         now_cest().strftime("%I:%M:%S %p")
-                    ).classes("text-4xl font-bold text-gray-900 mt-2 tracking-tight")
+                    ).classes("text-2xl sm:text-4xl font-bold text-gray-900 mt-2 tracking-tight")
                     cest_date_label = ui.label(
                         now_cest().strftime("%A, %d %B %Y")
-                    ).classes("text-sm text-gray-400 mt-1")
+                    ).classes("text-xs sm:text-sm text-gray-400 mt-1")
 
         # Update clocks every second
         def update_clocks():
@@ -114,14 +114,12 @@ def render_dashboard(container):
 
         # Loading state
         with price_container:
-            with ui.element("div").classes("w-full").style(
-                "display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;"
-            ):
+            with ui.element("div").classes("w-full responsive-price-grid"):
                 for name in ["NIFTY", "BANKNIFTY"]:
                     for ptype in ["SPOT", "FUT"]:
                         with ui.card().classes(
                             "!bg-white border border-gray-200 shadow-sm"
-                        ).style("min-height: 140px"):
+                        ).style("min-height: 120px"):
                             with ui.column().classes("items-center justify-center w-full h-full"):
                                 ui.label(f"{name} {ptype}").classes(
                                     "text-xs font-semibold text-gray-400 uppercase tracking-wider"
@@ -137,9 +135,7 @@ def render_dashboard(container):
 
         price_container.clear()
         with price_container:
-            with ui.element("div").classes("w-full").style(
-                "display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;"
-            ):
+            with ui.element("div").classes("w-full responsive-price-grid"):
                 for name in ["NIFTY", "BANKNIFTY"]:
                     data = prices.get(name, {})
                     spot = data.get("spot")
@@ -151,21 +147,21 @@ def render_dashboard(container):
                     # Spot card
                     with ui.card().classes(
                         f"!bg-white border border-gray-200 shadow-sm border-l-4 {accent} !rounded-lg"
-                    ).style("min-height: 140px"):
-                        with ui.column().classes("w-full h-full justify-center py-5 pl-4"):
+                    ).style("min-height: 120px"):
+                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-3 sm:pl-4"):
                             ui.label(f"{name} SPOT").classes(
                                 "text-[11px] font-bold text-gray-400 uppercase tracking-widest"
                             )
                             spot_text = f"{spot:,.2f}" if spot else "N/A"
                             ui.label(spot_text).classes(
-                                "text-3xl font-bold text-gray-900 mt-2 tracking-tight"
+                                "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
                             )
 
                     # Futures card
                     with ui.card().classes(
                         f"!bg-white border border-gray-200 shadow-sm border-l-4 {accent} !rounded-lg"
-                    ).style("min-height: 140px"):
-                        with ui.column().classes("w-full h-full justify-center py-5 pl-4"):
+                    ).style("min-height: 120px"):
+                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-3 sm:pl-4"):
                             exp_tag = ""
                             if expiry:
                                 exp_date = datetime.strptime(expiry, "%Y-%m-%d")
@@ -175,7 +171,7 @@ def render_dashboard(container):
                             )
                             fut_text = f"{fut:,.2f}" if fut else "N/A"
                             ui.label(fut_text).classes(
-                                "text-3xl font-bold text-gray-900 mt-2 tracking-tight"
+                                "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
                             )
 
                             # Basis

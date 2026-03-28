@@ -42,12 +42,55 @@ async def index():
     # ---- Custom CSS ----
     ui.add_head_html(
         """
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         .q-tab { font-size: 1.1rem !important; padding: 12px 20px !important; }
         .nav-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important; }
         .nav-btn .q-btn__content { justify-content: flex-start !important; gap: 12px; }
         .nav-btn-active { background: rgba(59, 130, 246, 0.12) !important; color: #3b82f6 !important; font-weight: 600 !important; }
         .header-bar { backdrop-filter: blur(8px); }
+
+        /* ---- Responsive grid for price cards ---- */
+        .responsive-price-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+        }
+        @media (max-width: 1024px) {
+            .responsive-price-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+            }
+        }
+        @media (max-width: 480px) {
+            .responsive-price-grid {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+        }
+
+        /* ---- Responsive tabs & header ---- */
+        @media (max-width: 768px) {
+            .q-tab { font-size: 0.85rem !important; padding: 8px 10px !important; }
+            .q-header { padding-left: 12px !important; padding-right: 12px !important; }
+            .q-drawer { width: 200px !important; }
+        }
+        @media (max-width: 480px) {
+            .q-tab { font-size: 0.75rem !important; padding: 6px 6px !important; white-space: nowrap !important; }
+        }
+
+        /* ---- Responsive tables ---- */
+        .responsive-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .responsive-table-wrap table {
+            min-width: 500px;
+        }
+        .q-table__container { overflow-x: auto !important; }
+        @media (max-width: 768px) {
+            .q-table th, .q-table td { padding: 4px 6px !important; font-size: 0.75rem !important; }
+        }
     </style>
     """
     )
@@ -177,7 +220,7 @@ async def index():
             )
 
     # ---- Main Content Area ----
-    with ui.element("div").classes("w-full p-6"):
+    with ui.element("div").classes("w-full p-3 sm:p-6"):
         page_containers = {}
 
         for item in NAV_ITEMS:
