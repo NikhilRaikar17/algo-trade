@@ -306,7 +306,11 @@ async def index():
                 try:
                     await fn()
                 except Exception as fn_err:
+                    if page_client._deleted:
+                        return
                     print(f"  [refresh fn error] {fn_err}")
+                if page_client._deleted:
+                    return
                 await asyncio.sleep(1)
             if not page_client._deleted:
                 status_label.text = f"Last refresh: {now_ist().strftime('%H:%M:%S')} | Next in {REFRESH_SECONDS}s"

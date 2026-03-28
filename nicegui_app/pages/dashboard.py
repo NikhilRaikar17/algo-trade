@@ -5,7 +5,7 @@ Dashboard page: clocks (IST / CEST) and market price cards.
 import time
 import asyncio
 from datetime import datetime
-from nicegui import ui
+from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
 from state import _cache_get, _cache_set
@@ -131,10 +131,14 @@ def render_dashboard(container):
                                     "text-2xl font-bold text-gray-300 mt-1"
                                 )
 
+    page_client = context.client
+
     async def refresh():
         prices = await asyncio.get_event_loop().run_in_executor(
             None, fetch_dashboard_prices
         )
+        if page_client._deleted:
+            return
 
         price_container.clear()
         with price_container:
