@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from dhanhq import dhanhq
 import plotly.graph_objects as go
 import pytz
-from nicegui import ui, app
+from nicegui import ui, app, context
 
 # ================= PATH SETUP =================
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -178,9 +178,34 @@ def api_call(fn, *args, retries=3, delay=3, **kwargs):
     return r
 
 
+# ================= GLOBAL DATA CACHE =================
+# Fetched once, shared across all browser clients
+_data_cache = {}       # key -> {"data": ..., "time": float}
+_cache_lock = threading.Lock()
+CACHE_TTL = 90         # seconds before cache is considered stale
+
+
+def _cache_get(key):
+    with _cache_lock:
+        entry = _data_cache.get(key)
+        if entry and (time.time() - entry["time"]) < CACHE_TTL:
+            return entry["data"]
+    return None
+
+
+def _cache_set(key, data):
+    with _cache_lock:
+        _data_cache[key] = {"data": data, "time": time.time()}
+
+
 # ================= DATA FUNCTIONS =================
 
 def get_expiries(scrip, segment, count=3, for_algo=False):
+    cache_key = f"expiries:{scrip}:{segment}:{for_algo}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached[:count]
+
     r = api_call(dhan.expiry_list, scrip, segment)
     if r.get("status") != "success":
         raise RuntimeError(f"expiry_list failed: {r}")
@@ -212,10 +237,16 @@ def get_expiries(scrip, segment, count=3, for_algo=False):
 
     if not expiries:
         raise RuntimeError("No future expiries found.")
+    _cache_set(cache_key, expiries)
     return expiries[:count]
 
 
 def fetch_option_chain(scrip, segment, expiry):
+    cache_key = f"oc:{scrip}:{segment}:{expiry}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     r = api_call(dhan.option_chain, scrip, segment, expiry)
     if r.get("status") != "success":
         raise RuntimeError(f"option_chain failed: {r}")
@@ -241,14 +272,23 @@ def fetch_option_chain(scrip, segment, expiry):
                 "Theta": round(float(greeks.get("theta", 0)), 4),
                 "Vega": round(float(greeks.get("vega", 0)), 4),
             })
-    return spot, pd.DataFrame(rows)
+    result = (spot, pd.DataFrame(rows))
+    _cache_set(cache_key, result)
+    return result
 
 
 def fetch_option_chain_raw(scrip, segment, expiry):
+    cache_key = f"oc_raw:{scrip}:{segment}:{expiry}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     r = api_call(dhan.option_chain, scrip, segment, expiry)
     if r.get("status") != "success":
         raise RuntimeError(f"option_chain failed: {r}")
-    return r["data"]["data"]
+    result = r["data"]["data"]
+    _cache_set(cache_key, result)
+    return result
 
 
 def build_name_column(df, expiry, prefix):
@@ -613,42 +653,35 @@ def _f2(v):
 # ================= UI BUILDERS =================
 
 def _build_option_chain_table(container, df, atm):
-    """Build an AG Grid-style table for option chain data inside a container."""
+    """Build a NiceGUI table for option chain data inside a container."""
     container.clear()
     with container:
         if df.empty:
             ui.label("No data available").classes("text-grey")
             return
 
-        # Round numeric columns for display
-        num_cols = df.select_dtypes("number").columns
+        # Round numeric columns — keep 6 decimals for Gamma
+        num_cols = list(df.select_dtypes("number").columns)
         display_df = df.copy()
         for c in num_cols:
-            display_df[c] = display_df[c].apply(lambda x: round(x, 2) if pd.notna(x) else x)
+            if c == "Gamma":
+                display_df[c] = display_df[c].apply(lambda x: round(x, 6) if pd.notna(x) else x)
+            else:
+                display_df[c] = display_df[c].apply(lambda x: round(x, 4) if pd.notna(x) else x)
 
-        columns = []
-        for col in display_df.columns:
-            col_def = {"headerName": col, "field": col, "sortable": True, "filter": True}
-            if col in num_cols:
-                col_def["valueFormatter"] = "x => x.value != null ? Number(x.value).toFixed(2) : ''"
-            columns.append(col_def)
-
+        columns = [{"name": col, "label": col, "field": col, "sortable": True, "align": "left"} for col in display_df.columns]
         rows = display_df.to_dict("records")
 
-        grid = ui.aggrid({
-            "columnDefs": columns,
-            "rowData": rows,
-            "defaultColDef": {"resizable": True, "flex": 1, "minWidth": 80},
-            "domLayout": "autoHeight",
-            "getRowStyle": """params => {
-                if (!params.data) return {};
-                let style = {};
-                if (params.data.Strike == """ + str(atm) + """) {
-                    style.background = '#ffffb3';
-                }
-                return style;
-            }""",
-        }).classes("w-full")
+        table = ui.table(columns=columns, rows=rows, row_key="Strike").classes("w-full")
+        table.props("dense flat bordered")
+
+        # Highlight ATM row in yellow
+        table.add_slot("body-cell", '''
+            <q-td :props="props"
+                   :style="props.row.Strike == ''' + str(atm) + ''' ? 'background: #ffffb3; font-weight: bold' : ''">
+                {{ props.value }}
+            </q-td>
+        ''')
 
 
 def _build_trade_table(container, rows, pnl_col="PnL"):
@@ -710,7 +743,9 @@ def render_index_tab(container, index_name, cfg):
     async def refresh():
         try:
             expiries = get_expiries(scrip, segment, 3)
+            print(f"  [{index_name}] got expiries: {expiries}")
         except Exception as e:
+            print(f"  [{index_name}] expiry error: {e}")
             spot_label.text = f"Error: {e}"
             return
 
@@ -719,9 +754,11 @@ def render_index_tab(container, index_name, cfg):
             try:
                 spot, df = fetch_option_chain(scrip, segment, expiry)
                 chain_data[expiry] = (spot, df)
+                print(f"  [{index_name}] {expiry}: spot={spot}, rows={len(df)}")
             except Exception as e:
+                print(f"  [{index_name}] {expiry} error: {e}")
                 chain_data[expiry] = e
-            await asyncio.sleep(3)
+            await asyncio.sleep(1)
 
         spot_val = None
         for result in chain_data.values():
@@ -736,39 +773,44 @@ def render_index_tab(container, index_name, cfg):
 
         expiry_tabs_container.clear()
         with expiry_tabs_container:
-            with ui.tabs().classes("w-full") as tabs:
-                tab_items = []
-                for exp in expiries:
-                    tab_items.append(ui.tab(f"Expiry: {exp}"))
+            if not expiries:
+                ui.label("No expiries found").classes("text-grey")
+            else:
+                with ui.tabs().classes("w-full") as tabs:
+                    tab_items = []
+                    for exp in expiries:
+                        tab_items.append(ui.tab(f"Expiry: {exp}"))
 
-            with ui.tab_panels(tabs).classes("w-full"):
-                for tab_item, exp in zip(tab_items, expiries):
-                    with ui.tab_panel(tab_item):
-                        result = chain_data.get(exp)
-                        if isinstance(result, Exception):
-                            ui.label(f"Error: {result}").classes("text-red-500")
-                            continue
-                        if result is None:
-                            ui.label("No data").classes("text-grey")
-                            continue
+                with ui.tab_panels(tabs, value=tab_items[0]).classes("w-full"):
+                    for tab_item, exp in zip(tab_items, expiries):
+                        with ui.tab_panel(tab_item):
+                            result = chain_data.get(exp)
+                            if isinstance(result, Exception):
+                                ui.label(f"Error: {result}").classes("text-red-500")
+                                continue
+                            if result is None:
+                                ui.label("No data").classes("text-grey")
+                                continue
 
-                        spot, df = result
-                        atm = round(spot / strike_step) * strike_step
-                        df = build_name_column(df, exp, prefix)
-                        ce, pe = filter_and_split(df, atm, strike_range)
-                        ce = add_trend(ce, index_name, exp, "CE")
-                        pe = add_trend(pe, index_name, exp, "PE")
+                            spot, df = result
+                            atm = round(spot / strike_step) * strike_step
+                            df = build_name_column(df, exp, prefix)
+                            ce, pe = filter_and_split(df, atm, strike_range)
+                            ce = add_trend(ce, index_name, exp, "CE")
+                            pe = add_trend(pe, index_name, exp, "PE")
 
-                        with ui.row().classes("w-full gap-4"):
-                            with ui.column().classes("w-1/2"):
-                                ui.label("CALL (CE)").classes("text-lg font-bold text-green-600")
-                                ce_container = ui.element("div").classes("w-full")
-                                _build_option_chain_table(ce_container, ce, atm)
+                            print(f"  [{index_name}] {exp}: CE rows={len(ce)}, PE rows={len(pe)}, ATM={atm}")
 
-                            with ui.column().classes("w-1/2"):
-                                ui.label("PUT (PE)").classes("text-lg font-bold text-red-600")
-                                pe_container = ui.element("div").classes("w-full")
-                                _build_option_chain_table(pe_container, pe, atm)
+                            with ui.row().classes("w-full gap-4 flex-nowrap items-start"):
+                                with ui.column().classes("flex-1 min-w-0"):
+                                    ui.label("CALL (CE)").classes("text-lg font-bold text-green-600")
+                                    ce_container = ui.element("div").classes("w-full")
+                                    _build_option_chain_table(ce_container, ce, atm)
+
+                                with ui.column().classes("flex-1 min-w-0"):
+                                    ui.label("PUT (PE)").classes("text-lg font-bold text-red-600")
+                                    pe_container = ui.element("div").classes("w-full")
+                                    _build_option_chain_table(pe_container, pe, atm)
 
     return refresh
 
@@ -1221,6 +1263,7 @@ async def index():
     refresh_fns = []
     _prev_market_open = [None]
     nav_btn_refs = {}
+    page_client = context.client  # capture client ref for timer callbacks
 
     # ---- Header ----
     with ui.header().classes("header-bar bg-white shadow-sm border-b items-center px-6 py-0").style("height: 56px"):
@@ -1329,6 +1372,9 @@ async def index():
 
     async def full_refresh():
         """Rebuild UI if market state changed, then refresh data."""
+        if page_client._deleted:
+            return
+
         current_open = is_market_open()
 
         if current_open != _prev_market_open[0]:
@@ -1338,10 +1384,18 @@ async def index():
         status_label.text = f"Refreshing... {now_ist().strftime('%H:%M:%S')}"
         try:
             for fn in refresh_fns:
-                await fn()
-            status_label.text = f"Last refresh: {now_ist().strftime('%H:%M:%S')} | Next in {REFRESH_SECONDS}s"
+                if page_client._deleted:
+                    return
+                try:
+                    await fn()
+                except Exception as fn_err:
+                    print(f"  [refresh fn error] {fn_err}")
+                await asyncio.sleep(1)  # stagger between refresh functions
+            if not page_client._deleted:
+                status_label.text = f"Last refresh: {now_ist().strftime('%H:%M:%S')} | Next in {REFRESH_SECONDS}s"
         except Exception as e:
-            status_label.text = f"Refresh error: {e}"
+            if not page_client._deleted:
+                status_label.text = f"Refresh error: {e}"
             print(f"  [refresh error] {e}")
 
         if is_market_open():
@@ -1358,6 +1412,8 @@ async def index():
 
     # Live countdown updater (every 1s)
     def update_countdown():
+        if page_client._deleted:
+            return
         if not is_market_open():
             next_open = get_next_market_open()
             remaining = next_open - now_ist()
