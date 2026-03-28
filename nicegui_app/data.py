@@ -169,24 +169,32 @@ def add_trend(df, index_name, expiry, opt_type):
     return df
 
 
-def fetch_nifty_daily_candles(days=45):
-    """Fetch NIFTY index daily OHLCV candles for the last N days."""
+INDEX_SECURITY_IDS = {
+    "NIFTY": "13",
+    "BANKNIFTY": "25",
+}
+
+
+def fetch_index_15min_candles(index_name="NIFTY"):
+    """Fetch 15-min OHLCV candles for NIFTY or BANKNIFTY index (last 5 trading days)."""
+    sec_id = INDEX_SECURITY_IDS.get(index_name, "13")
     today = now_ist().strftime("%Y-%m-%d")
-    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=days)).strftime(
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=7)).strftime(
         "%Y-%m-%d"
     )
-    cache_key = f"nifty_daily:{from_date}:{today}"
+    cache_key = f"{index_name}_15min:{from_date}:{today}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
     r = api_call(
-        dhan.historical_daily_data,
-        "13",       # NIFTY security ID
-        "IDX_I",    # Index segment
-        "INDEX",    # Instrument type
+        dhan.intraday_minute_data,
+        sec_id,
+        "IDX_I",
+        "INDEX",
         from_date,
         today,
+        interval=15,
     )
     if r.get("status") != "success":
         return pd.DataFrame()

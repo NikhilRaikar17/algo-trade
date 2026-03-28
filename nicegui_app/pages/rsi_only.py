@@ -1,13 +1,13 @@
 """
 RSI-only algo trading tab page.
-Fetches NIFTY daily candles, computes RSI, backtests signals, shows chart + results.
+Fetches index daily candles, computes RSI, backtests signals, shows chart + results.
 """
 
 import traceback
 import pandas as pd
 from nicegui import ui
 
-from data import fetch_nifty_daily_candles
+from data import fetch_index_15min_candles
 from algo_strategies import (
     compute_rsi,
     detect_rsi_only_signals,
@@ -16,10 +16,10 @@ from algo_strategies import (
 from charts import build_candlestick_with_rsi_only
 
 
-def render_rsi_only_tab(container):
-    """Build the RSI-only backtester tab."""
+def render_rsi_only_tab(container, index_name="NIFTY"):
+    """Build the RSI-only backtester tab for given index."""
     with container:
-        ui.label("RSI-Only Scanner — NIFTY Daily").classes(
+        ui.label(f"RSI-Only Scanner — {index_name} Daily").classes(
             "text-xl font-bold mb-2"
         )
         with ui.element("div").classes(
@@ -27,36 +27,35 @@ def render_rsi_only_tab(container):
         ):
             ui.label(
                 "Strategy: Trade on RSI overbought/oversold crossings | "
-                "Target: 1.5% | SL: 1% | RSI Period: 14 | Rolling 14-day window"
+                "Target: 1.5% | SL: 1% | RSI Period: 14 | 15-min candles | 5 days"
             ).classes("text-sm text-purple-700")
         content_container = ui.element("div").classes("w-full")
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            ui.label("Loading RSI data...").classes(
+            ui.label(f"Loading {index_name} RSI data...").classes(
                 "text-gray-500 text-center w-full"
             )
 
     async def refresh():
         try:
-            _build_rsi_only_content(content_container)
+            _build_rsi_only_content(content_container, index_name)
         except Exception as e:
             content_container.clear()
             with content_container:
                 ui.label(f"Error: {e}").classes("text-red-500")
-            print(f"  [rsi_only] error:\n{traceback.format_exc()}")
+            print(f"  [rsi_only:{index_name}] error:\n{traceback.format_exc()}")
 
     return refresh
 
 
-def _build_rsi_only_content(container):
+def _build_rsi_only_content(container, index_name="NIFTY"):
     """Fetch data, run backtest, render charts and tables."""
-    # Fetch ~45 days so RSI(14) has enough warmup + 14 trading days of signals
-    candles = fetch_nifty_daily_candles(days=45)
+    candles = fetch_index_15min_candles(index_name)
 
     container.clear()
     with container:
         if candles.empty:
-            ui.label("No NIFTY daily candle data available.").classes(
+            ui.label(f"No {index_name} daily candle data available.").classes(
                 "text-orange-500"
             )
             return
@@ -68,8 +67,8 @@ def _build_rsi_only_content(container):
         # --- Charts ---
         fig, fig_rsi = build_candlestick_with_rsi_only(candles, df_ind, signals)
         ui.label(
-            f"NIFTY — Last: {candles['close'].iloc[-1]:,.2f} | "
-            f"Candles: {len(candles)} days"
+            f"{index_name} — Last: {candles['close'].iloc[-1]:,.2f} | "
+            f"{len(candles)} candles (15-min, 5 days)"
         ).classes("text-md font-semibold mb-2")
         ui.plotly(fig).classes("w-full")
         if not df_ind.empty:

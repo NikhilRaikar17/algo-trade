@@ -21,16 +21,17 @@ from pages import (
 )
 
 
-# ================= SIDEBAR NAV ITEMS =================
-
-NAV_ITEMS = [
-    {"id": "dashboard", "label": "Dashboard", "icon": "dashboard"},
-    {"id": "nifty", "label": "NIFTY", "icon": "show_chart"},
-    {"id": "banknifty", "label": "BANKNIFTY", "icon": "candlestick_chart"},
-    {"id": "abcd", "label": "ABCD Algo", "icon": "insights"},
-    {"id": "rsi", "label": "RSI + SMA", "icon": "analytics"},
-    {"id": "rsi_only", "label": "RSI Only", "icon": "speed"},
-    {"id": "pnl", "label": "P&L Summary", "icon": "account_balance_wallet"},
+# ================= PAGE IDS =================
+# All page IDs used for containers and navigation
+ALL_PAGE_IDS = [
+    "dashboard",
+    "nifty",
+    "banknifty",
+    "abcd",
+    "rsi",
+    "rsi_nifty",
+    "rsi_banknifty",
+    "pnl",
 ]
 
 
@@ -50,7 +51,14 @@ async def index():
         .nav-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important; }
         .nav-btn .q-btn__content { justify-content: flex-start !important; gap: 12px; }
         .nav-btn-active { background: rgba(59, 130, 246, 0.12) !important; color: #3b82f6 !important; font-weight: 600 !important; }
+        .nav-sub-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important; }
+        .nav-sub-btn .q-btn__content { justify-content: flex-start !important; gap: 8px; }
         .header-bar { backdrop-filter: blur(8px); }
+        .nav-section-label {
+            font-size: 0.65rem; font-weight: 700; color: #9ca3af;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            padding: 8px 16px 4px 16px;
+        }
 
         /* ---- Dashboard clock cards ---- */
         .clock-card-ist {
@@ -174,13 +182,8 @@ async def index():
     with (
         ui.left_drawer(value=True, bordered=True)
         .classes("bg-gray-50 border-r")
-        .style("width: 220px; padding-top: 8px") as drawer
+        .style("width: 240px; padding-top: 8px") as drawer
     ):
-        with ui.element("div").classes("px-4 py-3 mb-2"):
-            ui.label("Navigation").classes(
-                "text-xs font-bold text-gray-400 uppercase tracking-wider"
-            )
-
         def set_active_page(page_id):
             active_page["value"] = page_id
             for nid, btn in nav_btn_refs.items():
@@ -191,19 +194,48 @@ async def index():
             for nid, cont in page_containers.items():
                 cont.set_visibility(nid == page_id)
 
-        for item in NAV_ITEMS:
+        def _nav_button(page_id, label, icon, indent=False):
+            cls = "nav-sub-btn" if indent else "nav-btn"
+            ml = "ml-6" if indent else ""
             btn = (
                 ui.button(
-                    item["label"],
-                    icon=item["icon"],
-                    on_click=lambda e, pid=item["id"]: set_active_page(pid),
+                    label,
+                    icon=icon,
+                    on_click=lambda e, pid=page_id: set_active_page(pid),
                 )
                 .props("flat no-caps align=left")
-                .classes("nav-btn rounded-lg mx-2 mb-1 text-gray-600")
+                .classes(f"{cls} rounded-lg mx-2 mb-1 text-gray-600 {ml}")
             )
-            if item["id"] == active_page["value"]:
+            if page_id == active_page["value"]:
                 btn.classes(add="nav-btn-active")
-            nav_btn_refs[item["id"]] = btn
+            nav_btn_refs[page_id] = btn
+
+        # ---- Dashboard ----
+        _nav_button("dashboard", "Dashboard", "dashboard")
+
+        ui.separator().classes("my-2 mx-4")
+
+        # ---- Historical Backtest section ----
+        ui.label("Historical Backtest").classes("nav-section-label")
+        with ui.expansion("RSI Only", icon="speed").classes(
+            "mx-2 rounded-lg"
+        ).props("dense default-opened"):
+            _nav_button("rsi_nifty", "NIFTY RSI", "show_chart", indent=True)
+            _nav_button("rsi_banknifty", "BANKNIFTY RSI", "candlestick_chart", indent=True)
+
+        ui.separator().classes("my-2 mx-4")
+
+        # ---- Live Trading section ----
+        ui.label("Live Trading").classes("nav-section-label")
+        _nav_button("nifty", "NIFTY Chain", "show_chart")
+        _nav_button("banknifty", "BANKNIFTY Chain", "candlestick_chart")
+        _nav_button("abcd", "ABCD Algo", "insights")
+        _nav_button("rsi", "RSI + SMA", "analytics")
+
+        ui.separator().classes("my-2 mx-4")
+
+        # ---- Summary ----
+        _nav_button("pnl", "P&L Summary", "account_balance_wallet")
 
         ui.separator().classes("my-3 mx-4")
 
@@ -253,13 +285,10 @@ async def index():
     with ui.element("div").classes("w-full p-3 sm:p-6"):
         page_containers = {}
 
-        for item in NAV_ITEMS:
+        for pid in ALL_PAGE_IDS:
             cont = ui.element("div").classes("w-full")
-            cont.set_visibility(item["id"] == active_page["value"])
-            page_containers[item["id"]] = cont
-
-        closed_container = ui.element("div").classes("w-full")
-        closed_container.set_visibility(False)
+            cont.set_visibility(pid == active_page["value"])
+            page_containers[pid] = cont
 
     # ---- Build Page Content ----
     async def build_ui():
@@ -268,8 +297,8 @@ async def index():
 
         market_open = is_market_open()
 
-        for item in NAV_ITEMS:
-            page_containers[item["id"]].clear()
+        for pid in ALL_PAGE_IDS:
+            page_containers[pid].clear()
 
         # Dashboard always renders
         refresh_fns.append(render_dashboard(page_containers["dashboard"]))
@@ -285,10 +314,15 @@ async def index():
         )
         refresh_fns.append(render_pnl_tab(page_containers["pnl"]))
 
-        # RSI Only uses REST API historical candles — always render
-        refresh_fns.append(render_rsi_only_tab(page_containers["rsi_only"]))
+        # RSI Only — historical backtest, always render
+        refresh_fns.append(
+            render_rsi_only_tab(page_containers["rsi_nifty"], "NIFTY")
+        )
+        refresh_fns.append(
+            render_rsi_only_tab(page_containers["rsi_banknifty"], "BANKNIFTY")
+        )
 
-        # Algo tabs need live candle data
+        # Live algo tabs need market open
         if market_open:
             refresh_fns.append(render_algo_tab(page_containers["abcd"], "abcd"))
             refresh_fns.append(render_algo_tab(page_containers["rsi"], "rsi"))
