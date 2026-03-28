@@ -69,9 +69,10 @@ def build_trade_table(container, rows, pnl_col="PnL"):
                 with ui.element("thead"):
                     with ui.element("tr").classes("bg-gray-100"):
                         for col in columns:
-                            ui.element("th").classes(
+                            with ui.element("th").classes(
                                 "px-3 py-2 text-left font-semibold border-b"
-                            ).text(col)
+                            ):
+                                ui.label(col).classes("text-xs font-semibold")
                 with ui.element("tbody"):
                     for row in rows:
                         pnl_val = row.get(pnl_col, 0)
@@ -96,6 +97,7 @@ def build_trade_table(container, rows, pnl_col="PnL"):
                                         cell.classes("text-green-700 bg-green-50")
                                     elif pnl_val < 0:
                                         cell.classes("text-red-700 bg-red-50")
-                                cell.text(
-                                    _f2(val) if isinstance(val, float) else str(val)
-                                )
+                                with cell:
+                                    ui.label(
+                                        _f2(val) if isinstance(val, float) else str(val)
+                                    ).classes("text-xs")

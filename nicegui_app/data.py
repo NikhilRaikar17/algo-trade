@@ -169,6 +169,46 @@ def add_trend(df, index_name, expiry, opt_type):
     return df
 
 
+def fetch_nifty_daily_candles(days=45):
+    """Fetch NIFTY index daily OHLCV candles for the last N days."""
+    today = now_ist().strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=days)).strftime(
+        "%Y-%m-%d"
+    )
+    cache_key = f"nifty_daily:{from_date}:{today}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    r = api_call(
+        dhan.historical_daily_data,
+        "13",       # NIFTY security ID
+        "IDX_I",    # Index segment
+        "INDEX",    # Instrument type
+        from_date,
+        today,
+    )
+    if r.get("status") != "success":
+        return pd.DataFrame()
+    d = r["data"]
+    df = pd.DataFrame(
+        {
+            "timestamp": d.get("timestamp", []),
+            "open": d.get("open", []),
+            "high": d.get("high", []),
+            "low": d.get("low", []),
+            "close": d.get("close", []),
+            "volume": d.get("volume", []),
+        }
+    )
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"], unit="s", utc=True
+        ).dt.tz_convert("Asia/Kolkata")
+    _cache_set(cache_key, df)
+    return df
+
+
 def fetch_5min_candles(security_id):
     today = now_ist().strftime("%Y-%m-%d")
     from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=5)).strftime(

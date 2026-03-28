@@ -5,6 +5,9 @@ Trading strategies: ABCD harmonic patterns and RSI + SMA crossover.
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT
 from state import _is_already_sent, _mark_sent, _send_telegram
 
+RSI_ONLY_TARGET_PCT = 0.015  # 1.5% target
+RSI_ONLY_SL_PCT = 0.01      # 1% stop loss
+
 
 # ================= ABCD PATTERN DETECTION =================
 
@@ -283,3 +286,102 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
                     f"NEW TRADE [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nRSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}"
                 )
     return active, completed
+
+
+# ================= RSI-ONLY =================
+
+
+def detect_rsi_only_signals(candles):
+    """Generate trade signals based purely on RSI overbought/oversold crossings."""
+    df = candles.copy()
+    df["rsi"] = compute_rsi(df["close"])
+    df = df.dropna().reset_index(drop=True)
+    if len(df) < 2:
+        return [], df
+    signals = []
+    for i in range(1, len(df)):
+        prev = df.iloc[i - 1]
+        curr = df.iloc[i]
+        # Bullish: RSI crosses above oversold from below
+        if prev["rsi"] <= RSI_OVERSOLD and curr["rsi"] > RSI_OVERSOLD:
+            target = curr["close"] * (1 + RSI_ONLY_TARGET_PCT)
+            sl = curr["close"] * (1 - RSI_ONLY_SL_PCT)
+            signals.append(
+                {
+                    "type": "Bullish",
+                    "signal": "BUY — RSI exits oversold",
+                    "entry": round(float(curr["close"]), 2),
+                    "target": round(float(target), 2),
+                    "stop_loss": round(float(sl), 2),
+                    "time": curr["timestamp"],
+                    "rsi": round(float(curr["rsi"]), 2),
+                    "prev_rsi": round(float(prev["rsi"]), 2),
+                }
+            )
+        # Bearish: RSI crosses below overbought from above
+        if prev["rsi"] >= RSI_OVERBOUGHT and curr["rsi"] < RSI_OVERBOUGHT:
+            target = curr["close"] * (1 - RSI_ONLY_TARGET_PCT)
+            sl = curr["close"] * (1 + RSI_ONLY_SL_PCT)
+            signals.append(
+                {
+                    "type": "Bearish",
+                    "signal": "SELL — RSI exits overbought",
+                    "entry": round(float(curr["close"]), 2),
+                    "target": round(float(target), 2),
+                    "stop_loss": round(float(sl), 2),
+                    "time": curr["timestamp"],
+                    "rsi": round(float(curr["rsi"]), 2),
+                    "prev_rsi": round(float(prev["rsi"]), 2),
+                }
+            )
+    return signals, df
+
+
+def backtest_rsi_only(signals, candles):
+    """Walk through candles after each signal to check if target or SL hit first."""
+    trades = []
+    for s in signals:
+        entry = s["entry"]
+        target = s["target"]
+        sl = s["stop_loss"]
+        signal_time = s["time"]
+        # Find candles after the signal
+        future = candles[candles["timestamp"] > signal_time]
+        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        for _, bar in future.iterrows():
+            if s["type"] == "Bullish":
+                if float(bar["high"]) >= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(target - entry), 2),
+                    }
+                    break
+                if float(bar["low"]) <= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(sl - entry), 2),
+                    }
+                    break
+            else:
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
+                    }
+                    break
+                if float(bar["high"]) >= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+        trades.append({**s, **result})
+    return trades

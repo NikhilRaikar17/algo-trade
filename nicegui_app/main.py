@@ -15,6 +15,7 @@ from pages import (
     render_dashboard,
     render_index_tab,
     render_algo_tab,
+    render_rsi_only_tab,
     render_pnl_tab,
     render_market_closed,
 )
@@ -28,6 +29,7 @@ NAV_ITEMS = [
     {"id": "banknifty", "label": "BANKNIFTY", "icon": "candlestick_chart"},
     {"id": "abcd", "label": "ABCD Algo", "icon": "insights"},
     {"id": "rsi", "label": "RSI + SMA", "icon": "analytics"},
+    {"id": "rsi_only", "label": "RSI Only", "icon": "speed"},
     {"id": "pnl", "label": "P&L Summary", "icon": "account_balance_wallet"},
 ]
 
@@ -228,7 +230,11 @@ async def index():
             holiday_info = get_next_holiday()
             if holiday_info:
                 _, next_date, days_left = holiday_info
-                day_label = "Today" if days_left == 0 else f"in {days_left} day{'s' if days_left != 1 else ''}"
+                day_label = (
+                    "Today"
+                    if days_left == 0
+                    else f"in {days_left} day{'s' if days_left != 1 else ''}"
+                )
                 ui.label(next_date.strftime("%a, %d %b %Y")).classes(
                     "text-sm text-gray-600"
                 )
@@ -278,6 +284,9 @@ async def index():
             )
         )
         refresh_fns.append(render_pnl_tab(page_containers["pnl"]))
+
+        # RSI Only uses REST API historical candles — always render
+        refresh_fns.append(render_rsi_only_tab(page_containers["rsi_only"]))
 
         # Algo tabs need live candle data
         if market_open:
@@ -348,4 +357,4 @@ async def index():
 # ================= RUN =================
 
 if __name__ in {"__main__", "__mp_main__"}:
-    ui.run(title="AlgTrd", host="0.0.0.0", port=8501, reload=False)
+    ui.run(title="AlgTrd", host="0.0.0.0", port=8501, reload=True)

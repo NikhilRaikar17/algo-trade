@@ -14,7 +14,11 @@ def collect_all_trades():
             strategy = (
                 "ABCD"
                 if key.startswith("abcd_")
-                else "RSI+SMA" if key.startswith("rsi_") else "Unknown"
+                else "RSI"
+                if key.startswith("rsionly_")
+                else "RSI+SMA"
+                if key.startswith("rsi_")
+                else "Unknown"
             )
             for t in val["active"]:
                 t["strategy"] = strategy
@@ -54,7 +58,7 @@ def send_morning_message():
     else:
         _send_telegram(
             f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
-            f"Strategies: ABCD Harmonic + RSI+SMA Crossover\n"
+            f"Strategies: ABCD Harmonic + RSI+SMA Crossover + RSI Only\n"
             f"Monitoring: NIFTY ATM options (5-min candles)\n"
             f"Refresh interval: {REFRESH_SECONDS}s\n"
             f"Market opens at 9:15 AM IST. Let's go!"
