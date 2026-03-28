@@ -1,0 +1,285 @@
+"""
+Trading strategies: ABCD harmonic patterns and RSI + SMA crossover.
+"""
+
+from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT
+from state import _is_already_sent, _mark_sent, _send_telegram
+
+
+# ================= ABCD PATTERN DETECTION =================
+
+
+def find_swing_points(df, order=3):
+    swings = []
+    highs = df["high"].values
+    lows = df["low"].values
+    for i in range(order, len(df) - order):
+        if all(highs[i] >= highs[i - j] for j in range(1, order + 1)) and all(
+            highs[i] >= highs[i + j] for j in range(1, order + 1)
+        ):
+            swings.append(
+                {
+                    "index": i,
+                    "type": "high",
+                    "price": highs[i],
+                    "time": df["timestamp"].iloc[i],
+                }
+            )
+        if all(lows[i] <= lows[i - j] for j in range(1, order + 1)) and all(
+            lows[i] <= lows[i + j] for j in range(1, order + 1)
+        ):
+            swings.append(
+                {
+                    "index": i,
+                    "type": "low",
+                    "price": lows[i],
+                    "time": df["timestamp"].iloc[i],
+                }
+            )
+    return sorted(swings, key=lambda s: s["index"])
+
+
+def detect_abcd_patterns(swings, tolerance=0.15):
+    patterns = []
+    for i in range(len(swings) - 3):
+        a, b, c, d = swings[i], swings[i + 1], swings[i + 2], swings[i + 3]
+        if (
+            a["type"] == "low"
+            and b["type"] == "high"
+            and c["type"] == "low"
+            and d["type"] == "high"
+        ):
+            ab = b["price"] - a["price"]
+            bc = b["price"] - c["price"]
+            cd = d["price"] - c["price"]
+            if ab <= 0:
+                continue
+            bc_ratio = bc / ab
+            cd_ab_ratio = cd / ab
+            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and (
+                1.0 - tolerance
+            ) <= cd_ab_ratio <= (1.618 + tolerance):
+                patterns.append(
+                    {
+                        "type": "Bullish",
+                        "A": a,
+                        "B": b,
+                        "C": c,
+                        "D": d,
+                        "BC_retrace": round(bc_ratio, 3),
+                        "CD_AB_ratio": round(cd_ab_ratio, 3),
+                        "entry": d["price"],
+                        "target": d["price"] + ab,
+                        "stop_loss": c["price"],
+                        "signal": "SELL CE / BUY PE at D",
+                    }
+                )
+        if (
+            a["type"] == "high"
+            and b["type"] == "low"
+            and c["type"] == "high"
+            and d["type"] == "low"
+        ):
+            ab = a["price"] - b["price"]
+            bc = c["price"] - b["price"]
+            cd = c["price"] - d["price"]
+            if ab <= 0:
+                continue
+            bc_ratio = bc / ab
+            cd_ab_ratio = cd / ab
+            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and (
+                1.0 - tolerance
+            ) <= cd_ab_ratio <= (1.618 + tolerance):
+                patterns.append(
+                    {
+                        "type": "Bearish",
+                        "A": a,
+                        "B": b,
+                        "C": c,
+                        "D": d,
+                        "BC_retrace": round(bc_ratio, 3),
+                        "CD_AB_ratio": round(cd_ab_ratio, 3),
+                        "entry": d["price"],
+                        "target": d["price"] - ab,
+                        "stop_loss": c["price"],
+                        "signal": "BUY CE / SELL PE at D",
+                    }
+                )
+    return patterns
+
+
+def _pattern_key(p):
+    return f"{p['A']['time']}_{p['D']['time']}_{p['type']}"
+
+
+def classify_trades(patterns, current_price, contract_name=""):
+    active = []
+    completed = []
+    for p in patterns:
+        entry = p["entry"]
+        target = p["target"]
+        sl = p["stop_loss"]
+        key = _pattern_key(p)
+        active_key = f"abcd_active_{key}"
+        completed_key = f"abcd_closed_{key}"
+
+        if p["type"] == "Bullish":
+            pnl = entry - current_price
+            if current_price <= target or current_price >= sl:
+                p["exit_price"] = current_price
+                p["pnl"] = round(pnl, 2)
+                p["status"] = "Target Hit" if current_price <= target else "SL Hit"
+                completed.append(p)
+                if not _is_already_sent(completed_key):
+                    _mark_sent(completed_key)
+                    emoji = "+" if p["pnl"] > 0 else ""
+                    _send_telegram(
+                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}"
+                    )
+            else:
+                p["unrealized_pnl"] = round(pnl, 2)
+                active.append(p)
+                if not _is_already_sent(active_key):
+                    _mark_sent(active_key)
+                    _send_telegram(
+                        f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
+                    )
+        else:
+            pnl = current_price - entry
+            if current_price >= target or current_price <= sl:
+                p["exit_price"] = current_price
+                p["pnl"] = round(pnl, 2)
+                p["status"] = "Target Hit" if current_price >= target else "SL Hit"
+                completed.append(p)
+                if not _is_already_sent(completed_key):
+                    _mark_sent(completed_key)
+                    emoji = "+" if p["pnl"] > 0 else ""
+                    _send_telegram(
+                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}"
+                    )
+            else:
+                p["unrealized_pnl"] = round(pnl, 2)
+                active.append(p)
+                if not _is_already_sent(active_key):
+                    _mark_sent(active_key)
+                    _send_telegram(
+                        f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
+                    )
+    return active, completed
+
+
+# ================= RSI + SMA =================
+
+
+def compute_rsi(series, period=RSI_PERIOD):
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+    avg_gain = gain.rolling(window=period, min_periods=period).mean()
+    avg_loss = loss.rolling(window=period, min_periods=period).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def compute_sma(series, period):
+    return series.rolling(window=period, min_periods=period).mean()
+
+
+def detect_rsi_sma_signals(candles):
+    df = candles.copy()
+    df["rsi"] = compute_rsi(df["close"])
+    df["sma_fast"] = compute_sma(df["close"], SMA_FAST)
+    df["sma_slow"] = compute_sma(df["close"], SMA_SLOW)
+    df = df.dropna().reset_index(drop=True)
+    if len(df) < 2:
+        return [], df
+    signals = []
+    for i in range(1, len(df)):
+        prev = df.iloc[i - 1]
+        curr = df.iloc[i]
+        if (
+            prev["sma_fast"] <= prev["sma_slow"]
+            and curr["sma_fast"] > curr["sma_slow"]
+            and curr["rsi"] > RSI_OVERSOLD
+        ):
+            target = curr["close"] * 1.02
+            sl = curr["close"] * 0.98
+            signals.append(
+                {
+                    "type": "Bullish",
+                    "signal": "BUY CE — SMA crossover + RSI recovery",
+                    "entry": round(curr["close"], 2),
+                    "target": round(target, 2),
+                    "stop_loss": round(sl, 2),
+                    "time": curr["timestamp"],
+                    "rsi": round(curr["rsi"], 2),
+                    "sma_fast": round(curr["sma_fast"], 2),
+                    "sma_slow": round(curr["sma_slow"], 2),
+                }
+            )
+        if (
+            prev["sma_fast"] >= prev["sma_slow"]
+            and curr["sma_fast"] < curr["sma_slow"]
+            and curr["rsi"] < RSI_OVERBOUGHT
+        ):
+            target = curr["close"] * 0.98
+            sl = curr["close"] * 1.02
+            signals.append(
+                {
+                    "type": "Bearish",
+                    "signal": "BUY PE — SMA crossover + RSI overbought",
+                    "entry": round(curr["close"], 2),
+                    "target": round(target, 2),
+                    "stop_loss": round(sl, 2),
+                    "time": curr["timestamp"],
+                    "rsi": round(curr["rsi"], 2),
+                    "sma_fast": round(curr["sma_fast"], 2),
+                    "sma_slow": round(curr["sma_slow"], 2),
+                }
+            )
+    return signals, df
+
+
+def _rsi_signal_key(s):
+    return f"rsi_{s['time']}_{s['type']}"
+
+
+def classify_rsi_trades(signals, current_price, contract_name=""):
+    active = []
+    completed = []
+    for s in signals:
+        entry = s["entry"]
+        target = s["target"]
+        sl = s["stop_loss"]
+        key = _rsi_signal_key(s)
+        active_key = f"rsi_active_{key}"
+        completed_key = f"rsi_closed_{key}"
+        if s["type"] == "Bullish":
+            pnl = current_price - entry
+            hit_target = current_price >= target
+            hit_sl = current_price <= sl
+        else:
+            pnl = entry - current_price
+            hit_target = current_price <= target
+            hit_sl = current_price >= sl
+        pnl = round(pnl, 2)
+        if hit_target or hit_sl:
+            s["exit_price"] = current_price
+            s["pnl"] = pnl
+            s["status"] = "Target Hit" if hit_target else "SL Hit"
+            completed.append(s)
+            if not _is_already_sent(completed_key):
+                _mark_sent(completed_key)
+                emoji = "+" if pnl > 0 else ""
+                _send_telegram(
+                    f"TRADE CLOSED [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{pnl:.2f}\nStatus: {s['status']}"
+                )
+        else:
+            s["unrealized_pnl"] = pnl
+            active.append(s)
+            if not _is_already_sent(active_key):
+                _mark_sent(active_key)
+                _send_telegram(
+                    f"NEW TRADE [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nRSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}"
+                )
+    return active, completed

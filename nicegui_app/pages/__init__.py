@@ -1,0 +1,5 @@
+from pages.dashboard import render_dashboard
+from pages.option_chain import render_index_tab
+from pages.algo import render_algo_tab
+from pages.pnl_tab import render_pnl_tab
+from pages.market_closed import render_market_closed
