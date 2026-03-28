@@ -215,6 +215,13 @@ async def index():
 
         ui.separator().classes("my-2 mx-4")
 
+        # ---- Option Chains (REST API) ----
+        ui.label("Option Chains").classes("nav-section-label")
+        _nav_button("nifty", "NIFTY", "show_chart")
+        _nav_button("banknifty", "BANKNIFTY", "candlestick_chart")
+
+        ui.separator().classes("my-2 mx-4")
+
         # ---- Historical Backtest section ----
         ui.label("Historical Backtest").classes("nav-section-label")
         with ui.expansion("RSI Only", icon="speed").classes(
@@ -225,10 +232,8 @@ async def index():
 
         ui.separator().classes("my-2 mx-4")
 
-        # ---- Live Trading section ----
+        # ---- Live Trading (websocket) ----
         ui.label("Live Trading").classes("nav-section-label")
-        _nav_button("nifty", "NIFTY Chain", "show_chart")
-        _nav_button("banknifty", "BANKNIFTY Chain", "candlestick_chart")
         _nav_button("abcd", "ABCD Algo", "insights")
         _nav_button("rsi", "RSI + SMA", "analytics")
 
