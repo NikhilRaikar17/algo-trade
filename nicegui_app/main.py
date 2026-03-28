@@ -1706,7 +1706,7 @@ NAV_ITEMS = [
 
 @ui.page("/")
 async def index():
-    ui.page_title("Option Chain — Algo Trading")
+    ui.page_title("Algo Trading")
 
     # ---- Custom CSS ----
     ui.add_head_html(
@@ -1743,7 +1743,7 @@ async def index():
             )
 
             ui.icon("trending_up", size="28px").classes("text-blue-600")
-            ui.label("Option Chain").classes(
+            ui.label("Algo Trade").classes(
                 "text-xl font-bold text-gray-800 tracking-tight"
             )
 
