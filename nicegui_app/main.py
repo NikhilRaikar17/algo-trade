@@ -51,17 +51,23 @@ async def index():
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         .q-tab { font-size: 1.1rem !important; padding: 12px 20px !important; }
-        .nav-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important; }
-        .nav-btn .q-btn__content { justify-content: flex-start !important; gap: 12px; }
+        .nav-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important;
+                   white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+                   min-height: 36px !important; padding: 4px 12px !important; font-size: 0.85rem !important; }
+        .nav-btn .q-btn__content { justify-content: flex-start !important; gap: 10px; flex-wrap: nowrap !important; overflow: hidden !important; }
         .nav-btn-active { background: rgba(59, 130, 246, 0.12) !important; color: #3b82f6 !important; font-weight: 600 !important; }
-        .nav-sub-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important; }
-        .nav-sub-btn .q-btn__content { justify-content: flex-start !important; gap: 8px; }
+        .nav-sub-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important;
+                       white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+                       min-height: 32px !important; padding: 2px 8px !important; font-size: 0.8rem !important; }
+        .nav-sub-btn .q-btn__content { justify-content: flex-start !important; gap: 6px; flex-wrap: nowrap !important; overflow: hidden !important; }
         .header-bar { backdrop-filter: blur(8px); }
         .nav-section-label {
-            font-size: 0.65rem; font-weight: 700; color: #9ca3af;
+            font-size: 0.6rem; font-weight: 700; color: #9ca3af;
             text-transform: uppercase; letter-spacing: 0.08em;
-            padding: 8px 16px 4px 16px;
+            padding: 6px 16px 2px 16px;
         }
+        .q-expansion-item { font-size: 0.82rem !important; }
+        .q-expansion-item .q-item__label { white-space: nowrap !important; }
 
         /* ---- Dashboard clock cards ---- */
         .clock-card-ist {
@@ -110,7 +116,10 @@ async def index():
         @media (max-width: 768px) {
             .q-tab { font-size: 0.85rem !important; padding: 8px 10px !important; }
             .q-header { padding-left: 12px !important; padding-right: 12px !important; }
-            .q-drawer { width: 200px !important; }
+            .q-drawer { width: 190px !important; }
+            .nav-btn { font-size: 0.78rem !important; padding: 3px 8px !important; }
+            .nav-sub-btn { font-size: 0.73rem !important; padding: 2px 6px !important; }
+            .nav-section-label { font-size: 0.55rem; padding: 4px 12px 2px 12px; }
         }
         @media (max-width: 480px) {
             .q-tab { font-size: 0.75rem !important; padding: 6px 6px !important; white-space: nowrap !important; }
@@ -219,24 +228,24 @@ async def index():
         ui.separator().classes("my-2 mx-4")
 
         # ---- Option Chains (REST API) ----
-        ui.label("Option Chains").classes("nav-section-label")
+        ui.label("Options").classes("nav-section-label")
         _nav_button("nifty", "NIFTY", "show_chart")
         _nav_button("banknifty", "BANKNIFTY", "candlestick_chart")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Historical Backtest section ----
-        ui.label("Historical Backtest").classes("nav-section-label")
-        with ui.expansion("RSI Only", icon="speed").classes(
+        ui.label("Backtest").classes("nav-section-label")
+        with ui.expansion("RSI", icon="speed").classes(
             "mx-2 rounded-lg"
         ).props("dense default-opened"):
-            _nav_button("rsi_nifty", "NIFTY RSI", "show_chart", indent=True)
-            _nav_button("rsi_banknifty", "BANKNIFTY RSI", "candlestick_chart", indent=True)
-        with ui.expansion("ABCD Harmonic", icon="insights").classes(
+            _nav_button("rsi_nifty", "NIFTY", "show_chart", indent=True)
+            _nav_button("rsi_banknifty", "BANKNIFTY", "candlestick_chart", indent=True)
+        with ui.expansion("ABCD", icon="insights").classes(
             "mx-2 rounded-lg"
         ).props("dense default-opened"):
-            _nav_button("abcd_nifty", "NIFTY ABCD", "show_chart", indent=True)
-            _nav_button("abcd_banknifty", "BANKNIFTY ABCD", "candlestick_chart", indent=True)
+            _nav_button("abcd_nifty", "NIFTY", "show_chart", indent=True)
+            _nav_button("abcd_banknifty", "BANKNIFTY", "candlestick_chart", indent=True)
 
         ui.separator().classes("my-2 mx-4")
 
@@ -248,7 +257,7 @@ async def index():
         ui.separator().classes("my-2 mx-4")
 
         # ---- Summary ----
-        _nav_button("pnl", "P&L Summary", "account_balance_wallet")
+        _nav_button("pnl", "P&L", "account_balance_wallet")
 
         ui.separator().classes("my-3 mx-4")
 
