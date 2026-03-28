@@ -33,13 +33,37 @@ def now_ist():
 
 # ================= NSE HOLIDAYS (2025-2026) =================
 NSE_HOLIDAYS = {
-    "2025-02-26", "2025-03-14", "2025-03-31", "2025-04-10", "2025-04-14",
-    "2025-04-18", "2025-05-01", "2025-06-07", "2025-08-15", "2025-08-16",
-    "2025-08-27", "2025-10-02", "2025-10-21", "2025-10-22", "2025-11-05",
+    "2025-02-26",
+    "2025-03-14",
+    "2025-03-31",
+    "2025-04-10",
+    "2025-04-14",
+    "2025-04-18",
+    "2025-05-01",
+    "2025-06-07",
+    "2025-08-15",
+    "2025-08-16",
+    "2025-08-27",
+    "2025-10-02",
+    "2025-10-21",
+    "2025-10-22",
+    "2025-11-05",
     "2025-12-25",
-    "2026-01-26", "2026-02-17", "2026-03-03", "2026-03-20", "2026-03-30",
-    "2026-04-03", "2026-04-14", "2026-05-01", "2026-05-28", "2026-08-15",
-    "2026-08-18", "2026-10-02", "2026-10-10", "2026-10-29", "2026-11-25",
+    "2026-01-26",
+    "2026-02-17",
+    "2026-03-03",
+    "2026-03-20",
+    "2026-03-30",
+    "2026-04-03",
+    "2026-04-14",
+    "2026-05-01",
+    "2026-05-28",
+    "2026-08-15",
+    "2026-08-18",
+    "2026-10-02",
+    "2026-10-10",
+    "2026-10-29",
+    "2026-11-25",
     "2026-12-25",
 }
 
@@ -81,8 +105,20 @@ RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 
 INDICES = {
-    "NIFTY": {"scrip": 13, "segment": "IDX_I", "strike_step": 50, "strike_range": 500, "name_prefix": "NIFTY"},
-    "BANKNIFTY": {"scrip": 25, "segment": "IDX_I", "strike_step": 100, "strike_range": 1000, "name_prefix": "BANKNIFTY"},
+    "NIFTY": {
+        "scrip": 13,
+        "segment": "IDX_I",
+        "strike_step": 50,
+        "strike_range": 500,
+        "name_prefix": "NIFTY",
+    },
+    "BANKNIFTY": {
+        "scrip": 25,
+        "segment": "IDX_I",
+        "strike_step": 100,
+        "strike_range": 1000,
+        "name_prefix": "BANKNIFTY",
+    },
 }
 
 # ================= FILE-BASED DEDUP =================
@@ -116,11 +152,12 @@ def _mark_sent(key):
 
 # ================= IN-MEMORY TRADE STORE =================
 # NiceGUI runs as a persistent server, so we use module-level dicts instead of session_state
-_trade_store = {}   # key -> {"active": [...], "completed": [...]}
-_ltp_history = {}   # history for SMA trend
+_trade_store = {}  # key -> {"active": [...], "completed": [...]}
+_ltp_history = {}  # history for SMA trend
 
 
 # ================= TELEGRAM =================
+
 
 def _send_telegram(message):
     try:
@@ -132,30 +169,42 @@ def _send_telegram(message):
 
 # ================= MARKET HOURS =================
 
+
 def is_market_open():
     now = now_ist()
     if not _is_trading_day(now):
         return False
-    market_open = now.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
-    market_close = now.replace(hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MIN, second=0, microsecond=0)
+    market_open = now.replace(
+        hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0
+    )
+    market_close = now.replace(
+        hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MIN, second=0, microsecond=0
+    )
     return market_open <= now <= market_close
 
 
 def get_next_market_open():
     now = now_ist()
-    target = now.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
+    target = now.replace(
+        hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0
+    )
     if _is_trading_day(now) and now < target:
         return target
     days_ahead = 1
     while days_ahead < 30:
         next_day = now + timedelta(days=days_ahead)
         if _is_trading_day(next_day):
-            return next_day.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
+            return next_day.replace(
+                hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0
+            )
         days_ahead += 1
-    return (now + timedelta(days=1)).replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0)
+    return (now + timedelta(days=1)).replace(
+        hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MIN, second=0, microsecond=0
+    )
 
 
 # ================= API HELPER =================
+
 
 def api_call(fn, *args, retries=3, delay=3, **kwargs):
     for attempt in range(retries):
@@ -164,13 +213,19 @@ def api_call(fn, *args, retries=3, delay=3, **kwargs):
             err_data = r.get("data", {})
             if isinstance(err_data, dict):
                 inner = err_data.get("data", {})
-                if isinstance(inner, dict) and any("Too many" in str(v) for v in inner.values()):
-                    print(f"  [rate limit] attempt {attempt+1}/{retries}, waiting {delay}s...")
+                if isinstance(inner, dict) and any(
+                    "Too many" in str(v) for v in inner.values()
+                ):
+                    print(
+                        f"  [rate limit] attempt {attempt+1}/{retries}, waiting {delay}s..."
+                    )
                     time.sleep(delay)
                     delay *= 2
                     continue
             if r.get("status") == "failure" and attempt < retries - 1:
-                print(f"  [api retry] attempt {attempt+1}/{retries}, waiting {delay}s...")
+                print(
+                    f"  [api retry] attempt {attempt+1}/{retries}, waiting {delay}s..."
+                )
                 time.sleep(delay)
                 delay *= 2
                 continue
@@ -180,9 +235,9 @@ def api_call(fn, *args, retries=3, delay=3, **kwargs):
 
 # ================= GLOBAL DATA CACHE =================
 # Fetched once, shared across all browser clients
-_data_cache = {}       # key -> {"data": ..., "time": float}
+_data_cache = {}  # key -> {"data": ..., "time": float}
 _cache_lock = threading.Lock()
-CACHE_TTL = 90         # seconds before cache is considered stale
+CACHE_TTL = 90  # seconds before cache is considered stale
 
 
 def _cache_get(key):
@@ -199,6 +254,7 @@ def _cache_set(key, data):
 
 
 # ================= DATA FUNCTIONS =================
+
 
 def get_expiries(scrip, segment, count=3, for_algo=False):
     cache_key = f"expiries:{scrip}:{segment}:{for_algo}"
@@ -218,7 +274,8 @@ def get_expiries(scrip, segment, count=3, for_algo=False):
     ist_now = now_ist()
     today = ist_now.date()
     all_future = sorted(
-        d for d in data
+        d
+        for d in data
         if isinstance(d, str) and datetime.strptime(d, "%Y-%m-%d").date() >= today
     )
 
@@ -233,7 +290,9 @@ def get_expiries(scrip, segment, count=3, for_algo=False):
             filtered.append(d)
         expiries = filtered
     else:
-        expiries = [d for d in all_future if datetime.strptime(d, "%Y-%m-%d").date() > today]
+        expiries = [
+            d for d in all_future if datetime.strptime(d, "%Y-%m-%d").date() > today
+        ]
 
     if not expiries:
         raise RuntimeError("No future expiries found.")
@@ -262,16 +321,18 @@ def fetch_option_chain(scrip, segment, expiry):
             if not info:
                 continue
             greeks = info.get("greeks", {})
-            rows.append({
-                "Strike": strike,
-                "Type": opt_type,
-                "LTP": round(float(info.get("last_price", 0)), 2),
-                "IV (%)": round(float(info.get("implied_volatility", 0)), 2),
-                "Delta": round(float(greeks.get("delta", 0)), 4),
-                "Gamma": round(float(greeks.get("gamma", 0)), 6),
-                "Theta": round(float(greeks.get("theta", 0)), 4),
-                "Vega": round(float(greeks.get("vega", 0)), 4),
-            })
+            rows.append(
+                {
+                    "Strike": strike,
+                    "Type": opt_type,
+                    "LTP": round(float(info.get("last_price", 0)), 2),
+                    "IV (%)": round(float(info.get("implied_volatility", 0)), 2),
+                    "Delta": round(float(greeks.get("delta", 0)), 4),
+                    "Gamma": round(float(greeks.get("gamma", 0)), 6),
+                    "Theta": round(float(greeks.get("theta", 0)), 4),
+                    "Vega": round(float(greeks.get("vega", 0)), 4),
+                }
+            )
     result = (spot, pd.DataFrame(rows))
     _cache_set(cache_key, result)
     return result
@@ -295,9 +356,13 @@ def build_name_column(df, expiry, prefix):
     exp_date = datetime.strptime(expiry, "%Y-%m-%d")
     exp_tag = exp_date.strftime("%d%b").upper()
     df = df.copy()
-    df.insert(0, "Name", df.apply(
-        lambda r: f"{prefix} {exp_tag} {int(r['Strike'])} {r['Type']}", axis=1
-    ))
+    df.insert(
+        0,
+        "Name",
+        df.apply(
+            lambda r: f"{prefix} {exp_tag} {int(r['Strike'])} {r['Type']}", axis=1
+        ),
+    )
     return df
 
 
@@ -348,48 +413,81 @@ def add_trend(df, index_name, expiry, opt_type):
 
 def fetch_5min_candles(security_id):
     today = now_ist().strftime("%Y-%m-%d")
-    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=5)).strftime(
+        "%Y-%m-%d"
+    )
     r = api_call(
         dhan.intraday_minute_data,
-        str(security_id), "NSE_FNO", "OPTIDX", from_date, today, interval=5,
+        str(security_id),
+        "NSE_FNO",
+        "OPTIDX",
+        from_date,
+        today,
+        interval=5,
     )
     if r.get("status") != "success":
         return pd.DataFrame()
     d = r["data"]
-    df = pd.DataFrame({
-        "timestamp": d.get("timestamp", []),
-        "open": d.get("open", []),
-        "high": d.get("high", []),
-        "low": d.get("low", []),
-        "close": d.get("close", []),
-        "volume": d.get("volume", []),
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": d.get("timestamp", []),
+            "open": d.get("open", []),
+            "high": d.get("high", []),
+            "low": d.get("low", []),
+            "close": d.get("close", []),
+            "volume": d.get("volume", []),
+        }
+    )
     if not df.empty:
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"], unit="s", utc=True
+        ).dt.tz_convert("Asia/Kolkata")
     return df
 
 
 # ================= PATTERN DETECTION =================
+
 
 def find_swing_points(df, order=3):
     swings = []
     highs = df["high"].values
     lows = df["low"].values
     for i in range(order, len(df) - order):
-        if all(highs[i] >= highs[i - j] for j in range(1, order + 1)) and \
-           all(highs[i] >= highs[i + j] for j in range(1, order + 1)):
-            swings.append({"index": i, "type": "high", "price": highs[i], "time": df["timestamp"].iloc[i]})
-        if all(lows[i] <= lows[i - j] for j in range(1, order + 1)) and \
-           all(lows[i] <= lows[i + j] for j in range(1, order + 1)):
-            swings.append({"index": i, "type": "low", "price": lows[i], "time": df["timestamp"].iloc[i]})
+        if all(highs[i] >= highs[i - j] for j in range(1, order + 1)) and all(
+            highs[i] >= highs[i + j] for j in range(1, order + 1)
+        ):
+            swings.append(
+                {
+                    "index": i,
+                    "type": "high",
+                    "price": highs[i],
+                    "time": df["timestamp"].iloc[i],
+                }
+            )
+        if all(lows[i] <= lows[i - j] for j in range(1, order + 1)) and all(
+            lows[i] <= lows[i + j] for j in range(1, order + 1)
+        ):
+            swings.append(
+                {
+                    "index": i,
+                    "type": "low",
+                    "price": lows[i],
+                    "time": df["timestamp"].iloc[i],
+                }
+            )
     return sorted(swings, key=lambda s: s["index"])
 
 
 def detect_abcd_patterns(swings, tolerance=0.15):
     patterns = []
     for i in range(len(swings) - 3):
-        a, b, c, d = swings[i], swings[i+1], swings[i+2], swings[i+3]
-        if a["type"] == "low" and b["type"] == "high" and c["type"] == "low" and d["type"] == "high":
+        a, b, c, d = swings[i], swings[i + 1], swings[i + 2], swings[i + 3]
+        if (
+            a["type"] == "low"
+            and b["type"] == "high"
+            and c["type"] == "low"
+            and d["type"] == "high"
+        ):
             ab = b["price"] - a["price"]
             bc = b["price"] - c["price"]
             cd = d["price"] - c["price"]
@@ -397,15 +495,30 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                 continue
             bc_ratio = bc / ab
             cd_ab_ratio = cd / ab
-            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and \
-               (1.0 - tolerance) <= cd_ab_ratio <= (1.618 + tolerance):
-                patterns.append({
-                    "type": "Bullish", "A": a, "B": b, "C": c, "D": d,
-                    "BC_retrace": round(bc_ratio, 3), "CD_AB_ratio": round(cd_ab_ratio, 3),
-                    "entry": d["price"], "target": d["price"] + ab, "stop_loss": c["price"],
-                    "signal": "SELL CE / BUY PE at D",
-                })
-        if a["type"] == "high" and b["type"] == "low" and c["type"] == "high" and d["type"] == "low":
+            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and (
+                1.0 - tolerance
+            ) <= cd_ab_ratio <= (1.618 + tolerance):
+                patterns.append(
+                    {
+                        "type": "Bullish",
+                        "A": a,
+                        "B": b,
+                        "C": c,
+                        "D": d,
+                        "BC_retrace": round(bc_ratio, 3),
+                        "CD_AB_ratio": round(cd_ab_ratio, 3),
+                        "entry": d["price"],
+                        "target": d["price"] + ab,
+                        "stop_loss": c["price"],
+                        "signal": "SELL CE / BUY PE at D",
+                    }
+                )
+        if (
+            a["type"] == "high"
+            and b["type"] == "low"
+            and c["type"] == "high"
+            and d["type"] == "low"
+        ):
             ab = a["price"] - b["price"]
             bc = c["price"] - b["price"]
             cd = c["price"] - d["price"]
@@ -413,14 +526,24 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                 continue
             bc_ratio = bc / ab
             cd_ab_ratio = cd / ab
-            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and \
-               (1.0 - tolerance) <= cd_ab_ratio <= (1.618 + tolerance):
-                patterns.append({
-                    "type": "Bearish", "A": a, "B": b, "C": c, "D": d,
-                    "BC_retrace": round(bc_ratio, 3), "CD_AB_ratio": round(cd_ab_ratio, 3),
-                    "entry": d["price"], "target": d["price"] - ab, "stop_loss": c["price"],
-                    "signal": "BUY CE / SELL PE at D",
-                })
+            if (0.618 - tolerance) <= bc_ratio <= (0.786 + tolerance) and (
+                1.0 - tolerance
+            ) <= cd_ab_ratio <= (1.618 + tolerance):
+                patterns.append(
+                    {
+                        "type": "Bearish",
+                        "A": a,
+                        "B": b,
+                        "C": c,
+                        "D": d,
+                        "BC_retrace": round(bc_ratio, 3),
+                        "CD_AB_ratio": round(cd_ab_ratio, 3),
+                        "entry": d["price"],
+                        "target": d["price"] - ab,
+                        "stop_loss": c["price"],
+                        "signal": "BUY CE / SELL PE at D",
+                    }
+                )
     return patterns
 
 
@@ -449,13 +572,17 @@ def classify_trades(patterns, current_price, contract_name=""):
                 if not _is_already_sent(completed_key):
                     _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
-                    _send_telegram(f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}")
+                    _send_telegram(
+                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}"
+                    )
             else:
                 p["unrealized_pnl"] = round(pnl, 2)
                 active.append(p)
                 if not _is_already_sent(active_key):
                     _mark_sent(active_key)
-                    _send_telegram(f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}")
+                    _send_telegram(
+                        f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
+                    )
         else:
             pnl = current_price - entry
             if current_price >= target or current_price <= sl:
@@ -466,17 +593,22 @@ def classify_trades(patterns, current_price, contract_name=""):
                 if not _is_already_sent(completed_key):
                     _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
-                    _send_telegram(f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}")
+                    _send_telegram(
+                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}"
+                    )
             else:
                 p["unrealized_pnl"] = round(pnl, 2)
                 active.append(p)
                 if not _is_already_sent(active_key):
                     _mark_sent(active_key)
-                    _send_telegram(f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}")
+                    _send_telegram(
+                        f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
+                    )
     return active, completed
 
 
 # ================= RSI + SMA =================
+
 
 def compute_rsi(series, period=RSI_PERIOD):
     delta = series.diff()
@@ -504,24 +636,46 @@ def detect_rsi_sma_signals(candles):
     for i in range(1, len(df)):
         prev = df.iloc[i - 1]
         curr = df.iloc[i]
-        if prev["sma_fast"] <= prev["sma_slow"] and curr["sma_fast"] > curr["sma_slow"] and curr["rsi"] > RSI_OVERSOLD:
+        if (
+            prev["sma_fast"] <= prev["sma_slow"]
+            and curr["sma_fast"] > curr["sma_slow"]
+            and curr["rsi"] > RSI_OVERSOLD
+        ):
             target = curr["close"] * 1.02
             sl = curr["close"] * 0.98
-            signals.append({
-                "type": "Bullish", "signal": "BUY CE — SMA crossover + RSI recovery",
-                "entry": round(curr["close"], 2), "target": round(target, 2), "stop_loss": round(sl, 2),
-                "time": curr["timestamp"], "rsi": round(curr["rsi"], 2),
-                "sma_fast": round(curr["sma_fast"], 2), "sma_slow": round(curr["sma_slow"], 2),
-            })
-        if prev["sma_fast"] >= prev["sma_slow"] and curr["sma_fast"] < curr["sma_slow"] and curr["rsi"] < RSI_OVERBOUGHT:
+            signals.append(
+                {
+                    "type": "Bullish",
+                    "signal": "BUY CE — SMA crossover + RSI recovery",
+                    "entry": round(curr["close"], 2),
+                    "target": round(target, 2),
+                    "stop_loss": round(sl, 2),
+                    "time": curr["timestamp"],
+                    "rsi": round(curr["rsi"], 2),
+                    "sma_fast": round(curr["sma_fast"], 2),
+                    "sma_slow": round(curr["sma_slow"], 2),
+                }
+            )
+        if (
+            prev["sma_fast"] >= prev["sma_slow"]
+            and curr["sma_fast"] < curr["sma_slow"]
+            and curr["rsi"] < RSI_OVERBOUGHT
+        ):
             target = curr["close"] * 0.98
             sl = curr["close"] * 1.02
-            signals.append({
-                "type": "Bearish", "signal": "BUY PE — SMA crossover + RSI overbought",
-                "entry": round(curr["close"], 2), "target": round(target, 2), "stop_loss": round(sl, 2),
-                "time": curr["timestamp"], "rsi": round(curr["rsi"], 2),
-                "sma_fast": round(curr["sma_fast"], 2), "sma_slow": round(curr["sma_slow"], 2),
-            })
+            signals.append(
+                {
+                    "type": "Bearish",
+                    "signal": "BUY PE — SMA crossover + RSI overbought",
+                    "entry": round(curr["close"], 2),
+                    "target": round(target, 2),
+                    "stop_loss": round(sl, 2),
+                    "time": curr["timestamp"],
+                    "rsi": round(curr["rsi"], 2),
+                    "sma_fast": round(curr["sma_fast"], 2),
+                    "sma_slow": round(curr["sma_slow"], 2),
+                }
+            )
     return signals, df
 
 
@@ -556,24 +710,33 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
             if not _is_already_sent(completed_key):
                 _mark_sent(completed_key)
                 emoji = "+" if pnl > 0 else ""
-                _send_telegram(f"TRADE CLOSED [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{pnl:.2f}\nStatus: {s['status']}")
+                _send_telegram(
+                    f"TRADE CLOSED [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{pnl:.2f}\nStatus: {s['status']}"
+                )
         else:
             s["unrealized_pnl"] = pnl
             active.append(s)
             if not _is_already_sent(active_key):
                 _mark_sent(active_key)
-                _send_telegram(f"NEW TRADE [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nRSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}")
+                _send_telegram(
+                    f"NEW TRADE [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nRSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}"
+                )
     return active, completed
 
 
 # ================= P&L COLLECTION =================
+
 
 def collect_all_trades():
     all_active = []
     all_completed = []
     for key, val in _trade_store.items():
         if isinstance(val, dict) and "active" in val and "completed" in val:
-            strategy = "ABCD" if key.startswith("abcd_") else "RSI+SMA" if key.startswith("rsi_") else "Unknown"
+            strategy = (
+                "ABCD"
+                if key.startswith("abcd_")
+                else "RSI+SMA" if key.startswith("rsi_") else "Unknown"
+            )
             for t in val["active"]:
                 t["strategy"] = strategy
                 all_active.append(t)
@@ -609,7 +772,9 @@ def send_daily_pnl_summary():
         sw = sum(1 for t in strat_trades if t.get("pnl", 0) > 0)
         sl_count = sum(1 for t in strat_trades if t.get("pnl", 0) < 0)
         emoji = "+" if spnl > 0 else ""
-        strat_lines.append(f"  {strat}: {len(strat_trades)} trades | {sw}W/{sl_count}L | PnL: {emoji}{spnl:.2f}")
+        strat_lines.append(
+            f"  {strat}: {len(strat_trades)} trades | {sw}W/{sl_count}L | PnL: {emoji}{spnl:.2f}"
+        )
 
     emoji_total = "+" if total_realized > 0 else ""
     breakdown = "\n".join(strat_lines) if strat_lines else "  No trades today"
@@ -652,6 +817,7 @@ def _f2(v):
 
 # ================= UI BUILDERS =================
 
+
 def _build_option_chain_table(container, df, atm):
     """Build a NiceGUI table for option chain data inside a container."""
     container.clear()
@@ -665,23 +831,35 @@ def _build_option_chain_table(container, df, atm):
         display_df = df.copy()
         for c in num_cols:
             if c == "Gamma":
-                display_df[c] = display_df[c].apply(lambda x: round(x, 6) if pd.notna(x) else x)
+                display_df[c] = display_df[c].apply(
+                    lambda x: round(x, 6) if pd.notna(x) else x
+                )
             else:
-                display_df[c] = display_df[c].apply(lambda x: round(x, 4) if pd.notna(x) else x)
+                display_df[c] = display_df[c].apply(
+                    lambda x: round(x, 4) if pd.notna(x) else x
+                )
 
-        columns = [{"name": col, "label": col, "field": col, "sortable": True, "align": "left"} for col in display_df.columns]
+        columns = [
+            {"name": col, "label": col, "field": col, "sortable": True, "align": "left"}
+            for col in display_df.columns
+        ]
         rows = display_df.to_dict("records")
 
         table = ui.table(columns=columns, rows=rows, row_key="Strike").classes("w-full")
         table.props("dense flat bordered")
 
         # Highlight ATM row in yellow
-        table.add_slot("body-cell", '''
+        table.add_slot(
+            "body-cell",
+            """
             <q-td :props="props"
-                   :style="props.row.Strike == ''' + str(atm) + ''' ? 'background: #ffffb3; font-weight: bold' : ''">
+                   :style="props.row.Strike == """
+            + str(atm)
+            + """ ? 'background: #ffffb3; font-weight: bold' : ''">
                 {{ props.value }}
             </q-td>
-        ''')
+        """,
+        )
 
 
 def _build_trade_table(container, rows, pnl_col="PnL"):
@@ -699,7 +877,9 @@ def _build_trade_table(container, rows, pnl_col="PnL"):
                 with ui.element("thead"):
                     with ui.element("tr").classes("bg-gray-100"):
                         for col in columns:
-                            ui.element("th").classes("px-3 py-2 text-left font-semibold border-b").text(col)
+                            ui.element("th").classes(
+                                "px-3 py-2 text-left font-semibold border-b"
+                            ).text(col)
                 # Body
                 with ui.element("tbody"):
                     for row in rows:
@@ -711,18 +891,27 @@ def _build_trade_table(container, rows, pnl_col="PnL"):
                                 if col == pnl_col:
                                     if isinstance(pnl_val, (int, float)):
                                         if pnl_val > 0:
-                                            cell.classes("text-green-700 font-bold bg-green-50")
+                                            cell.classes(
+                                                "text-green-700 font-bold bg-green-50"
+                                            )
                                         elif pnl_val < 0:
-                                            cell.classes("text-red-700 font-bold bg-red-50")
-                                if col == "Status" and isinstance(pnl_val, (int, float)):
+                                            cell.classes(
+                                                "text-red-700 font-bold bg-red-50"
+                                            )
+                                if col == "Status" and isinstance(
+                                    pnl_val, (int, float)
+                                ):
                                     if pnl_val > 0:
                                         cell.classes("text-green-700 bg-green-50")
                                     elif pnl_val < 0:
                                         cell.classes("text-red-700 bg-red-50")
-                                cell.text(_f2(val) if isinstance(val, float) else str(val))
+                                cell.text(
+                                    _f2(val) if isinstance(val, float) else str(val)
+                                )
 
 
 # ================= OPTION CHAIN TAB =================
+
 
 def render_index_tab(container, index_name, cfg):
     """Build the NIFTY or BANKNIFTY option chain tab content inside container."""
@@ -766,7 +955,9 @@ def render_index_tab(container, index_name, cfg):
                 spot_val = result[0]
                 break
 
-        spot_label.text = f"{index_name}: {spot_val:,.2f}" if spot_val else f"{index_name}: N/A"
+        spot_label.text = (
+            f"{index_name}: {spot_val:,.2f}" if spot_val else f"{index_name}: N/A"
+        )
         atm_val = round(spot_val / strike_step) * strike_step if spot_val else "N/A"
         atm_label.text = f"ATM: {atm_val:,}" if spot_val else "ATM: N/A"
         time_label.text = f"Updated: {now_ist().strftime('%H:%M:%S')}"
@@ -799,16 +990,24 @@ def render_index_tab(container, index_name, cfg):
                             ce = add_trend(ce, index_name, exp, "CE")
                             pe = add_trend(pe, index_name, exp, "PE")
 
-                            print(f"  [{index_name}] {exp}: CE rows={len(ce)}, PE rows={len(pe)}, ATM={atm}")
+                            print(
+                                f"  [{index_name}] {exp}: CE rows={len(ce)}, PE rows={len(pe)}, ATM={atm}"
+                            )
 
-                            with ui.row().classes("w-full gap-4 flex-nowrap items-start"):
+                            with ui.row().classes(
+                                "w-full gap-4 flex-nowrap items-start"
+                            ):
                                 with ui.column().classes("flex-1 min-w-0"):
-                                    ui.label("CALL (CE)").classes("text-lg font-bold text-green-600")
+                                    ui.label("CALL (CE)").classes(
+                                        "text-lg font-bold text-green-600"
+                                    )
                                     ce_container = ui.element("div").classes("w-full")
                                     _build_option_chain_table(ce_container, ce, atm)
 
                                 with ui.column().classes("flex-1 min-w-0"):
-                                    ui.label("PUT (PE)").classes("text-lg font-bold text-red-600")
+                                    ui.label("PUT (PE)").classes(
+                                        "text-lg font-bold text-red-600"
+                                    )
                                     pe_container = ui.element("div").classes("w-full")
                                     _build_option_chain_table(pe_container, pe, atm)
 
@@ -817,50 +1016,86 @@ def render_index_tab(container, index_name, cfg):
 
 # ================= ABCD ALGO TAB =================
 
-def _build_candlestick_with_abcd(candles, swings, patterns, contract_name, current_price):
+
+def _build_candlestick_with_abcd(
+    candles, swings, patterns, contract_name, current_price
+):
     """Build a Plotly candlestick chart with ABCD pattern overlay."""
     fig = go.Figure()
-    fig.add_trace(go.Candlestick(
-        x=candles["timestamp"], open=candles["open"],
-        high=candles["high"], low=candles["low"], close=candles["close"],
-        name="Price", increasing_line_color="#26a69a", decreasing_line_color="#ef5350",
-    ))
+    fig.add_trace(
+        go.Candlestick(
+            x=candles["timestamp"],
+            open=candles["open"],
+            high=candles["high"],
+            low=candles["low"],
+            close=candles["close"],
+            name="Price",
+            increasing_line_color="#26a69a",
+            decreasing_line_color="#ef5350",
+        )
+    )
 
     if swings:
         swing_highs = [s for s in swings if s["type"] == "high"]
         swing_lows = [s for s in swings if s["type"] == "low"]
         if swing_highs:
-            fig.add_trace(go.Scatter(
-                x=[s["time"] for s in swing_highs], y=[s["price"] for s in swing_highs],
-                mode="markers", marker=dict(symbol="triangle-down", size=10, color="#ef5350"),
-                name="Swing High",
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=[s["time"] for s in swing_highs],
+                    y=[s["price"] for s in swing_highs],
+                    mode="markers",
+                    marker=dict(symbol="triangle-down", size=10, color="#ef5350"),
+                    name="Swing High",
+                )
+            )
         if swing_lows:
-            fig.add_trace(go.Scatter(
-                x=[s["time"] for s in swing_lows], y=[s["price"] for s in swing_lows],
-                mode="markers", marker=dict(symbol="triangle-up", size=10, color="#26a69a"),
-                name="Swing Low",
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=[s["time"] for s in swing_lows],
+                    y=[s["price"] for s in swing_lows],
+                    mode="markers",
+                    marker=dict(symbol="triangle-up", size=10, color="#26a69a"),
+                    name="Swing Low",
+                )
+            )
 
     colors = ["#ff9800", "#2196f3", "#9c27b0", "#00bcd4", "#e91e63"]
     for idx, p in enumerate(patterns):
         color = colors[idx % len(colors)]
         pts = [p["A"], p["B"], p["C"], p["D"]]
-        fig.add_trace(go.Scatter(
-            x=[pt["time"] for pt in pts], y=[pt["price"] for pt in pts],
-            mode="lines+markers+text", line=dict(color=color, width=2, dash="dot"),
-            marker=dict(size=12, color=color), text=["A", "B", "C", "D"],
-            textposition="top center", textfont=dict(size=14, color=color),
-            name=f"ABCD {idx+1} ({p['type']})",
-        ))
-        fig.add_hline(y=p["target"], line_dash="dash", line_color="green",
-                      annotation_text=f"Target {p['target']:.2f}", annotation_position="bottom right")
-        fig.add_hline(y=p["stop_loss"], line_dash="dash", line_color="red",
-                      annotation_text=f"SL {p['stop_loss']:.2f}", annotation_position="bottom right")
+        fig.add_trace(
+            go.Scatter(
+                x=[pt["time"] for pt in pts],
+                y=[pt["price"] for pt in pts],
+                mode="lines+markers+text",
+                line=dict(color=color, width=2, dash="dot"),
+                marker=dict(size=12, color=color),
+                text=["A", "B", "C", "D"],
+                textposition="top center",
+                textfont=dict(size=14, color=color),
+                name=f"ABCD {idx+1} ({p['type']})",
+            )
+        )
+        fig.add_hline(
+            y=p["target"],
+            line_dash="dash",
+            line_color="green",
+            annotation_text=f"Target {p['target']:.2f}",
+            annotation_position="bottom right",
+        )
+        fig.add_hline(
+            y=p["stop_loss"],
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"SL {p['stop_loss']:.2f}",
+            annotation_position="bottom right",
+        )
 
     fig.update_layout(
-        height=500, xaxis_rangeslider_visible=False,
-        xaxis_title="Time", yaxis_title="Price",
+        height=500,
+        xaxis_rangeslider_visible=False,
+        xaxis_title="Time",
+        yaxis_title="Price",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(l=0, r=0, t=30, b=0),
     )
@@ -870,38 +1105,98 @@ def _build_candlestick_with_abcd(candles, swings, patterns, contract_name, curre
 def _build_candlestick_with_rsi_sma(candles, df_ind, signals):
     """Build Plotly candlestick + SMA + RSI charts for RSI+SMA strategy."""
     fig = go.Figure()
-    fig.add_trace(go.Candlestick(
-        x=candles["timestamp"], open=candles["open"],
-        high=candles["high"], low=candles["low"], close=candles["close"],
-        name="Price", increasing_line_color="#26a69a", decreasing_line_color="#ef5350",
-    ))
+    fig.add_trace(
+        go.Candlestick(
+            x=candles["timestamp"],
+            open=candles["open"],
+            high=candles["high"],
+            low=candles["low"],
+            close=candles["close"],
+            name="Price",
+            increasing_line_color="#26a69a",
+            decreasing_line_color="#ef5350",
+        )
+    )
     if not df_ind.empty:
-        fig.add_trace(go.Scatter(x=df_ind["timestamp"], y=df_ind["sma_fast"],
-                                 mode="lines", line=dict(color="#2196f3", width=1.5), name=f"SMA {SMA_FAST}"))
-        fig.add_trace(go.Scatter(x=df_ind["timestamp"], y=df_ind["sma_slow"],
-                                 mode="lines", line=dict(color="#ff9800", width=1.5), name=f"SMA {SMA_SLOW}"))
+        fig.add_trace(
+            go.Scatter(
+                x=df_ind["timestamp"],
+                y=df_ind["sma_fast"],
+                mode="lines",
+                line=dict(color="#2196f3", width=1.5),
+                name=f"SMA {SMA_FAST}",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=df_ind["timestamp"],
+                y=df_ind["sma_slow"],
+                mode="lines",
+                line=dict(color="#ff9800", width=1.5),
+                name=f"SMA {SMA_SLOW}",
+            )
+        )
 
     buy_sigs = [s for s in signals if s["type"] == "Bullish"]
     sell_sigs = [s for s in signals if s["type"] == "Bearish"]
     if buy_sigs:
-        fig.add_trace(go.Scatter(x=[s["time"] for s in buy_sigs], y=[s["entry"] for s in buy_sigs],
-                                 mode="markers", marker=dict(symbol="triangle-up", size=14, color="#26a69a"), name="Buy Signal"))
+        fig.add_trace(
+            go.Scatter(
+                x=[s["time"] for s in buy_sigs],
+                y=[s["entry"] for s in buy_sigs],
+                mode="markers",
+                marker=dict(symbol="triangle-up", size=14, color="#26a69a"),
+                name="Buy Signal",
+            )
+        )
     if sell_sigs:
-        fig.add_trace(go.Scatter(x=[s["time"] for s in sell_sigs], y=[s["entry"] for s in sell_sigs],
-                                 mode="markers", marker=dict(symbol="triangle-down", size=14, color="#ef5350"), name="Sell Signal"))
+        fig.add_trace(
+            go.Scatter(
+                x=[s["time"] for s in sell_sigs],
+                y=[s["entry"] for s in sell_sigs],
+                mode="markers",
+                marker=dict(symbol="triangle-down", size=14, color="#ef5350"),
+                name="Sell Signal",
+            )
+        )
     fig.update_layout(
-        height=500, xaxis_rangeslider_visible=False, xaxis_title="Time", yaxis_title="Price",
+        height=500,
+        xaxis_rangeslider_visible=False,
+        xaxis_title="Time",
+        yaxis_title="Price",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(l=0, r=0, t=30, b=0),
     )
 
     fig_rsi = go.Figure()
     if not df_ind.empty:
-        fig_rsi.add_trace(go.Scatter(x=df_ind["timestamp"], y=df_ind["rsi"],
-                                     mode="lines", line=dict(color="#9c27b0", width=1.5), name="RSI"))
-        fig_rsi.add_hline(y=RSI_OVERBOUGHT, line_dash="dash", line_color="red", annotation_text="Overbought (70)")
-        fig_rsi.add_hline(y=RSI_OVERSOLD, line_dash="dash", line_color="green", annotation_text="Oversold (30)")
-        fig_rsi.update_layout(height=200, yaxis_title="RSI", xaxis_title="Time", margin=dict(l=0, r=0, t=10, b=0))
+        fig_rsi.add_trace(
+            go.Scatter(
+                x=df_ind["timestamp"],
+                y=df_ind["rsi"],
+                mode="lines",
+                line=dict(color="#9c27b0", width=1.5),
+                name="RSI",
+            )
+        )
+        fig_rsi.add_hline(
+            y=RSI_OVERBOUGHT,
+            line_dash="dash",
+            line_color="red",
+            annotation_text="Overbought (70)",
+        )
+        fig_rsi.add_hline(
+            y=RSI_OVERSOLD,
+            line_dash="dash",
+            line_color="green",
+            annotation_text="Oversold (30)",
+        )
+        fig_rsi.update_layout(
+            height=200,
+            yaxis_title="RSI",
+            xaxis_title="Time",
+            margin=dict(l=0, r=0, t=10, b=0),
+        )
 
     return fig, fig_rsi
 
@@ -925,7 +1220,9 @@ def _render_algo_option(container, cfg, expiry, raw, algo_type="abcd"):
 
     if not ce_id or not pe_id:
         with container:
-            ui.label(f"No security IDs for ATM strike {best_strike}").classes("text-red-500")
+            ui.label(f"No security IDs for ATM strike {best_strike}").classes(
+                "text-red-500"
+            )
         return
 
     exp_date = datetime.strptime(expiry, "%Y-%m-%d")
@@ -945,13 +1242,18 @@ def _render_algo_option(container, cfg, expiry, raw, algo_type="abcd"):
             pe_tab_item = ui.tab(f"ATM PE — NIFTY {exp_tag} {int(atm)} PE")
 
         with ui.tab_panels(opt_tabs).classes("w-full"):
-            for tab_item, sec_id, opt_type in [(ce_tab_item, ce_id, "CE"), (pe_tab_item, pe_id, "PE")]:
+            for tab_item, sec_id, opt_type in [
+                (ce_tab_item, ce_id, "CE"),
+                (pe_tab_item, pe_id, "PE"),
+            ]:
                 with ui.tab_panel(tab_item):
                     time.sleep(1)
                     candles = fetch_5min_candles(sec_id)
 
                     if candles.empty:
-                        ui.label(f"No candle data for ATM {opt_type} (ID: {sec_id})").classes("text-orange-500")
+                        ui.label(
+                            f"No candle data for ATM {opt_type} (ID: {sec_id})"
+                        ).classes("text-orange-500")
                         continue
 
                     contract_name = f"NIFTY {exp_tag} {int(atm)} {opt_type}"
@@ -961,19 +1263,34 @@ def _render_algo_option(container, cfg, expiry, raw, algo_type="abcd"):
                         swings = find_swing_points(candles, order=2)
                         patterns = detect_abcd_patterns(swings)
 
-                        ui.label(f"{contract_name} — Last: {current_price:.2f} | Candles: {len(candles)}").classes("text-md font-semibold")
+                        ui.label(
+                            f"{contract_name} — Last: {current_price:.2f} | Candles: {len(candles)}"
+                        ).classes("text-md font-semibold")
 
-                        fig = _build_candlestick_with_abcd(candles, swings, patterns, contract_name, current_price)
+                        fig = _build_candlestick_with_abcd(
+                            candles, swings, patterns, contract_name, current_price
+                        )
                         ui.plotly(fig).classes("w-full")
 
                         today_date = pd.Timestamp(now_ist().date())
-                        patterns = [p for p in patterns if pd.Timestamp(p["D"]["time"]).normalize() == today_date]
+                        patterns = [
+                            p
+                            for p in patterns
+                            if pd.Timestamp(p["D"]["time"]).normalize() == today_date
+                        ]
 
                         if not patterns:
-                            ui.label("No ABCD patterns detected today.").classes("text-gray-500 italic")
+                            ui.label("No ABCD patterns detected today.").classes(
+                                "text-gray-500 italic"
+                            )
 
-                        active, completed = classify_trades(patterns, current_price, contract_name)
-                        _trade_store[f"abcd_trades_{contract_name}"] = {"active": active, "completed": completed}
+                        active, completed = classify_trades(
+                            patterns, current_price, contract_name
+                        )
+                        _trade_store[f"abcd_trades_{contract_name}"] = {
+                            "active": active,
+                            "completed": completed,
+                        }
 
                         with ui.tabs().classes("w-full") as trade_tabs:
                             active_tab_item = ui.tab("Active Trades")
@@ -982,42 +1299,96 @@ def _render_algo_option(container, cfg, expiry, raw, algo_type="abcd"):
                         with ui.tab_panels(trade_tabs).classes("w-full"):
                             with ui.tab_panel(active_tab_item):
                                 if not active:
-                                    ui.label("No active trades").classes("text-gray-500 italic")
+                                    ui.label("No active trades").classes(
+                                        "text-gray-500 italic"
+                                    )
                                 else:
-                                    rows = [{
-                                        "Pattern": t["type"], "Signal": t["signal"],
-                                        "Entry (D)": round(t["entry"], 2), "Target": round(t["target"], 2),
-                                        "Stop Loss": round(t["stop_loss"], 2), "Current": round(current_price, 2),
-                                        "Unreal. PnL": t["unrealized_pnl"],
-                                        "A Time": t["A"]["time"].strftime("%d %b %H:%M") if hasattr(t["A"]["time"], "strftime") else str(t["A"]["time"]),
-                                        "D Time": t["D"]["time"].strftime("%d %b %H:%M") if hasattr(t["D"]["time"], "strftime") else str(t["D"]["time"]),
-                                        "BC Retrace": t["BC_retrace"], "CD/AB": t["CD_AB_ratio"],
-                                    } for t in active]
-                                    trade_container = ui.element("div").classes("w-full")
-                                    _build_trade_table(trade_container, rows, "Unreal. PnL")
+                                    rows = [
+                                        {
+                                            "Pattern": t["type"],
+                                            "Signal": t["signal"],
+                                            "Entry (D)": round(t["entry"], 2),
+                                            "Target": round(t["target"], 2),
+                                            "Stop Loss": round(t["stop_loss"], 2),
+                                            "Current": round(current_price, 2),
+                                            "Unreal. PnL": t["unrealized_pnl"],
+                                            "A Time": (
+                                                t["A"]["time"].strftime("%d %b %H:%M")
+                                                if hasattr(t["A"]["time"], "strftime")
+                                                else str(t["A"]["time"])
+                                            ),
+                                            "D Time": (
+                                                t["D"]["time"].strftime("%d %b %H:%M")
+                                                if hasattr(t["D"]["time"], "strftime")
+                                                else str(t["D"]["time"])
+                                            ),
+                                            "BC Retrace": t["BC_retrace"],
+                                            "CD/AB": t["CD_AB_ratio"],
+                                        }
+                                        for t in active
+                                    ]
+                                    trade_container = ui.element("div").classes(
+                                        "w-full"
+                                    )
+                                    _build_trade_table(
+                                        trade_container, rows, "Unreal. PnL"
+                                    )
 
                             with ui.tab_panel(completed_tab_item):
                                 if not completed:
-                                    ui.label("No completed trades").classes("text-gray-500 italic")
+                                    ui.label("No completed trades").classes(
+                                        "text-gray-500 italic"
+                                    )
                                 else:
-                                    rows = [{
-                                        "Pattern": t["type"], "Signal": t["signal"],
-                                        "Entry (D)": round(t["entry"], 2), "Target": round(t["target"], 2),
-                                        "Stop Loss": round(t["stop_loss"], 2), "Exit": round(t["exit_price"], 2),
-                                        "PnL": t["pnl"], "Status": t["status"],
-                                        "A Time": t["A"]["time"].strftime("%d %b %H:%M") if hasattr(t["A"]["time"], "strftime") else str(t["A"]["time"]),
-                                        "D Time": t["D"]["time"].strftime("%d %b %H:%M") if hasattr(t["D"]["time"], "strftime") else str(t["D"]["time"]),
-                                    } for t in completed]
-                                    trade_container = ui.element("div").classes("w-full")
+                                    rows = [
+                                        {
+                                            "Pattern": t["type"],
+                                            "Signal": t["signal"],
+                                            "Entry (D)": round(t["entry"], 2),
+                                            "Target": round(t["target"], 2),
+                                            "Stop Loss": round(t["stop_loss"], 2),
+                                            "Exit": round(t["exit_price"], 2),
+                                            "PnL": t["pnl"],
+                                            "Status": t["status"],
+                                            "A Time": (
+                                                t["A"]["time"].strftime("%d %b %H:%M")
+                                                if hasattr(t["A"]["time"], "strftime")
+                                                else str(t["A"]["time"])
+                                            ),
+                                            "D Time": (
+                                                t["D"]["time"].strftime("%d %b %H:%M")
+                                                if hasattr(t["D"]["time"], "strftime")
+                                                else str(t["D"]["time"])
+                                            ),
+                                        }
+                                        for t in completed
+                                    ]
+                                    trade_container = ui.element("div").classes(
+                                        "w-full"
+                                    )
                                     _build_trade_table(trade_container, rows, "PnL")
 
                         # Swing points expander
-                        with ui.expansion("Swing Points & Pattern Details").classes("w-full"):
+                        with ui.expansion("Swing Points & Pattern Details").classes(
+                            "w-full"
+                        ):
                             if swings:
-                                swing_rows = [{"Time": s["time"].strftime("%d %b %H:%M") if hasattr(s["time"], "strftime") else str(s["time"]),
-                                               "Type": s["type"], "Price": round(s["price"], 2)} for s in swings]
+                                swing_rows = [
+                                    {
+                                        "Time": (
+                                            s["time"].strftime("%d %b %H:%M")
+                                            if hasattr(s["time"], "strftime")
+                                            else str(s["time"])
+                                        ),
+                                        "Type": s["type"],
+                                        "Price": round(s["price"], 2),
+                                    }
+                                    for s in swings
+                                ]
                                 for sr in swing_rows:
-                                    ui.label(f"{sr['Time']} | {sr['Type']} | {sr['Price']:.2f}").classes("text-sm")
+                                    ui.label(
+                                        f"{sr['Time']} | {sr['Type']} | {sr['Price']:.2f}"
+                                    ).classes("text-sm")
                             if patterns:
                                 for i, p in enumerate(patterns):
                                     ui.label(
@@ -1029,20 +1400,35 @@ def _render_algo_option(container, cfg, expiry, raw, algo_type="abcd"):
                     else:  # RSI+SMA
                         signals, df_ind = detect_rsi_sma_signals(candles)
                         today_date = pd.Timestamp(now_ist().date())
-                        signals = [s for s in signals if pd.Timestamp(s["time"]).normalize() == today_date]
+                        signals = [
+                            s
+                            for s in signals
+                            if pd.Timestamp(s["time"]).normalize() == today_date
+                        ]
 
-                        ui.label(f"{contract_name} — Last: {current_price:.2f} | Candles: {len(candles)}").classes("text-md font-semibold")
+                        ui.label(
+                            f"{contract_name} — Last: {current_price:.2f} | Candles: {len(candles)}"
+                        ).classes("text-md font-semibold")
 
-                        fig, fig_rsi = _build_candlestick_with_rsi_sma(candles, df_ind, signals)
+                        fig, fig_rsi = _build_candlestick_with_rsi_sma(
+                            candles, df_ind, signals
+                        )
                         ui.plotly(fig).classes("w-full")
                         if not df_ind.empty:
                             ui.plotly(fig_rsi).classes("w-full")
 
                         if not signals:
-                            ui.label("No RSI+SMA signals detected today.").classes("text-gray-500 italic")
+                            ui.label("No RSI+SMA signals detected today.").classes(
+                                "text-gray-500 italic"
+                            )
 
-                        active, completed = classify_rsi_trades(signals, current_price, contract_name)
-                        _trade_store[f"rsi_trades_{contract_name}"] = {"active": active, "completed": completed}
+                        active, completed = classify_rsi_trades(
+                            signals, current_price, contract_name
+                        )
+                        _trade_store[f"rsi_trades_{contract_name}"] = {
+                            "active": active,
+                            "completed": completed,
+                        }
 
                         with ui.tabs().classes("w-full") as trade_tabs:
                             active_tab_item = ui.tab("Active Trades")
@@ -1051,39 +1437,75 @@ def _render_algo_option(container, cfg, expiry, raw, algo_type="abcd"):
                         with ui.tab_panels(trade_tabs).classes("w-full"):
                             with ui.tab_panel(active_tab_item):
                                 if not active:
-                                    ui.label("No active trades").classes("text-gray-500 italic")
+                                    ui.label("No active trades").classes(
+                                        "text-gray-500 italic"
+                                    )
                                 else:
-                                    rows = [{
-                                        "Signal": t["signal"], "Entry": t["entry"],
-                                        "Target": t["target"], "Stop Loss": t["stop_loss"],
-                                        "Current": round(current_price, 2), "Unreal. PnL": t["unrealized_pnl"],
-                                        "RSI": t["rsi"],
-                                        "Time": t["time"].strftime("%d %b %H:%M") if hasattr(t["time"], "strftime") else str(t["time"]),
-                                    } for t in active]
-                                    trade_container = ui.element("div").classes("w-full")
-                                    _build_trade_table(trade_container, rows, "Unreal. PnL")
+                                    rows = [
+                                        {
+                                            "Signal": t["signal"],
+                                            "Entry": t["entry"],
+                                            "Target": t["target"],
+                                            "Stop Loss": t["stop_loss"],
+                                            "Current": round(current_price, 2),
+                                            "Unreal. PnL": t["unrealized_pnl"],
+                                            "RSI": t["rsi"],
+                                            "Time": (
+                                                t["time"].strftime("%d %b %H:%M")
+                                                if hasattr(t["time"], "strftime")
+                                                else str(t["time"])
+                                            ),
+                                        }
+                                        for t in active
+                                    ]
+                                    trade_container = ui.element("div").classes(
+                                        "w-full"
+                                    )
+                                    _build_trade_table(
+                                        trade_container, rows, "Unreal. PnL"
+                                    )
 
                             with ui.tab_panel(completed_tab_item):
                                 if not completed:
-                                    ui.label("No completed trades").classes("text-gray-500 italic")
+                                    ui.label("No completed trades").classes(
+                                        "text-gray-500 italic"
+                                    )
                                 else:
-                                    rows = [{
-                                        "Signal": t["signal"], "Entry": t["entry"],
-                                        "Target": t["target"], "Stop Loss": t["stop_loss"],
-                                        "Exit": round(t["exit_price"], 2), "PnL": t["pnl"],
-                                        "Status": t["status"],
-                                        "Time": t["time"].strftime("%d %b %H:%M") if hasattr(t["time"], "strftime") else str(t["time"]),
-                                    } for t in completed]
-                                    trade_container = ui.element("div").classes("w-full")
+                                    rows = [
+                                        {
+                                            "Signal": t["signal"],
+                                            "Entry": t["entry"],
+                                            "Target": t["target"],
+                                            "Stop Loss": t["stop_loss"],
+                                            "Exit": round(t["exit_price"], 2),
+                                            "PnL": t["pnl"],
+                                            "Status": t["status"],
+                                            "Time": (
+                                                t["time"].strftime("%d %b %H:%M")
+                                                if hasattr(t["time"], "strftime")
+                                                else str(t["time"])
+                                            ),
+                                        }
+                                        for t in completed
+                                    ]
+                                    trade_container = ui.element("div").classes(
+                                        "w-full"
+                                    )
                                     _build_trade_table(trade_container, rows, "PnL")
 
 
 def render_algo_tab(container, algo_type="abcd"):
     """Build the ABCD or RSI+SMA algo trading tab content inside container."""
-    title = "ABCD Harmonic Scanner" if algo_type == "abcd" else "RSI + SMA Crossover Scanner"
+    title = (
+        "ABCD Harmonic Scanner"
+        if algo_type == "abcd"
+        else "RSI + SMA Crossover Scanner"
+    )
 
     with container:
-        ui.label(f"{title} — NIFTY ATM (5-min candles)").classes("text-xl font-bold mb-2")
+        ui.label(f"{title} — NIFTY ATM (5-min candles)").classes(
+            "text-xl font-bold mb-2"
+        )
         content_container = ui.element("div").classes("w-full")
 
     async def refresh():
@@ -1122,17 +1544,22 @@ def render_algo_tab(container, algo_type="abcd"):
                             ui.label("No data").classes("text-grey")
                         else:
                             inner_container = ui.element("div").classes("w-full")
-                            _render_algo_option(inner_container, cfg, exp, result, algo_type)
+                            _render_algo_option(
+                                inner_container, cfg, exp, result, algo_type
+                            )
 
     return refresh
 
 
 # ================= P&L SUMMARY TAB =================
 
+
 def render_pnl_tab(container):
     """Build the P&L summary tab content inside container."""
     with container:
-        ui.label("Profit / Loss Summary — All Strategies").classes("text-xl font-bold mb-2")
+        ui.label("Profit / Loss Summary — All Strategies").classes(
+            "text-xl font-bold mb-2"
+        )
         summary_container = ui.element("div").classes("w-full")
 
     async def refresh():
@@ -1153,13 +1580,17 @@ def render_pnl_tab(container):
                     with ui.card().classes("p-4"):
                         ui.label("Total P&L").classes("text-sm text-gray-500")
                         color = "text-green-600" if total_pnl >= 0 else "text-red-600"
-                        ui.label(f"{total_pnl:+.2f}").classes(f"text-2xl font-bold {color}")
+                        ui.label(f"{total_pnl:+.2f}").classes(
+                            f"text-2xl font-bold {color}"
+                        )
                     with ui.card().classes("p-4"):
                         ui.label("Total Trades").classes("text-sm text-gray-500")
                         ui.label(str(len(all_completed))).classes("text-2xl font-bold")
                     with ui.card().classes("p-4"):
                         ui.label("Winners").classes("text-sm text-gray-500")
-                        ui.label(str(winners)).classes("text-2xl font-bold text-green-600")
+                        ui.label(str(winners)).classes(
+                            "text-2xl font-bold text-green-600"
+                        )
                     with ui.card().classes("p-4"):
                         ui.label("Losers").classes("text-sm text-gray-500")
                         ui.label(str(losers)).classes("text-2xl font-bold text-red-600")
@@ -1168,17 +1599,27 @@ def render_pnl_tab(container):
 
                 strategies = set(t.get("strategy", "Unknown") for t in all_completed)
                 for strat in sorted(strategies):
-                    strat_trades = [t for t in all_completed if t.get("strategy") == strat]
+                    strat_trades = [
+                        t for t in all_completed if t.get("strategy") == strat
+                    ]
                     spnl = sum(t.get("pnl", 0) for t in strat_trades)
-                    ui.label(f"{strat}: {len(strat_trades)} trades | PnL: {spnl:+.2f}").classes("text-md font-semibold")
+                    ui.label(
+                        f"{strat}: {len(strat_trades)} trades | PnL: {spnl:+.2f}"
+                    ).classes("text-md font-semibold")
 
                 ui.separator()
 
-                rows = [{
-                    "Strategy": t.get("strategy", ""), "Signal": t.get("signal", ""),
-                    "Entry": t.get("entry", 0), "Exit": round(t.get("exit_price", 0), 2),
-                    "PnL": t.get("pnl", 0), "Status": t.get("status", ""),
-                } for t in all_completed]
+                rows = [
+                    {
+                        "Strategy": t.get("strategy", ""),
+                        "Signal": t.get("signal", ""),
+                        "Entry": t.get("entry", 0),
+                        "Exit": round(t.get("exit_price", 0), 2),
+                        "PnL": t.get("pnl", 0),
+                        "Status": t.get("status", ""),
+                    }
+                    for t in all_completed
+                ]
                 trade_container = ui.element("div").classes("w-full")
                 _build_trade_table(trade_container, rows, "PnL")
 
@@ -1189,13 +1630,21 @@ def render_pnl_tab(container):
             else:
                 total_unreal = sum(t.get("unrealized_pnl", 0) for t in all_active)
                 color = "text-green-600" if total_unreal >= 0 else "text-red-600"
-                ui.label(f"Unrealized P&L: {total_unreal:+.2f}").classes(f"text-lg font-bold {color}")
+                ui.label(f"Unrealized P&L: {total_unreal:+.2f}").classes(
+                    f"text-lg font-bold {color}"
+                )
 
-                rows = [{
-                    "Strategy": t.get("strategy", ""), "Signal": t.get("signal", ""),
-                    "Entry": t.get("entry", 0), "Target": t.get("target", 0),
-                    "Stop Loss": t.get("stop_loss", 0), "Unreal. PnL": t.get("unrealized_pnl", 0),
-                } for t in all_active]
+                rows = [
+                    {
+                        "Strategy": t.get("strategy", ""),
+                        "Signal": t.get("signal", ""),
+                        "Entry": t.get("entry", 0),
+                        "Target": t.get("target", 0),
+                        "Stop Loss": t.get("stop_loss", 0),
+                        "Unreal. PnL": t.get("unrealized_pnl", 0),
+                    }
+                    for t in all_active
+                ]
                 trade_container = ui.element("div").classes("w-full")
                 _build_trade_table(trade_container, rows, "Unreal. PnL")
 
@@ -1203,6 +1652,7 @@ def render_pnl_tab(container):
 
 
 # ================= COUNTDOWN DISPLAY =================
+
 
 def render_market_closed(container):
     """Build the market-closed countdown view inside container."""
@@ -1220,12 +1670,22 @@ def render_market_closed(container):
     minutes, seconds = divmod(remainder, 60)
 
     with container:
-        with ui.element("div").classes("w-full flex flex-col items-center justify-center py-20"):
+        with ui.element("div").classes(
+            "w-full flex flex-col items-center justify-center py-20"
+        ):
             ui.icon("schedule", size="64px").classes("text-blue-300 mb-4")
-            ui.label(f"Market is Closed — {close_reason}").classes("text-3xl font-bold text-gray-700")
-            ui.label(f"Next market open: {next_open.strftime('%A, %d %b %Y at %I:%M %p')}").classes("text-lg text-gray-500 mt-2")
-            countdown_label = ui.label(f"{hours:02d}h {minutes:02d}m {seconds:02d}s").classes("text-6xl font-bold text-blue-500 mt-6")
-            ui.label("Market hours: 9:15 AM — 3:30 PM IST (Mon-Fri, excl. NSE holidays)").classes("text-sm text-gray-400 mt-4")
+            ui.label(f"Market is Closed — {close_reason}").classes(
+                "text-3xl font-bold text-gray-700"
+            )
+            ui.label(
+                f"Next market open: {next_open.strftime('%A, %d %b %Y at %I:%M %p')}"
+            ).classes("text-lg text-gray-500 mt-2")
+            countdown_label = ui.label(
+                f"{hours:02d}h {minutes:02d}m {seconds:02d}s"
+            ).classes("text-6xl font-bold text-blue-500 mt-6")
+            ui.label(
+                "Market hours: 9:15 AM — 3:30 PM IST (Mon-Fri, excl. NSE holidays)"
+            ).classes("text-sm text-gray-400 mt-4")
 
     return countdown_label
 
@@ -1233,22 +1693,24 @@ def render_market_closed(container):
 # ================= SIDEBAR NAV ITEMS =================
 
 NAV_ITEMS = [
-    {"id": "nifty",      "label": "NIFTY",            "icon": "show_chart"},
-    {"id": "banknifty",  "label": "BANKNIFTY",         "icon": "candlestick_chart"},
-    {"id": "abcd",       "label": "ABCD Algo",         "icon": "insights"},
-    {"id": "rsi",        "label": "RSI + SMA",         "icon": "analytics"},
-    {"id": "pnl",        "label": "P&L Summary",       "icon": "account_balance_wallet"},
+    {"id": "nifty", "label": "NIFTY", "icon": "show_chart"},
+    {"id": "banknifty", "label": "BANKNIFTY", "icon": "candlestick_chart"},
+    {"id": "abcd", "label": "ABCD Algo", "icon": "insights"},
+    {"id": "rsi", "label": "RSI + SMA", "icon": "analytics"},
+    {"id": "pnl", "label": "P&L Summary", "icon": "account_balance_wallet"},
 ]
 
 
 # ================= MAIN PAGE =================
+
 
 @ui.page("/")
 async def index():
     ui.page_title("Option Chain — Algo Trading")
 
     # ---- Custom CSS ----
-    ui.add_head_html("""
+    ui.add_head_html(
+        """
     <style>
         .q-tab { font-size: 1.1rem !important; padding: 12px 20px !important; }
         .nav-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important; }
@@ -1256,7 +1718,8 @@ async def index():
         .nav-btn-active { background: rgba(59, 130, 246, 0.12) !important; color: #3b82f6 !important; font-weight: 600 !important; }
         .header-bar { backdrop-filter: blur(8px); }
     </style>
-    """)
+    """
+    )
 
     # ---- State ----
     active_page = {"value": "nifty"}
@@ -1266,35 +1729,59 @@ async def index():
     page_client = context.client  # capture client ref for timer callbacks
 
     # ---- Header ----
-    with ui.header().classes("header-bar bg-white shadow-sm border-b items-center px-6 py-0").style("height: 56px"):
+    with (
+        ui.header()
+        .classes("header-bar bg-white shadow-sm border-b items-center px-6 py-0")
+        .style("height: 56px")
+    ):
         with ui.row().classes("items-center gap-3 w-full"):
             # Hamburger menu for mobile / toggle drawer
-            menu_btn = ui.button(icon="menu", on_click=lambda: drawer.toggle()).props("flat dense round").classes("text-gray-600")
+            menu_btn = (
+                ui.button(icon="menu", on_click=lambda: drawer.toggle())
+                .props("flat dense round")
+                .classes("text-gray-600")
+            )
 
             ui.icon("trending_up", size="28px").classes("text-blue-600")
-            ui.label("Option Chain").classes("text-xl font-bold text-gray-800 tracking-tight")
+            ui.label("Option Chain").classes(
+                "text-xl font-bold text-gray-800 tracking-tight"
+            )
 
             ui.space()
 
             # Market status badge
             market_open = is_market_open()
             if market_open:
-                with ui.element("div").classes("flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1"):
+                with ui.element("div").classes(
+                    "flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1"
+                ):
                     ui.element("div").classes("w-2 h-2 rounded-full bg-green-500")
-                    market_badge_label = ui.label("Market Open").classes("text-sm font-semibold text-green-700")
+                    market_badge_label = ui.label("Market Open").classes(
+                        "text-sm font-semibold text-green-700"
+                    )
             else:
-                with ui.element("div").classes("flex items-center gap-2 bg-red-50 border border-red-200 rounded-full px-3 py-1"):
+                with ui.element("div").classes(
+                    "flex items-center gap-2 bg-red-50 border border-red-200 rounded-full px-3 py-1"
+                ):
                     ui.element("div").classes("w-2 h-2 rounded-full bg-red-500")
-                    market_badge_label = ui.label("Market Closed").classes("text-sm font-semibold text-red-700")
+                    market_badge_label = ui.label("Market Closed").classes(
+                        "text-sm font-semibold text-red-700"
+                    )
 
             # Refresh status
             status_label = ui.label("").classes("text-xs text-gray-400 hidden sm:block")
 
     # ---- Sidebar ----
-    with ui.left_drawer(value=True, bordered=True).classes("bg-gray-50 border-r").style("width: 220px; padding-top: 8px") as drawer:
+    with (
+        ui.left_drawer(value=True, bordered=True)
+        .classes("bg-gray-50 border-r")
+        .style("width: 220px; padding-top: 8px") as drawer
+    ):
         # Sidebar header
         with ui.element("div").classes("px-4 py-3 mb-2"):
-            ui.label("Navigation").classes("text-xs font-bold text-gray-400 uppercase tracking-wider")
+            ui.label("Navigation").classes(
+                "text-xs font-bold text-gray-400 uppercase tracking-wider"
+            )
 
         # Nav buttons
         def set_active_page(page_id):
@@ -1310,11 +1797,15 @@ async def index():
                 cont.set_visibility(nid == page_id)
 
         for item in NAV_ITEMS:
-            btn = ui.button(
-                item["label"],
-                icon=item["icon"],
-                on_click=lambda e, pid=item["id"]: set_active_page(pid),
-            ).props("flat no-caps align=left").classes("nav-btn rounded-lg mx-2 mb-1 text-gray-600")
+            btn = (
+                ui.button(
+                    item["label"],
+                    icon=item["icon"],
+                    on_click=lambda e, pid=item["id"]: set_active_page(pid),
+                )
+                .props("flat no-caps align=left")
+                .classes("nav-btn rounded-lg mx-2 mb-1 text-gray-600")
+            )
             if item["id"] == active_page["value"]:
                 btn.classes(add="nav-btn-active")
             nav_btn_refs[item["id"]] = btn
@@ -1323,17 +1814,28 @@ async def index():
 
         # Market info in sidebar
         with ui.element("div").classes("px-4"):
-            ui.label("Market Hours").classes("text-xs font-bold text-gray-400 uppercase tracking-wider mb-1")
+            ui.label("Market Hours").classes(
+                "text-xs font-bold text-gray-400 uppercase tracking-wider mb-1"
+            )
             ui.label("9:15 AM — 3:30 PM IST").classes("text-sm text-gray-600")
             ui.label("Mon — Fri (excl. holidays)").classes("text-xs text-gray-400")
-            current_time_label = ui.label(f"Current Time: {now_ist().strftime('%H:%M:%S')} IST").classes("text-sm text-gray-600 mt-2")
-            ui.timer(1, lambda: current_time_label.set_text(f"Current Time: {now_ist().strftime('%H:%M:%S')} IST"))
+            current_time_label = ui.label(
+                f"Current Time: {now_ist().strftime('%H:%M:%S')} IST"
+            ).classes("text-sm text-gray-600 mt-2")
+            ui.timer(
+                1,
+                lambda: current_time_label.set_text(
+                    f"Current Time: {now_ist().strftime('%H:%M:%S')} IST"
+                ),
+            )
 
         ui.space()
 
         # Refresh interval info
         with ui.element("div").classes("px-4 pb-4"):
-            ui.label(f"Auto-refresh: {REFRESH_SECONDS}s").classes("text-xs text-gray-400")
+            ui.label(f"Auto-refresh: {REFRESH_SECONDS}s").classes(
+                "text-xs text-gray-400"
+            )
 
     # ---- Main Content Area ----
     with ui.element("div").classes("w-full p-6"):
@@ -1360,8 +1862,14 @@ async def index():
             page_containers[item["id"]].clear()
 
         # Option chains + P&L always render (REST API works anytime)
-        refresh_fns.append(render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"]))
-        refresh_fns.append(render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]))
+        refresh_fns.append(
+            render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
+        )
+        refresh_fns.append(
+            render_index_tab(
+                page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]
+            )
+        )
         refresh_fns.append(render_pnl_tab(page_containers["pnl"]))
 
         # Algo tabs need live candle data — show countdown when market is closed
@@ -1430,4 +1938,4 @@ async def index():
 # ================= RUN =================
 
 if __name__ in {"__main__", "__mp_main__"}:
-    ui.run(title="AlgTrd", port=8080, reload=False)
+    ui.run(title="AlgTrd", host="0.0.0.0", port=8501, reload=False)
