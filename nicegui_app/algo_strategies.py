@@ -171,6 +171,67 @@ def classify_trades(patterns, current_price, contract_name=""):
     return active, completed
 
 
+def backtest_abcd(patterns, candles):
+    """Walk through candles after each ABCD pattern to check if target or SL hit first."""
+    trades = []
+    for p in patterns:
+        entry = float(p["entry"])
+        target = float(p["target"])
+        sl = float(p["stop_loss"])
+        signal_time = p["D"]["time"]
+        future = candles[candles["timestamp"] > signal_time]
+        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        for _, bar in future.iterrows():
+            if p["type"] == "Bullish":
+                # Bullish ABCD: price expected to drop from D → sell CE / buy PE
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
+                    }
+                    break
+                if float(bar["high"]) >= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+            else:
+                # Bearish ABCD: price expected to rise from D → buy CE / sell PE
+                if float(bar["high"]) >= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(target - entry), 2),
+                    }
+                    break
+                if float(bar["low"]) <= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(sl - entry), 2),
+                    }
+                    break
+        trades.append({
+            "type": p["type"],
+            "signal": p["signal"],
+            "entry": round(float(entry), 2),
+            "target": round(float(target), 2),
+            "stop_loss": round(float(sl), 2),
+            "time": signal_time,
+            "BC_retrace": p["BC_retrace"],
+            "CD_AB_ratio": p["CD_AB_ratio"],
+            **result,
+        })
+    return trades
+
+
 # ================= RSI + SMA =================
 
 

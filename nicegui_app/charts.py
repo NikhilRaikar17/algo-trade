@@ -189,6 +189,91 @@ def build_candlestick_with_rsi_sma(candles, df_ind, signals):
     return fig, fig_rsi
 
 
+def build_candlestick_with_abcd_hist(candles, swings, patterns):
+    """Build a serialization-safe Plotly candlestick chart with ABCD pattern overlay."""
+    ts = _to_str_timestamps(candles["timestamp"])
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Candlestick(
+            x=ts,
+            open=candles["open"].tolist(),
+            high=candles["high"].tolist(),
+            low=candles["low"].tolist(),
+            close=candles["close"].tolist(),
+            name="Price",
+            increasing_line_color="#26a69a",
+            decreasing_line_color="#ef5350",
+        )
+    )
+
+    if swings:
+        swing_highs = [s for s in swings if s["type"] == "high"]
+        swing_lows = [s for s in swings if s["type"] == "low"]
+        if swing_highs:
+            fig.add_trace(
+                go.Scatter(
+                    x=[_sig_time_str({"time": s["time"]}) for s in swing_highs],
+                    y=[float(s["price"]) for s in swing_highs],
+                    mode="markers",
+                    marker=dict(symbol="triangle-down", size=10, color="#ef5350"),
+                    name="Swing High",
+                )
+            )
+        if swing_lows:
+            fig.add_trace(
+                go.Scatter(
+                    x=[_sig_time_str({"time": s["time"]}) for s in swing_lows],
+                    y=[float(s["price"]) for s in swing_lows],
+                    mode="markers",
+                    marker=dict(symbol="triangle-up", size=10, color="#26a69a"),
+                    name="Swing Low",
+                )
+            )
+
+    colors = ["#ff9800", "#2196f3", "#9c27b0", "#00bcd4", "#e91e63"]
+    for idx, p in enumerate(patterns):
+        color = colors[idx % len(colors)]
+        pts = [p["A"], p["B"], p["C"], p["D"]]
+        fig.add_trace(
+            go.Scatter(
+                x=[_sig_time_str({"time": pt["time"]}) for pt in pts],
+                y=[float(pt["price"]) for pt in pts],
+                mode="lines+markers+text",
+                line=dict(color=color, width=2, dash="dot"),
+                marker=dict(size=12, color=color),
+                text=["A", "B", "C", "D"],
+                textposition="top center",
+                textfont=dict(size=14, color=color),
+                name=f"ABCD {idx+1} ({p['type']})",
+            )
+        )
+        fig.add_hline(
+            y=float(p["target"]),
+            line_dash="dash",
+            line_color="green",
+            annotation_text=f"Target {float(p['target']):.2f}",
+            annotation_position="bottom right",
+        )
+        fig.add_hline(
+            y=float(p["stop_loss"]),
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"SL {float(p['stop_loss']):.2f}",
+            annotation_position="bottom right",
+        )
+
+    fig.update_layout(
+        height=500,
+        xaxis_rangeslider_visible=False,
+        xaxis_title="Time",
+        yaxis_title="Price",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=0, r=0, t=30, b=0),
+    )
+    return fig
+
+
 def _to_str_timestamps(ts_series):
     """Convert pandas Timestamp series to ISO strings for JSON serialization."""
     return ts_series.dt.strftime("%Y-%m-%d %H:%M:%S").tolist()

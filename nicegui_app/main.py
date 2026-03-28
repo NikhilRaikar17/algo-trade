@@ -16,6 +16,7 @@ from pages import (
     render_index_tab,
     render_algo_tab,
     render_rsi_only_tab,
+    render_abcd_only_tab,
     render_pnl_tab,
     render_market_closed,
 )
@@ -31,6 +32,8 @@ ALL_PAGE_IDS = [
     "rsi",
     "rsi_nifty",
     "rsi_banknifty",
+    "abcd_nifty",
+    "abcd_banknifty",
     "pnl",
 ]
 
@@ -229,6 +232,11 @@ async def index():
         ).props("dense default-opened"):
             _nav_button("rsi_nifty", "NIFTY RSI", "show_chart", indent=True)
             _nav_button("rsi_banknifty", "BANKNIFTY RSI", "candlestick_chart", indent=True)
+        with ui.expansion("ABCD Harmonic", icon="insights").classes(
+            "mx-2 rounded-lg"
+        ).props("dense default-opened"):
+            _nav_button("abcd_nifty", "NIFTY ABCD", "show_chart", indent=True)
+            _nav_button("abcd_banknifty", "BANKNIFTY ABCD", "candlestick_chart", indent=True)
 
         ui.separator().classes("my-2 mx-4")
 
@@ -319,12 +327,18 @@ async def index():
         )
         refresh_fns.append(render_pnl_tab(page_containers["pnl"]))
 
-        # RSI Only — historical backtest, always render
+        # Historical backtest — always render
         refresh_fns.append(
             render_rsi_only_tab(page_containers["rsi_nifty"], "NIFTY")
         )
         refresh_fns.append(
             render_rsi_only_tab(page_containers["rsi_banknifty"], "BANKNIFTY")
+        )
+        refresh_fns.append(
+            render_abcd_only_tab(page_containers["abcd_nifty"], "NIFTY")
+        )
+        refresh_fns.append(
+            render_abcd_only_tab(page_containers["abcd_banknifty"], "BANKNIFTY")
         )
 
         # Live algo tabs need market open
