@@ -8,7 +8,7 @@ Run:  cd nicegui_app && uv run python main.py
 import asyncio
 from nicegui import ui, context
 
-from config import now_ist, REFRESH_SECONDS, INDICES
+from config import now_ist, REFRESH_SECONDS, INDICES, get_next_holiday
 from state import is_market_open, get_next_market_open
 from pnl import send_daily_pnl_summary, send_market_open_msg
 from pages import (
@@ -153,6 +153,21 @@ async def index():
                     f"Current Time: {now_ist().strftime('%H:%M:%S')} IST"
                 ),
             )
+
+            ui.separator().classes("my-2")
+            ui.label("Next Holiday").classes(
+                "text-xs font-bold text-gray-400 uppercase tracking-wider mb-1"
+            )
+            holiday_info = get_next_holiday()
+            if holiday_info:
+                _, next_date, days_left = holiday_info
+                day_label = "Today" if days_left == 0 else f"in {days_left} day{'s' if days_left != 1 else ''}"
+                ui.label(next_date.strftime("%a, %d %b %Y")).classes(
+                    "text-sm text-gray-600"
+                )
+                ui.label(day_label).classes("text-xs text-gray-400")
+            else:
+                ui.label("No upcoming holidays").classes("text-xs text-gray-400")
 
         ui.space()
 

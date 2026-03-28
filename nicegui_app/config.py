@@ -69,6 +69,20 @@ def is_nse_holiday(dt=None):
     return dt.strftime("%Y-%m-%d") in NSE_HOLIDAYS
 
 
+def get_next_holiday():
+    """Return (date_str, date_obj, days_left) for the next upcoming NSE holiday."""
+    today = now_ist().date()
+    future = sorted(
+        d for d in NSE_HOLIDAYS if datetime.strptime(d, "%Y-%m-%d").date() >= today
+    )
+    if not future:
+        return None
+    next_str = future[0]
+    next_date = datetime.strptime(next_str, "%Y-%m-%d").date()
+    days_left = (next_date - today).days
+    return next_str, next_date, days_left
+
+
 def _is_trading_day(dt=None):
     if dt is None:
         dt = now_ist()
