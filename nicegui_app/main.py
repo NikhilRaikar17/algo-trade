@@ -1326,6 +1326,8 @@ async def index():
             ui.label("Market Hours").classes("text-xs font-bold text-gray-400 uppercase tracking-wider mb-1")
             ui.label("9:15 AM — 3:30 PM IST").classes("text-sm text-gray-600")
             ui.label("Mon — Fri (excl. holidays)").classes("text-xs text-gray-400")
+            current_time_label = ui.label(f"Current Time: {now_ist().strftime('%H:%M:%S')} IST").classes("text-sm text-gray-600 mt-2")
+            ui.timer(1, lambda: current_time_label.set_text(f"Current Time: {now_ist().strftime('%H:%M:%S')} IST"))
 
         ui.space()
 
@@ -1428,4 +1430,4 @@ async def index():
 # ================= RUN =================
 
 if __name__ in {"__main__", "__mp_main__"}:
-    ui.run(title="Option Chain", port=8080, reload=False)
+    ui.run(title="AlgTrd", port=8080, reload=False)
