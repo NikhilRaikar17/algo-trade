@@ -134,6 +134,7 @@ async def index():
         }
 
         /* ---- Responsive tabs & header ---- */
+        .q-drawer { background: #fff !important; }
         @media (max-width: 768px) {
             .q-tab { font-size: 0.85rem !important; padding: 8px 10px !important; }
             .q-header { padding-left: 12px !important; padding-right: 12px !important; }
@@ -230,9 +231,9 @@ async def index():
 
     # ---- Sidebar ----
     with (
-        ui.left_drawer(value=True, bordered=True)
-        .classes("bg-gray-50 border-r")
-        .style("width: 240px; padding-top: 8px") as drawer
+        ui.left_drawer(value=True, bordered=False)
+        .classes("bg-white")
+        .style("width: 240px; padding-top: 8px; box-shadow: 2px 0 12px rgba(0,0,0,0.06);") as drawer
     ):
         pass  # content built after page_containers exist
 

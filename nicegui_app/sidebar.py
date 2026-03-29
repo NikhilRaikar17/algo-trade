@@ -20,7 +20,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
         for nid, cont in page_containers.items():
             cont.set_visibility(nid == page_id)
 
-    def _nav_button(page_id, label, icon, indent=False, color="text-gray-600"):
+    def _nav_button(page_id, label, icon, indent=False, color="text-gray-800"):
         cls = "nav-sub-btn" if indent else "nav-btn"
         ml = "ml-6" if indent else ""
         btn = (
@@ -44,42 +44,42 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
     with drawer:
         # ---- Top-level ----
         ui.element("div").classes("pt-1")
-        _nav_button("dashboard", "Dashboard", "dashboard", color="text-gray-700")
-        _nav_button("markets",   "Markets",   "bar_chart", color="text-gray-700")
+        _nav_button("dashboard", "Dashboard", "dashboard")
+        _nav_button("markets",   "Markets",   "bar_chart")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Option Chains ----
         _section_label("Options", "bg-blue-400")
-        _nav_button("nifty",     "NIFTY",     "show_chart",        color="text-blue-700")
-        _nav_button("banknifty", "BANKNIFTY", "candlestick_chart", color="text-blue-700")
+        _nav_button("nifty",     "NIFTY",     "show_chart")
+        _nav_button("banknifty", "BANKNIFTY", "candlestick_chart")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Historical Backtest ----
         _section_label("Backtest", "bg-purple-400")
         with ui.expansion("RSI", icon="speed").classes(
-            "mx-2 rounded-lg text-purple-700"
+            "mx-2 rounded-lg text-gray-700"
         ).props("dense default-opened"):
-            _nav_button("rsi_nifty",    "NIFTY",    "show_chart",        indent=True, color="text-purple-600")
-            _nav_button("rsi_banknifty","BANKNIFTY","candlestick_chart", indent=True, color="text-purple-600")
+            _nav_button("rsi_nifty",     "NIFTY",    "show_chart",        indent=True)
+            _nav_button("rsi_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
         with ui.expansion("ABCD", icon="insights").classes(
-            "mx-2 rounded-lg text-purple-700"
+            "mx-2 rounded-lg text-gray-700"
         ).props("dense default-opened"):
-            _nav_button("abcd_nifty",    "NIFTY",    "show_chart",        indent=True, color="text-purple-600")
-            _nav_button("abcd_banknifty","BANKNIFTY","candlestick_chart", indent=True, color="text-purple-600")
+            _nav_button("abcd_nifty",     "NIFTY",    "show_chart",        indent=True)
+            _nav_button("abcd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Live Trading ----
         _section_label("Live Trading", "bg-green-400")
-        _nav_button("abcd", "ABCD Algo", "insights",  color="text-green-700")
-        _nav_button("rsi",  "RSI + SMA", "analytics", color="text-green-700")
+        _nav_button("abcd", "ABCD Algo", "insights")
+        _nav_button("rsi",  "RSI + SMA", "analytics")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- P&L ----
-        _nav_button("pnl", "P&L", "account_balance_wallet", color="text-amber-600")
+        _nav_button("pnl", "P&L", "account_balance_wallet")
 
         ui.separator().classes("my-3 mx-4")
 
