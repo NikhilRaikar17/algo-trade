@@ -164,6 +164,7 @@ async def index():
     active_page = {"value": "dashboard"}
     refresh_fns = []
     _prev_market_open = [None]
+    _dashboard_refresh = [None]   # persists across build_ui() calls — avoids re-creating clock timer
     nav_btn_refs = {}
     page_client = context.client
 
@@ -236,11 +237,17 @@ async def index():
 
         market_open = is_market_open()
 
-        for pid in ALL_PAGE_IDS:
-            page_containers[pid].clear()
+        # Dashboard rendered ONCE — its clock timer lives inside the container and
+        # must not be destroyed by container.clear() on subsequent build_ui() calls.
+        if _dashboard_refresh[0] is None:
+            page_containers["dashboard"].clear()
+            _dashboard_refresh[0] = render_dashboard(page_containers["dashboard"])
+        refresh_fns.append(_dashboard_refresh[0])
 
-        # Dashboard always renders
-        refresh_fns.append(render_dashboard(page_containers["dashboard"]))
+        # Clear all other pages
+        for pid in ALL_PAGE_IDS:
+            if pid != "dashboard":
+                page_containers[pid].clear()
 
         # Option chains + P&L always render
         refresh_fns.append(
