@@ -6,7 +6,7 @@ Run:  cd nicegui_app && uv run python main.py
 """
 
 import asyncio
-from nicegui import ui, context
+from nicegui import ui, context, app
 
 from config import now_ist, REFRESH_SECONDS, INDICES
 from state import is_market_open, get_next_market_open
@@ -37,6 +37,24 @@ ALL_PAGE_IDS = [
     "abcd_banknifty",
     "pnl",
 ]
+
+
+# ================= BACKGROUND SCHEDULER =================
+
+
+@app.on_startup
+async def _start_scheduler():
+    """Server-side loop — runs independently of any browser connection."""
+    async def _loop():
+        while True:
+            await asyncio.sleep(60)
+            try:
+                send_morning_message()
+                send_daily_pnl_summary()
+            except Exception as e:
+                print(f"  [scheduler error] {e}")
+
+    asyncio.create_task(_loop())
 
 
 # ================= MAIN PAGE =================
@@ -289,8 +307,7 @@ async def index():
                 status_label.text = f"Refresh error: {e}"
             print(f"  [refresh error] {e}")
 
-        send_morning_message()
-        send_daily_pnl_summary()
+        pass  # scheduled messages sent by background task
 
     # Initial build and refresh
     await build_ui()
