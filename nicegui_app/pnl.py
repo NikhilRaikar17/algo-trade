@@ -84,10 +84,7 @@ def send_premarket_alert():
     today_str = now.strftime("%Y-%m-%d")
     premarket_key = f"premarket_alert_{today_str}"
 
-    if not (
-        (now.hour == 9 and 0 <= now.minute <= 10) or
-        (now.hour == 21 and 15 <= now.minute <= 25)   # TEST only — remove when done
-    ):
+    if not (now.hour == 9 and 0 <= now.minute <= 10):
         return
     if _is_already_sent(premarket_key):
         return
