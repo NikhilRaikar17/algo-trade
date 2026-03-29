@@ -35,7 +35,10 @@ def send_morning_message():
     today_str = now.strftime("%Y-%m-%d")
     morning_key = f"morning_msg_{today_str}"
 
-    if not (now.hour == 9 and 15 <= now.minute <= 25):
+    if not (
+        (now.hour == 9 and 15 <= now.minute <= 25) or   # real trigger
+        (now.hour == 5 and now.minute == 15)             # TEST only — remove when done
+    ):
         return
     if _is_already_sent(morning_key):
         return
