@@ -156,7 +156,7 @@ def _build_abcd_content(container, index_name="NIFTY"):
             "body-cell-Status",
             r"""
             <q-td :props="props">
-                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : 'grey'"
+                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : 'grey'"
                          :label="props.value" />
             </q-td>
             """,

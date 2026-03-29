@@ -2,8 +2,21 @@
 Trading strategies: ABCD harmonic patterns and RSI + SMA crossover.
 """
 
+from datetime import time as _dtime
+
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT
 from state import _is_already_sent, _mark_sent, _send_telegram
+
+_MARKET_CLOSE = _dtime(15, 30)
+
+
+def _same_day_candles(future, signal_time):
+    """Return candles on the same date as signal_time, up to 3:30 PM only."""
+    sig_date = signal_time.date()
+    mask = (future["timestamp"].dt.date == sig_date) & (
+        future["timestamp"].dt.time <= _MARKET_CLOSE
+    )
+    return future[mask]
 
 RSI_ONLY_TARGET_PCT = 0.015  # 1.5% target
 RSI_ONLY_SL_PCT = 0.01      # 1% stop loss
@@ -172,16 +185,18 @@ def classify_trades(patterns, current_price, contract_name=""):
 
 
 def backtest_abcd(patterns, candles):
-    """Walk through candles after each ABCD pattern to check if target or SL hit first."""
+    """Walk through same-day candles after each ABCD pattern. Force-close at 3:30 PM."""
     trades = []
     for p in patterns:
         entry = float(p["entry"])
         target = float(p["target"])
         sl = float(p["stop_loss"])
         signal_time = p["D"]["time"]
-        future = candles[candles["timestamp"] > signal_time]
+        future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
         result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        last_bar = None
         for _, bar in future.iterrows():
+            last_bar = bar
             if p["type"] == "Bullish":
                 # Bullish ABCD: price expected to drop from D → sell CE / buy PE
                 if float(bar["low"]) <= target:
@@ -218,6 +233,19 @@ def backtest_abcd(patterns, candles):
                         "pnl": round(float(sl - entry), 2),
                     }
                     break
+        # Force-close any trade still open at end of day
+        if result["status"] == "Open" and last_bar is not None:
+            exit_px = round(float(last_bar["close"]), 2)
+            if p["type"] == "Bullish":
+                pnl = round(float(entry - exit_px), 2)
+            else:
+                pnl = round(float(exit_px - entry), 2)
+            result = {
+                "status": "Day Close",
+                "exit_price": exit_px,
+                "exit_time": last_bar["timestamp"],
+                "pnl": pnl,
+            }
         trades.append({
             "type": p["type"],
             "signal": p["signal"],
@@ -399,17 +427,18 @@ def detect_rsi_only_signals(candles):
 
 
 def backtest_rsi_only(signals, candles):
-    """Walk through candles after each signal to check if target or SL hit first."""
+    """Walk through same-day candles after each signal. Force-close at 3:30 PM."""
     trades = []
     for s in signals:
         entry = s["entry"]
         target = s["target"]
         sl = s["stop_loss"]
         signal_time = s["time"]
-        # Find candles after the signal
-        future = candles[candles["timestamp"] > signal_time]
+        future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
         result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        last_bar = None
         for _, bar in future.iterrows():
+            last_bar = bar
             if s["type"] == "Bullish":
                 if float(bar["high"]) >= target:
                     result = {
@@ -444,5 +473,18 @@ def backtest_rsi_only(signals, candles):
                         "pnl": round(float(entry - sl), 2),
                     }
                     break
+        # Force-close any trade still open at end of day
+        if result["status"] == "Open" and last_bar is not None:
+            exit_px = round(float(last_bar["close"]), 2)
+            if s["type"] == "Bullish":
+                pnl = round(float(exit_px - entry), 2)
+            else:
+                pnl = round(float(entry - exit_px), 2)
+            result = {
+                "status": "Day Close",
+                "exit_price": exit_px,
+                "exit_time": last_bar["timestamp"],
+                "pnl": pnl,
+            }
         trades.append({**s, **result})
     return trades
