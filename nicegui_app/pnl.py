@@ -37,7 +37,7 @@ def send_morning_message():
 
     if not (
         (now.hour == 9 and 15 <= now.minute <= 25) or   # real trigger
-        (now.hour == 17 and now.minute == 15)            # TEST only — remove when done
+        (now.hour == 17 and 20 <= now.minute <= 30)      # TEST only — remove when done
     ):
         return
     if _is_already_sent(morning_key):
