@@ -146,6 +146,22 @@ async def index():
             .q-tab { font-size: 0.75rem !important; padding: 6px 6px !important; white-space: nowrap !important; }
         }
 
+        /* ---- Markets grid ---- */
+        .markets-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+        }
+        @media (max-width: 1024px) {
+            .markets-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .markets-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .markets-grid { grid-template-columns: 1fr; }
+        }
+
         /* ---- Responsive tables ---- */
         .responsive-table-wrap {
             overflow-x: auto;

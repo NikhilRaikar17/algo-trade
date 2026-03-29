@@ -51,14 +51,21 @@ def render_markets_tab(container):
 
 
 def _render_group(title, indices):
+    # Sort: indices with data first (green then red by % change desc), no-data last
+    def _sort_key(e):
+        d = e.get("data")
+        if d is None:
+            return (1, 0)
+        return (0, -d["change_pct"])
+
+    sorted_indices = sorted(indices, key=_sort_key)
+
     with ui.element("div").classes("mb-6"):
         ui.label(title).classes(
             "text-xs font-bold text-gray-400 uppercase tracking-widest mb-3"
         )
-        with ui.element("div").style(
-            "display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem;"
-        ):
-            for entry in indices:
+        with ui.element("div").classes("markets-grid"):
+            for entry in sorted_indices:
                 _index_card(entry["name"], entry.get("data"))
 
 
@@ -73,7 +80,6 @@ def _index_card(name, d):
 
     is_green   = d["is_green"]
     sign       = "+" if d["change"] >= 0 else ""
-    arrow      = "▲" if is_green else "▼"
     border_cls = "border-l-[3px] border-green-500" if is_green else "border-l-[3px] border-red-500"
     price_cls  = "text-green-700 font-bold" if is_green else "text-red-700 font-bold"
     change_cls = "text-green-600" if is_green else "text-red-600"
@@ -88,13 +94,11 @@ def _index_card(name, d):
         f"rounded-xl shadow-sm bg-white p-3 {border_cls}"
     ).props("flat"):
         # Name row
-        with ui.row().classes("items-center justify-between w-full mb-1"):
-            with ui.row().classes("items-center gap-1.5"):
-                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_cls}")
-                ui.label(name).classes(
-                    "text-[10px] font-bold text-gray-500 uppercase tracking-widest"
-                )
-            ui.label(f"{arrow}").classes(f"text-xs font-bold {change_cls}")
+        with ui.row().classes("items-center gap-1.5 w-full mb-1"):
+            ui.element("div").classes(f"w-2 h-2 rounded-full {dot_cls}")
+            ui.label(name).classes(
+                "text-[10px] font-bold text-gray-500 uppercase tracking-widest"
+            )
 
         # Price
         ui.label(f"{d['current']:,.2f}").classes(f"text-xl {price_cls} leading-tight")
