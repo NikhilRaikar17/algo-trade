@@ -2,8 +2,57 @@
 P&L collection, daily summary, and scheduled Telegram messages.
 """
 
+import urllib.request
+import xml.etree.ElementTree as ET
+
 from config import now_ist, _is_trading_day, is_nse_holiday, REFRESH_SECONDS
 from state import _trade_store, _is_already_sent, _mark_sent, _send_telegram
+
+
+def _fetch_index_summary():
+    """Return formatted prev-close lines for NIFTY and BANKNIFTY."""
+    from data import fetch_index_15min_candles
+    lines = []
+    for name in ["NIFTY", "BANKNIFTY"]:
+        try:
+            df = fetch_index_15min_candles(name)
+            if df.empty:
+                lines.append(f"  {name}: N/A")
+                continue
+            last_close = float(df["close"].iloc[-1])
+            prev_day_df = df[df["timestamp"].dt.date < df["timestamp"].dt.date.iloc[-1]]
+            if prev_day_df.empty:
+                lines.append(f"  {name}: {last_close:,.2f}")
+                continue
+            prev_close = float(prev_day_df["close"].iloc[-1])
+            change = last_close - prev_close
+            sign = "+" if change >= 0 else ""
+            arrow = "▲" if change >= 0 else "▼"
+            lines.append(
+                f"  {name}: {last_close:,.2f}  {arrow} {sign}{change:,.2f} ({sign}{change / prev_close * 100:.2f}%)"
+            )
+        except Exception:
+            lines.append(f"  {name}: N/A")
+    return lines
+
+
+def _fetch_market_news(max_items=4):
+    """Fetch top headlines from Economic Times Markets RSS."""
+    url = "https://economictimes.indiatimes.com/markets/rss.cms"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            xml_data = resp.read()
+        root = ET.fromstring(xml_data)
+        headlines = []
+        for item in root.findall(".//item")[:max_items]:
+            title = item.findtext("title", "").strip()
+            if title:
+                headlines.append(title)
+        return headlines
+    except Exception as e:
+        print(f"  [news] fetch failed: {e}")
+        return []
 
 
 def collect_all_trades():
@@ -29,17 +78,20 @@ def collect_all_trades():
     return all_active, all_completed
 
 
-def send_morning_message():
-    """Send at 9:00 AM every day — trading day or not."""
+def send_premarket_alert():
+    """Send at 9:00 AM IST every day — prep alert on trading days, rest/holiday message otherwise."""
     now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
-    morning_key = f"morning_msg_{today_str}"
+    premarket_key = f"premarket_alert_{today_str}"
 
-    if not (now.hour == 9 and 15 <= now.minute <= 25):
+    if not (
+        (now.hour == 9 and 0 <= now.minute <= 10) or
+        (now.hour == 21 and 15 <= now.minute <= 25)   # TEST only — remove when done
+    ):
         return
-    if _is_already_sent(morning_key):
+    if _is_already_sent(premarket_key):
         return
-    _mark_sent(morning_key)
+    _mark_sent(premarket_key)
 
     day_name = now.strftime("%A, %d %b %Y")
 
@@ -56,13 +108,53 @@ def send_morning_message():
             f"Take a break and enjoy the day off!"
         )
     else:
+        index_lines = _fetch_index_summary()
+        news_items = _fetch_market_news()
+
+        index_section = "\n".join(index_lines) if index_lines else "  Data unavailable"
+
+        if news_items:
+            news_section = "\n".join(f"  {i+1}. {h}" for i, h in enumerate(news_items))
+            caution = (
+                "\n⚠️ CAUTION: Review headlines before trading — "
+                "news events can trigger sharp/unexpected moves."
+            )
+        else:
+            news_section = "  Could not fetch news headlines."
+            caution = ""
+
         _send_telegram(
-            f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
-            f"Strategies: ABCD Harmonic + RSI+SMA Crossover + RSI Only\n"
-            f"Monitoring: NIFTY ATM options (5-min candles)\n"
-            f"Refresh interval: {REFRESH_SECONDS}s\n"
-            f"Market opens at 9:15 AM IST. Let's go!"
+            f"PRE-MARKET ALERT | {day_name}\n{'=' * 30}\n"
+            f"Market opens in 15 minutes (9:15 AM IST).\n\n"
+            f"Prev Close:\n{index_section}\n\n"
+            f"Market News:\n{news_section}"
+            f"{caution}"
         )
+    print(f"  [telegram] Pre-market alert sent for {today_str}")
+
+
+def send_morning_message():
+    """Send algo start message at 9:15 AM IST on trading days only."""
+    now = now_ist()
+    today_str = now.strftime("%Y-%m-%d")
+    morning_key = f"morning_msg_{today_str}"
+
+    if not (now.hour == 9 and 15 <= now.minute <= 25):
+        return
+    if not _is_trading_day(now):
+        return
+    if _is_already_sent(morning_key):
+        return
+    _mark_sent(morning_key)
+
+    day_name = now.strftime("%A, %d %b %Y")
+    _send_telegram(
+        f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
+        f"Strategies: ABCD Harmonic + RSI+SMA Crossover + RSI Only\n"
+        f"Monitoring: NIFTY ATM options (5-min candles)\n"
+        f"Refresh interval: {REFRESH_SECONDS}s\n"
+        f"Market opens at 9:15 AM IST. Let's go!"
+    )
     print(f"  [telegram] Morning message sent for {today_str}")
 
 
