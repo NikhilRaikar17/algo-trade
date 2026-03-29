@@ -60,11 +60,13 @@ def _render_group(title, indices):
 
     sorted_indices = sorted(indices, key=_sort_key)
 
-    with ui.element("div").classes("mb-6"):
-        ui.label(title).classes(
-            "text-xs font-bold text-gray-400 uppercase tracking-widest mb-3"
-        )
-        with ui.element("div").classes("markets-grid"):
+    with ui.element("div").classes("mb-2"):
+        with ui.row().classes("items-center gap-3 mb-3"):
+            ui.label(title).classes(
+                "text-xs font-bold text-gray-500 uppercase tracking-widest"
+            )
+            ui.element("div").classes("flex-1 h-px bg-gray-200")
+        with ui.element("div").classes("markets-grid mb-6"):
             for entry in sorted_indices:
                 _index_card(entry["name"], entry.get("data"))
 

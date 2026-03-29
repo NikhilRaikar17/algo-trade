@@ -20,7 +20,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
         for nid, cont in page_containers.items():
             cont.set_visibility(nid == page_id)
 
-    def _nav_button(page_id, label, icon, indent=False):
+    def _nav_button(page_id, label, icon, indent=False, color="text-gray-600"):
         cls = "nav-sub-btn" if indent else "nav-btn"
         ml = "ml-6" if indent else ""
         btn = (
@@ -30,50 +30,56 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
                 on_click=lambda e, pid=page_id: set_active_page(pid),
             )
             .props("flat no-caps align=left")
-            .classes(f"{cls} rounded-lg mx-2 mb-1 text-gray-600 {ml}")
+            .classes(f"{cls} rounded-lg mx-2 mb-1 {color} {ml}")
         )
         if page_id == active_page["value"]:
             btn.classes(add="nav-btn-active")
         nav_btn_refs[page_id] = btn
 
+    def _section_label(text, dot_color="bg-gray-400"):
+        with ui.row().classes("items-center gap-2 px-4 pt-2 pb-1"):
+            ui.element("div").classes(f"w-1.5 h-1.5 rounded-full {dot_color}")
+            ui.label(text).classes("nav-section-label !p-0")
+
     with drawer:
-        # ---- Dashboard ----
-        _nav_button("dashboard", "Dashboard", "dashboard")
-        _nav_button("markets", "Markets", "bar_chart")
+        # ---- Top-level ----
+        ui.element("div").classes("pt-1")
+        _nav_button("dashboard", "Dashboard", "dashboard", color="text-gray-700")
+        _nav_button("markets",   "Markets",   "bar_chart", color="text-gray-700")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Option Chains ----
-        ui.label("Options").classes("nav-section-label")
-        _nav_button("nifty", "NIFTY", "show_chart")
-        _nav_button("banknifty", "BANKNIFTY", "candlestick_chart")
+        _section_label("Options", "bg-blue-400")
+        _nav_button("nifty",     "NIFTY",     "show_chart",        color="text-blue-700")
+        _nav_button("banknifty", "BANKNIFTY", "candlestick_chart", color="text-blue-700")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Historical Backtest ----
-        ui.label("Backtest").classes("nav-section-label")
+        _section_label("Backtest", "bg-purple-400")
         with ui.expansion("RSI", icon="speed").classes(
-            "mx-2 rounded-lg"
+            "mx-2 rounded-lg text-purple-700"
         ).props("dense default-opened"):
-            _nav_button("rsi_nifty", "NIFTY", "show_chart", indent=True)
-            _nav_button("rsi_banknifty", "BANKNIFTY", "candlestick_chart", indent=True)
+            _nav_button("rsi_nifty",    "NIFTY",    "show_chart",        indent=True, color="text-purple-600")
+            _nav_button("rsi_banknifty","BANKNIFTY","candlestick_chart", indent=True, color="text-purple-600")
         with ui.expansion("ABCD", icon="insights").classes(
-            "mx-2 rounded-lg"
+            "mx-2 rounded-lg text-purple-700"
         ).props("dense default-opened"):
-            _nav_button("abcd_nifty", "NIFTY", "show_chart", indent=True)
-            _nav_button("abcd_banknifty", "BANKNIFTY", "candlestick_chart", indent=True)
+            _nav_button("abcd_nifty",    "NIFTY",    "show_chart",        indent=True, color="text-purple-600")
+            _nav_button("abcd_banknifty","BANKNIFTY","candlestick_chart", indent=True, color="text-purple-600")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Live Trading ----
-        ui.label("Live Trading").classes("nav-section-label")
-        _nav_button("abcd", "ABCD Algo", "insights")
-        _nav_button("rsi", "RSI + SMA", "analytics")
+        _section_label("Live Trading", "bg-green-400")
+        _nav_button("abcd", "ABCD Algo", "insights",  color="text-green-700")
+        _nav_button("rsi",  "RSI + SMA", "analytics", color="text-green-700")
 
         ui.separator().classes("my-2 mx-4")
 
-        # ---- Summary ----
-        _nav_button("pnl", "P&L", "account_balance_wallet")
+        # ---- P&L ----
+        _nav_button("pnl", "P&L", "account_balance_wallet", color="text-amber-600")
 
         ui.separator().classes("my-3 mx-4")
 
