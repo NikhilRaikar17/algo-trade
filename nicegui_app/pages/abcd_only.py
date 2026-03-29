@@ -115,7 +115,7 @@ def _build_abcd_content(container, index_name="NIFTY"):
                 )
             rows.append(
                 {
-                    "D Time": time_str,
+                    "Entry Time": time_str,
                     "Type": t["type"],
                     "Signal": t["signal"],
                     "Entry (D)": t["entry"],
@@ -131,16 +131,26 @@ def _build_abcd_content(container, index_name="NIFTY"):
             )
 
         columns = [
-            {"name": k, "label": k, "field": k, "sortable": True, "align": "left"}
-            for k in rows[0].keys()
+            {"name": "entry_time", "label": "Entry Time", "field": "Entry Time", "sortable": True, "align": "left"},
+            {"name": "type",       "label": "Type",       "field": "Type",       "sortable": True, "align": "left"},
+            {"name": "signal",     "label": "Signal",     "field": "Signal",     "sortable": True, "align": "left"},
+            {"name": "entry_d",    "label": "Entry (D)",  "field": "Entry (D)",  "sortable": True, "align": "left"},
+            {"name": "target",     "label": "Target",     "field": "Target",     "sortable": True, "align": "left"},
+            {"name": "sl_c",       "label": "SL (C)",     "field": "SL (C)",     "sortable": True, "align": "left"},
+            {"name": "bc_ret",     "label": "BC Ret.",    "field": "BC Ret.",    "sortable": True, "align": "left"},
+            {"name": "cd_ab",      "label": "CD/AB",      "field": "CD/AB",      "sortable": True, "align": "left"},
+            {"name": "exit",       "label": "Exit",       "field": "Exit",       "sortable": True, "align": "left"},
+            {"name": "exit_time",  "label": "Exit Time",  "field": "Exit Time",  "sortable": True, "align": "left"},
+            {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
+            {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
         table = ui.table(
-            columns=columns, rows=rows, row_key="D Time"
+            columns=columns, rows=rows, row_key="Entry Time"
         ).classes("w-full")
         table.props("dense flat bordered")
 
         table.add_slot(
-            "body-cell-P&L",
+            "body-cell-pnl",
             r"""
             <q-td :props="props">
                 <span :style="{
@@ -153,7 +163,7 @@ def _build_abcd_content(container, index_name="NIFTY"):
             """,
         )
         table.add_slot(
-            "body-cell-Status",
+            "body-cell-status",
             r"""
             <q-td :props="props">
                 <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : 'grey'"
@@ -162,7 +172,7 @@ def _build_abcd_content(container, index_name="NIFTY"):
             """,
         )
         table.add_slot(
-            "body-cell-Type",
+            "body-cell-type",
             r"""
             <q-td :props="props">
                 <q-badge :color="props.value === 'Bullish' ? 'orange' : 'purple'"

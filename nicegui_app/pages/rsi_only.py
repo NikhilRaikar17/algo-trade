@@ -110,44 +110,52 @@ def _build_rsi_only_content(container, index_name="NIFTY"):
         rows = []
         for t in trades:
             time_str = (
-                t["time"].strftime("%d %b %Y")
+                t["time"].strftime("%d %b %H:%M")
                 if hasattr(t["time"], "strftime")
                 else str(t["time"])
             )
             exit_str = ""
             if t["exit_time"] is not None:
                 exit_str = (
-                    t["exit_time"].strftime("%d %b %Y")
+                    t["exit_time"].strftime("%d %b %H:%M")
                     if hasattr(t["exit_time"], "strftime")
                     else str(t["exit_time"])
                 )
             rows.append(
                 {
-                    "Date": time_str,
+                    "Entry Time": time_str,
                     "Signal": t["signal"],
                     "Entry": t["entry"],
                     "Target": t["target"],
                     "SL": t["stop_loss"],
                     "RSI": t["rsi"],
                     "Exit": round(t["exit_price"], 2) if t["exit_price"] else "—",
-                    "Exit Date": exit_str or "—",
+                    "Exit Time": exit_str or "—",
                     "P&L": t["pnl"],
                     "Status": t["status"],
                 }
             )
 
         columns = [
-            {"name": k, "label": k, "field": k, "sortable": True, "align": "left"}
-            for k in rows[0].keys()
+            {"name": "entry_time", "label": "Entry Time", "field": "Entry Time", "sortable": True, "align": "left"},
+            {"name": "signal",     "label": "Signal",     "field": "Signal",     "sortable": True, "align": "left"},
+            {"name": "entry",      "label": "Entry",      "field": "Entry",      "sortable": True, "align": "left"},
+            {"name": "target",     "label": "Target",     "field": "Target",     "sortable": True, "align": "left"},
+            {"name": "sl",         "label": "SL",         "field": "SL",         "sortable": True, "align": "left"},
+            {"name": "rsi",        "label": "RSI",        "field": "RSI",        "sortable": True, "align": "left"},
+            {"name": "exit",       "label": "Exit",       "field": "Exit",       "sortable": True, "align": "left"},
+            {"name": "exit_time",  "label": "Exit Time",  "field": "Exit Time",  "sortable": True, "align": "left"},
+            {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
+            {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
         table = ui.table(
-            columns=columns, rows=rows, row_key="Date"
+            columns=columns, rows=rows, row_key="Entry Time"
         ).classes("w-full")
         table.props("dense flat bordered")
 
         # Color P&L cells
         table.add_slot(
-            "body-cell-P&L",
+            "body-cell-pnl",
             r"""
             <q-td :props="props">
                 <span :style="{
@@ -160,7 +168,7 @@ def _build_rsi_only_content(container, index_name="NIFTY"):
             """,
         )
         table.add_slot(
-            "body-cell-Status",
+            "body-cell-status",
             r"""
             <q-td :props="props">
                 <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : 'grey'"
