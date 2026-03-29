@@ -4,6 +4,9 @@ Trading strategies: ABCD harmonic patterns and RSI + SMA crossover.
 
 from datetime import time as _dtime
 
+import numpy as np
+import talib
+
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT
 from state import _is_already_sent, _mark_sent, _send_telegram
 
@@ -264,17 +267,19 @@ def backtest_abcd(patterns, candles):
 
 
 def compute_rsi(series, period=RSI_PERIOD):
-    delta = series.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
-    avg_gain = gain.rolling(window=period, min_periods=period).mean()
-    avg_loss = loss.rolling(window=period, min_periods=period).mean()
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
+    import pandas as pd
+    return pd.Series(
+        talib.RSI(series.values.astype(np.float64), timeperiod=period),
+        index=series.index,
+    )
 
 
 def compute_sma(series, period):
-    return series.rolling(window=period, min_periods=period).mean()
+    import pandas as pd
+    return pd.Series(
+        talib.SMA(series.values.astype(np.float64), timeperiod=period),
+        index=series.index,
+    )
 
 
 def detect_rsi_sma_signals(candles):

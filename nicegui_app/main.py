@@ -14,6 +14,7 @@ from sidebar import build_sidebar
 from pnl import send_daily_pnl_summary, send_morning_message
 from pages import (
     render_dashboard,
+    render_markets_tab,
     render_index_tab,
     render_algo_tab,
     render_rsi_only_tab,
@@ -27,6 +28,7 @@ from pages import (
 # All page IDs used for containers and navigation
 ALL_PAGE_IDS = [
     "dashboard",
+    "markets",
     "nifty",
     "banknifty",
     "abcd",
@@ -248,6 +250,9 @@ async def index():
         for pid in ALL_PAGE_IDS:
             if pid != "dashboard":
                 page_containers[pid].clear()
+
+        # Markets overview always renders
+        refresh_fns.append(render_markets_tab(page_containers["markets"]))
 
         # Option chains + P&L always render
         refresh_fns.append(

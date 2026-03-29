@@ -39,6 +39,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
     with drawer:
         # ---- Dashboard ----
         _nav_button("dashboard", "Dashboard", "dashboard")
+        _nav_button("markets", "Markets", "bar_chart")
 
         ui.separator().classes("my-2 mx-4")
 

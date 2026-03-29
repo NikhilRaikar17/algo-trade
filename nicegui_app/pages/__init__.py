@@ -1,4 +1,5 @@
 from pages.dashboard import render_dashboard
+from pages.markets import render_markets_tab
 from pages.option_chain import render_index_tab
 from pages.algo import render_algo_tab
 from pages.rsi_only import render_rsi_only_tab

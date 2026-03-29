@@ -170,9 +170,140 @@ def add_trend(df, index_name, expiry, opt_type):
 
 
 INDEX_SECURITY_IDS = {
-    "NIFTY": "13",
+    "NIFTY":     "13",
     "BANKNIFTY": "25",
 }
+
+# All tracked indices grouped by category for the Markets page
+# security_id values sourced from Dhan instrument master (IDX_I segment)
+MARKET_WATCH_GROUPS = [
+    {
+        "group": "Broad Market",
+        "indices": [
+            {"name": "NIFTY 50",       "security_id": "13"},
+            {"name": "NIFTY NEXT 50",  "security_id": "38"},
+            {"name": "NIFTY 100",      "security_id": "17"},
+            {"name": "NIFTY 200",      "security_id": "18"},
+            {"name": "NIFTY 500",      "security_id": "19"},
+            {"name": "NIFTY MIDCAP 100","security_id": "37"},
+            {"name": "NIFTY MIDCAP 50","security_id": "20"},
+            {"name": "NIFTY SMLCAP 100","security_id": "5"},
+            {"name": "INDIA VIX",      "security_id": "21"},
+        ],
+    },
+    {
+        "group": "Banks & Financials",
+        "indices": [
+            {"name": "BANK NIFTY",     "security_id": "25"},
+            {"name": "FINNIFTY",       "security_id": "27"},
+            {"name": "NIFTY PSU BANK", "security_id": "33"},
+            {"name": "NIFTY PVT BANK", "security_id": "15"},
+        ],
+    },
+    {
+        "group": "Sectors",
+        "indices": [
+            {"name": "NIFTY IT",       "security_id": "29"},
+            {"name": "NIFTY PHARMA",   "security_id": "32"},
+            {"name": "NIFTY AUTO",     "security_id": "14"},
+            {"name": "NIFTY FMCG",     "security_id": "28"},
+            {"name": "NIFTY METAL",    "security_id": "31"},
+            {"name": "NIFTY REALTY",   "security_id": "34"},
+            {"name": "NIFTY ENERGY",   "security_id": "42"},
+            {"name": "NIFTY INFRA",    "security_id": "43"},
+            {"name": "NIFTY MEDIA",    "security_id": "30"},
+        ],
+    },
+]
+
+
+def _candles_to_daily_change(df):
+    """Extract today's stats vs previous close from a 15-min candle DataFrame."""
+    if df.empty:
+        return None
+    dates = sorted(df["timestamp"].dt.date.unique())
+    if len(dates) < 2:
+        return None
+    today_df = df[df["timestamp"].dt.date == dates[-1]]
+    prev_df  = df[df["timestamp"].dt.date == dates[-2]]
+    prev_close = float(prev_df["close"].iloc[-1])
+    current    = float(today_df["close"].iloc[-1]) if not today_df.empty else prev_close
+    high       = float(today_df["high"].max())     if not today_df.empty else prev_close
+    low        = float(today_df["low"].min())       if not today_df.empty else prev_close
+    open_      = float(today_df["open"].iloc[0])   if not today_df.empty else prev_close
+    change     = current - prev_close
+    return {
+        "current":    round(current, 2),
+        "prev_close": round(prev_close, 2),
+        "open":       round(open_, 2),
+        "high":       round(high, 2),
+        "low":        round(low, 2),
+        "change":     round(change, 2),
+        "change_pct": round((change / prev_close) * 100, 2),
+        "is_green":   change >= 0,
+    }
+
+
+def _fetch_any_index_candles(security_id: str) -> pd.DataFrame:
+    """Fetch 15-min candles for any NSE index by security_id."""
+    today     = now_ist().strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+    cache_key = f"idx_candles_{security_id}:{from_date}:{today}"
+    cached    = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    r = api_call(
+        dhan.intraday_minute_data,
+        security_id, "IDX_I", "INDEX",
+        from_date, today, interval=15,
+    )
+    if r.get("status") != "success":
+        return pd.DataFrame()
+    d  = r["data"]
+    df = pd.DataFrame({
+        "timestamp": d.get("timestamp", []),
+        "open":      d.get("open", []),
+        "high":      d.get("high", []),
+        "low":       d.get("low", []),
+        "close":     d.get("close", []),
+    })
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"], unit="s", utc=True
+        ).dt.tz_convert("Asia/Kolkata")
+    _cache_set(cache_key, df)
+    return df
+
+
+def fetch_market_overview():
+    """Return grouped index data for the Markets page."""
+    cache_key = f"market_overview:{now_ist().strftime('%Y-%m-%d %H')}"
+    cached    = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    # Reuse already-cached NIFTY / BANKNIFTY candles where possible
+    _known = {
+        "13": lambda: fetch_index_15min_candles("NIFTY"),
+        "25": lambda: fetch_index_15min_candles("BANKNIFTY"),
+    }
+
+    result = []
+    for group in MARKET_WATCH_GROUPS:
+        entries = []
+        for idx in group["indices"]:
+            sid  = idx["security_id"]
+            data = None
+            try:
+                df   = _known[sid]() if sid in _known else _fetch_any_index_candles(sid)
+                data = _candles_to_daily_change(df)
+            except Exception as e:
+                print(f"  [market_overview] {idx['name']} error: {e}")
+            entries.append({"name": idx["name"], "data": data})
+        result.append({"group": group["group"], "indices": entries})
+
+    _cache_set(cache_key, result)
+    return result
 
 
 def fetch_index_15min_candles(index_name="NIFTY"):
