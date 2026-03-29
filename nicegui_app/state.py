@@ -105,6 +105,12 @@ def get_next_market_open():
 # ================= API HELPER =================
 
 
+_NO_RETRY_PHRASES = (
+    "no data", "data not available", "invalid", "not found",
+    "outside market hours", "no record",
+)
+
+
 def api_call(fn, *args, retries=3, delay=3, **kwargs):
     for attempt in range(retries):
         r = fn(*args, **kwargs)
@@ -122,6 +128,11 @@ def api_call(fn, *args, retries=3, delay=3, **kwargs):
                     delay *= 2
                     continue
             if r.get("status") == "failure" and attempt < retries - 1:
+                # Don't retry permanent "no data" errors — only transient ones
+                remarks = str(r.get("remarks", "")).lower()
+                err_msg = str(err_data).lower()
+                if any(p in remarks or p in err_msg for p in _NO_RETRY_PHRASES):
+                    return r
                 print(
                     f"  [api retry] attempt {attempt+1}/{retries}, waiting {delay}s..."
                 )
