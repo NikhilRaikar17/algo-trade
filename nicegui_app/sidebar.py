@@ -104,20 +104,25 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
             ui.label("Next Holiday").classes(
                 "text-xs font-bold text-gray-400 uppercase tracking-wider mb-1"
             )
-            holiday_info = get_next_holiday()
-            if holiday_info:
-                _, next_date, days_left = holiday_info
-                day_label = (
-                    "Today"
-                    if days_left == 0
-                    else f"in {days_left} day{'s' if days_left != 1 else ''}"
-                )
-                ui.label(next_date.strftime("%a, %d %b %Y")).classes(
-                    "text-sm text-gray-600"
-                )
-                ui.label(day_label).classes("text-xs text-gray-400")
-            else:
-                ui.label("No upcoming holidays").classes("text-xs text-gray-400")
+            holiday_date_label = ui.label("").classes("text-sm text-gray-600")
+            holiday_days_label = ui.label("").classes("text-xs text-gray-400")
+
+            def _update_holiday():
+                info = get_next_holiday()
+                if info:
+                    _, next_date, days_left = info
+                    holiday_date_label.set_text(next_date.strftime("%a, %d %b %Y"))
+                    holiday_days_label.set_text(
+                        "Today" if days_left == 0
+                        else f"in {days_left} day{'s' if days_left != 1 else ''}"
+                    )
+                else:
+                    holiday_date_label.set_text("No upcoming holidays")
+                    holiday_days_label.set_text("")
+
+            _update_holiday()
+            # Refresh once per hour so it stays accurate without a page reload
+            ui.timer(3600, _update_holiday)
 
         ui.space()
 
