@@ -14,6 +14,22 @@ from config import (
 from state import api_call, _cache_get, _cache_set, _ltp_history
 
 
+def check_dhan_api():
+    """Quick health check — fetch NIFTY expiry list and return status dict."""
+    import time as _time
+    t0 = _time.time()
+    try:
+        r = dhan.expiry_list("13", "IDX_I")
+        latency_ms = int((_time.time() - t0) * 1000)
+        if isinstance(r, dict) and r.get("status") == "success":
+            return {"ok": True,  "latency_ms": latency_ms, "error": None}
+        msg = str(r.get("remarks", r)) if isinstance(r, dict) else str(r)
+        return {"ok": False, "latency_ms": latency_ms, "error": msg[:80]}
+    except Exception as e:
+        latency_ms = int((_time.time() - t0) * 1000)
+        return {"ok": False, "latency_ms": latency_ms, "error": str(e)[:80]}
+
+
 def get_expiries(scrip, segment, count=3, for_algo=False):
     cache_key = f"expiries:{scrip}:{segment}:{for_algo}"
     cached = _cache_get(cache_key)
@@ -256,6 +272,7 @@ def _fetch_any_index_candles(security_id: str) -> pd.DataFrame:
         dhan.intraday_minute_data,
         security_id, "IDX_I", "INDEX",
         from_date, today, interval=15,
+        retries=1,  # no retry — bulk best-effort call
     )
     if r.get("status") != "success":
         return pd.DataFrame()

@@ -101,6 +101,11 @@ def render_dashboard(container):
 
         ui.timer(1, update_clocks)
 
+        # ---- API Status Card ----
+        api_status_container = ui.element("div").classes("w-full mb-6")
+        with api_status_container:
+            _render_api_status_loading()
+
         # ---- Section Header ----
         with ui.row().classes("w-full items-center mb-4"):
             with ui.row().classes("items-center gap-2"):
@@ -139,6 +144,13 @@ def render_dashboard(container):
         )
         if page_client._deleted:
             return
+
+        # Derive API health from price fetch result — no extra API call needed
+        any_ok = any(v.get("spot") is not None for v in prices.values())
+        api_health = {"ok": any_ok, "latency_ms": None, "error": None if any_ok else "Could not fetch price data"}
+        api_status_container.clear()
+        with api_status_container:
+            _render_api_status(api_health)
 
         price_container.clear()
         with price_container:
@@ -210,3 +222,52 @@ def render_dashboard(container):
         )
 
     return refresh
+
+
+def _render_api_status_loading():
+    with ui.card().classes(
+        "w-full border border-gray-100 rounded-xl shadow-sm bg-white px-5 py-3"
+    ).props("flat"):
+        with ui.row().classes("items-center gap-3"):
+            ui.spinner("dots", size="sm").classes("text-gray-400")
+            ui.label("Checking Dhan API…").classes("text-sm text-gray-400")
+
+
+def _render_api_status(h):
+    if h["ok"]:
+        border = "border-green-200"
+        bg     = "bg-green-50"
+        dot    = "bg-green-500"
+        title  = "Dhan API — Connected"
+        title_cls = "text-sm font-semibold text-green-700"
+        detail = f"Latency: {h['latency_ms']} ms" if h["latency_ms"] else "Price data fetched successfully"
+        detail_cls = "text-xs text-green-600"
+        icon   = "check_circle"
+        icon_cls = "text-green-500"
+    else:
+        border = "border-red-200"
+        bg     = "bg-red-50"
+        dot    = "bg-red-500"
+        title  = "Dhan API — Unreachable"
+        title_cls = "text-sm font-semibold text-red-700"
+        detail = h["error"] or "Unknown error"
+        detail_cls = "text-xs text-red-500"
+        icon   = "error_outline"
+        icon_cls = "text-red-500"
+
+    with ui.card().classes(
+        f"w-full border {border} {bg} rounded-xl shadow-sm px-5 py-3"
+    ).props("flat"):
+        with ui.row().classes("items-center gap-3 w-full"):
+            ui.icon(icon, size="22px").classes(icon_cls)
+            with ui.column().classes("gap-0"):
+                ui.label(title).classes(title_cls)
+                ui.label(detail).classes(detail_cls)
+            ui.space()
+            with ui.element("div").classes(
+                f"flex items-center gap-1.5 text-xs font-medium {'text-green-600' if h['ok'] else 'text-red-600'}"
+            ):
+                ui.element("div").classes(
+                    f"w-2 h-2 rounded-full {dot} {'animate-pulse' if not h['ok'] else ''}"
+                )
+                ui.label("Live" if h["ok"] else "Down")

@@ -133,6 +133,9 @@ def api_call(fn, *args, retries=3, delay=3, **kwargs):
                 err_msg = str(err_data).lower()
                 if any(p in remarks or p in err_msg for p in _NO_RETRY_PHRASES):
                     return r
+                # retries=1 means no retry loop — skip silently
+                if retries == 1:
+                    return r
                 print(
                     f"  [api retry] attempt {attempt+1}/{retries}, waiting {delay}s..."
                 )
