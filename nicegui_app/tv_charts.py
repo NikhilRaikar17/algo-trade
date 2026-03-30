@@ -550,3 +550,96 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> None:
     }})();
     """
     _schedule_js(js)
+
+
+# ---------------------------------------------------------------------------
+# Double Bottom chart
+# ---------------------------------------------------------------------------
+
+def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
+    """Render a candlestick chart with double bottom pattern overlays."""
+    chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+
+    ohlc = _candles_to_tv(candles)
+
+    markers: list[dict] = []
+    price_lines: list[dict] = []
+
+    for s in signals:
+        markers.append({
+            "time":     _to_unix(s["trough1_time"]),
+            "position": "belowBar",
+            "color":    "#26a69a",
+            "shape":    "arrowUp",
+            "text":     "T1",
+            "size":     1.0,
+        })
+        markers.append({
+            "time":     _to_unix(s["trough2_time"]),
+            "position": "belowBar",
+            "color":    "#26a69a",
+            "shape":    "arrowUp",
+            "text":     "T2",
+            "size":     1.0,
+        })
+        markers.append({
+            "time":     _to_unix(s["time"]),
+            "position": "belowBar",
+            "color":    "#15803d",
+            "shape":    "arrowUp",
+            "text":     "B",
+            "size":     1.4,
+        })
+        price_lines.append({
+            "price": s["neckline"],
+            "color": "#f59e0b",
+            "style": _LS_DASHED,
+            "title": f"Neck {s['neckline']:.0f}",
+        })
+        price_lines.append({
+            "price": s["target"],
+            "color": "#26a69a",
+            "style": _LS_DASHED,
+            "title": f"T {s['target']:.0f}",
+        })
+        price_lines.append({
+            "price": s["stop_loss"],
+            "color": "#ef5350",
+            "style": _LS_DASHED,
+            "title": f"SL {s['stop_loss']:.0f}",
+        })
+
+    markers.sort(key=lambda m: m["time"])
+
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+
+    opts = dict(_BASE_OPTS)
+    opts["height"] = height
+
+    js = f"""
+    (function initDB_{chart_id}() {{
+        var el = document.getElementById('{chart_id}');
+        if (!el || !el.clientWidth) {{
+            setTimeout(initDB_{chart_id}, 50);
+            return;
+        }}
+        var opts = {json.dumps(opts)};
+        opts.width = el.clientWidth;
+        var chart = LightweightCharts.createChart(el, opts);
+
+        var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+        cs.setData({json.dumps(ohlc)});
+        cs.setMarkers({json.dumps(markers)});
+
+        {json.dumps(price_lines)}.forEach(function(pl) {{
+            cs.createPriceLine({{
+                price: pl.price, color: pl.color, lineWidth: 1,
+                lineStyle: pl.style, axisLabelVisible: true, title: pl.title,
+            }});
+        }});
+
+        chart.timeScale().fitContent();
+        {_resize_listener("chart", "el")}
+    }})();
+    """
+    _schedule_js(js)

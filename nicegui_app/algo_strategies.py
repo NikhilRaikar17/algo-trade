@@ -538,6 +538,110 @@ def backtest_double_top(signals, candles):
     return trades
 
 
+def detect_double_bottom_signals(candles, price_tolerance=0.01, min_bars_between=5):
+    """
+    Detect double bottom bullish reversal patterns in OHLC candle data.
+
+    Two swing lows at ~same price level, with a peak (neckline) between them.
+    Entry confirmed when price closes above the neckline after the second trough.
+    Signal: BUY | Target: neckline + height | SL: below second trough
+    """
+    swings = find_swing_points(candles, order=3)
+    swing_lows = [s for s in swings if s["type"] == "low"]
+
+    signals = []
+    for i in range(len(swing_lows) - 1):
+        for j in range(i + 1, len(swing_lows)):
+            t1 = swing_lows[i]
+            t2 = swing_lows[j]
+
+            if t2["index"] - t1["index"] < min_bars_between:
+                continue
+
+            avg_trough = (t1["price"] + t2["price"]) / 2
+            if abs(t1["price"] - t2["price"]) / avg_trough > price_tolerance:
+                continue
+
+            # Neckline = highest high between the two troughs
+            between = candles.iloc[t1["index"]: t2["index"] + 1]
+            neckline = float(between["high"].max())
+
+            # Signal confirmed on first close above neckline after trough2
+            after_t2 = candles.iloc[t2["index"] + 1:]
+            for _, bar in after_t2.iterrows():
+                if float(bar["close"]) > neckline:
+                    entry = float(bar["close"])
+                    height = neckline - avg_trough
+                    target = float(neckline + height)
+                    sl = float(min(t1["price"], t2["price"]))
+                    signals.append({
+                        "time": bar["timestamp"],
+                        "signal": "BUY — Double Bottom neckline break",
+                        "entry": round(entry, 2),
+                        "target": round(target, 2),
+                        "stop_loss": round(sl, 2),
+                        "trough1": round(float(t1["price"]), 2),
+                        "trough1_time": t1["time"],
+                        "trough2": round(float(t2["price"]), 2),
+                        "trough2_time": t2["time"],
+                        "neckline": round(neckline, 2),
+                        "height": round(float(height), 2),
+                    })
+                    break
+
+    # De-duplicate by entry bar time — keep first occurrence per timestamp
+    seen = set()
+    unique = []
+    for s in signals:
+        key = str(s["time"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(s)
+    return unique
+
+
+def backtest_double_bottom(signals, candles):
+    """Walk through same-day candles after each double bottom signal. Force-close at 3:30 PM."""
+    trades = []
+    for s in signals:
+        entry = s["entry"]
+        target = s["target"]
+        sl = s["stop_loss"]
+        signal_time = s["time"]
+        future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
+        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        last_bar = None
+        for _, bar in future.iterrows():
+            last_bar = bar
+            # BUY trade: target is above entry, SL is below entry
+            if float(bar["high"]) >= target:
+                result = {
+                    "status": "Target Hit",
+                    "exit_price": round(float(target), 2),
+                    "exit_time": bar["timestamp"],
+                    "pnl": round(float(target - entry), 2),
+                }
+                break
+            if float(bar["low"]) <= sl:
+                result = {
+                    "status": "SL Hit",
+                    "exit_price": round(float(sl), 2),
+                    "exit_time": bar["timestamp"],
+                    "pnl": round(float(sl - entry), 2),
+                }
+                break
+        if result["status"] == "Open" and last_bar is not None:
+            exit_px = round(float(last_bar["close"]), 2)
+            result = {
+                "status": "Day Close",
+                "exit_price": exit_px,
+                "exit_time": last_bar["timestamp"],
+                "pnl": round(float(exit_px - entry), 2),
+            }
+        trades.append({**s, **result})
+    return trades
+
+
 def backtest_rsi_only(signals, candles):
     """Walk through same-day candles after each signal. Force-close at 3:30 PM."""
     trades = []

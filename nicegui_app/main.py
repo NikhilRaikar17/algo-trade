@@ -20,6 +20,7 @@ from pages import (
     render_rsi_only_tab,
     render_abcd_only_tab,
     render_double_top_tab,
+    render_double_bottom_tab,
     render_pnl_tab,
     render_market_closed,
 )
@@ -40,6 +41,8 @@ ALL_PAGE_IDS = [
     "abcd_banknifty",
     "dt_nifty",
     "dt_banknifty",
+    "db_nifty",
+    "db_banknifty",
     "pnl",
 ]
 
@@ -290,6 +293,8 @@ async def index():
         refresh_fns["abcd_banknifty"] = render_abcd_only_tab(page_containers["abcd_banknifty"], "BANKNIFTY")
         refresh_fns["dt_nifty"]      = render_double_top_tab(page_containers["dt_nifty"], "NIFTY")
         refresh_fns["dt_banknifty"]  = render_double_top_tab(page_containers["dt_banknifty"], "BANKNIFTY")
+        refresh_fns["db_nifty"]      = render_double_bottom_tab(page_containers["db_nifty"], "NIFTY")
+        refresh_fns["db_banknifty"]  = render_double_bottom_tab(page_containers["db_banknifty"], "BANKNIFTY")
 
         # Live algo tabs — countdown when closed, live data when open
         if market_open:

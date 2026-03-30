@@ -78,6 +78,11 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             ).props("dense default-opened"):
                 _nav_button("dt_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("dt_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
+            with ui.expansion("Double Bottom", icon="moving").classes(
+                "ml-2 rounded-lg text-gray-600"
+            ).props("dense default-opened"):
+                _nav_button("db_nifty",     "NIFTY",    "show_chart",        indent=True)
+                _nav_button("db_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
 
         ui.separator().classes("my-2 mx-4")
 
