@@ -182,7 +182,7 @@ async def index():
 
     # ---- State ----
     active_page = {"value": "dashboard"}
-    refresh_fns = []
+    refresh_fns = {}
     _prev_market_open = [None]
     _dashboard_refresh = [None]   # persists across build_ui() calls — avoids re-creating clock timer
     nav_btn_refs = {}
@@ -248,12 +248,17 @@ async def index():
             page_containers[pid] = cont
 
     # Now build sidebar (needs page_containers to be defined)
-    build_sidebar(drawer, active_page, nav_btn_refs, page_containers)
+    # _refresh_trigger is set after full_refresh is defined below; late-binding via list
+    _refresh_trigger = [None]
+    build_sidebar(
+        drawer, active_page, nav_btn_refs, page_containers,
+        on_navigate=lambda pid: _refresh_trigger[0] and asyncio.ensure_future(_refresh_trigger[0]()),
+    )
 
     # ---- Build Page Content ----
     async def build_ui():
         nonlocal refresh_fns
-        refresh_fns = []
+        refresh_fns = {}  # page_id → refresh_fn
 
         market_open = is_market_open()
 
@@ -262,51 +267,32 @@ async def index():
         if _dashboard_refresh[0] is None:
             page_containers["dashboard"].clear()
             _dashboard_refresh[0] = render_dashboard(page_containers["dashboard"])
-        refresh_fns.append(_dashboard_refresh[0])
+        refresh_fns["dashboard"] = _dashboard_refresh[0]
 
         # Clear all other pages
         for pid in ALL_PAGE_IDS:
             if pid != "dashboard":
                 page_containers[pid].clear()
 
-        # Markets overview always renders
-        refresh_fns.append(render_markets_tab(page_containers["markets"]))
-
-        # Option chains + P&L always render
-        refresh_fns.append(
-            render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
-        )
-        refresh_fns.append(
-            render_index_tab(
-                page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]
-            )
-        )
-        refresh_fns.append(render_pnl_tab(page_containers["pnl"]))
-
-        # Historical backtest — always render
-        refresh_fns.append(
-            render_rsi_only_tab(page_containers["rsi_nifty"], "NIFTY")
-        )
-        refresh_fns.append(
-            render_rsi_only_tab(page_containers["rsi_banknifty"], "BANKNIFTY")
-        )
-        refresh_fns.append(
-            render_abcd_only_tab(page_containers["abcd_nifty"], "NIFTY")
-        )
-        refresh_fns.append(
-            render_abcd_only_tab(page_containers["abcd_banknifty"], "BANKNIFTY")
-        )
+        refresh_fns["markets"]      = render_markets_tab(page_containers["markets"])
+        refresh_fns["nifty"]        = render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
+        refresh_fns["banknifty"]    = render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"])
+        refresh_fns["pnl"]          = render_pnl_tab(page_containers["pnl"])
+        refresh_fns["rsi_nifty"]    = render_rsi_only_tab(page_containers["rsi_nifty"], "NIFTY")
+        refresh_fns["rsi_banknifty"]= render_rsi_only_tab(page_containers["rsi_banknifty"], "BANKNIFTY")
+        refresh_fns["abcd_nifty"]   = render_abcd_only_tab(page_containers["abcd_nifty"], "NIFTY")
+        refresh_fns["abcd_banknifty"]= render_abcd_only_tab(page_containers["abcd_banknifty"], "BANKNIFTY")
 
         # Live algo tabs need market open
         if market_open:
-            refresh_fns.append(render_algo_tab(page_containers["abcd"], "abcd"))
-            refresh_fns.append(render_algo_tab(page_containers["rsi"], "rsi"))
+            refresh_fns["abcd"] = render_algo_tab(page_containers["abcd"], "abcd")
+            refresh_fns["rsi"]  = render_algo_tab(page_containers["rsi"], "rsi")
         else:
             render_market_closed(page_containers["abcd"])
             render_market_closed(page_containers["rsi"])
 
     async def full_refresh():
-        """Rebuild UI if market state changed, then refresh data."""
+        """Rebuild UI if market state changed, then refresh active page only."""
         if page_client._deleted:
             return
 
@@ -314,22 +300,20 @@ async def index():
 
         if current_open != _prev_market_open[0]:
             _prev_market_open[0] = current_open
-            await build_ui()
+            try:
+                await build_ui()
+            except Exception as build_err:
+                print(f"  [build_ui error] {build_err}")
+
+        # Only refresh whichever page the user is currently viewing
+        active = active_page["value"]
+        fn = refresh_fns.get(active)
+        if fn is None:
+            return  # static page (e.g. market-closed placeholder)
 
         status_label.text = f"Refreshing... {now_ist().strftime('%H:%M:%S')}"
         try:
-            for fn in refresh_fns:
-                if page_client._deleted:
-                    return
-                try:
-                    await fn()
-                except Exception as fn_err:
-                    if page_client._deleted:
-                        return
-                    print(f"  [refresh fn error] {fn_err}")
-                if page_client._deleted:
-                    return
-                await asyncio.sleep(1)
+            await fn()
             if not page_client._deleted:
                 status_label.text = f"Last refresh: {now_ist().strftime('%H:%M:%S')} | Next in {REFRESH_SECONDS}s"
         except Exception as e:
@@ -338,6 +322,9 @@ async def index():
             print(f"  [refresh error] {e}")
 
         pass  # scheduled messages sent by background task
+
+    # Wire up the navigation trigger (must be set after full_refresh is defined)
+    _refresh_trigger[0] = full_refresh
 
     # Initial build and refresh
     await build_ui()

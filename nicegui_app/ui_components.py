@@ -37,7 +37,11 @@ def build_option_chain_table(container, df, atm):
             {"name": col, "label": col, "field": col, "sortable": True, "align": "left"}
             for col in display_df.columns
         ]
-        rows = display_df.to_dict("records")
+        # to_dict("records") returns numpy types — convert to native Python for orjson
+        rows = [
+            {k: (v.item() if hasattr(v, "item") else v) for k, v in row.items()}
+            for row in display_df.to_dict("records")
+        ]
 
         table = ui.table(columns=columns, rows=rows, row_key="Strike").classes("w-full")
         table.props("dense flat bordered")

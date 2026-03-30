@@ -7,7 +7,7 @@ from nicegui import ui
 from config import now_ist, REFRESH_SECONDS, get_next_holiday
 
 
-def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
+def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigate=None):
     """Build the sidebar navigation inside the given drawer."""
 
     def set_active_page(page_id):
@@ -19,6 +19,8 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers):
                 btn.classes(remove="nav-btn-active")
         for nid, cont in page_containers.items():
             cont.set_visibility(nid == page_id)
+        if on_navigate:
+            on_navigate(page_id)
 
     def _nav_button(page_id, label, icon, indent=False, color="text-gray-800"):
         cls = "nav-sub-btn" if indent else "nav-btn"

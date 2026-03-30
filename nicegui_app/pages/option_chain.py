@@ -27,24 +27,38 @@ def render_index_tab(container, index_name, cfg):
         expiry_tabs_container = ui.element("div").classes("w-full")
 
     async def refresh():
+        loop = asyncio.get_event_loop()
         try:
-            expiries = get_expiries(scrip, segment, 3)
+            expiries = await loop.run_in_executor(
+                None, lambda: get_expiries(scrip, segment, 3)
+            )
             print(f"  [{index_name}] got expiries: {expiries}")
         except Exception as e:
             print(f"  [{index_name}] expiry error: {e}")
-            spot_label.text = f"Error: {e}"
+            if not spot_label.client._deleted:
+                spot_label.text = f"Error: {e}"
+            return
+
+        if spot_label.client._deleted:
             return
 
         chain_data = {}
         for expiry in expiries:
             try:
-                spot, df = fetch_option_chain(scrip, segment, expiry)
+                spot, df = await loop.run_in_executor(
+                    None, lambda e=expiry: fetch_option_chain(scrip, segment, e)
+                )
                 chain_data[expiry] = (spot, df)
                 print(f"  [{index_name}] {expiry}: spot={spot}, rows={len(df)}")
             except Exception as e:
                 print(f"  [{index_name}] {expiry} error: {e}")
                 chain_data[expiry] = e
-            await asyncio.sleep(1)
+            if spot_label.client._deleted:
+                return
+            await asyncio.sleep(0.2)
+
+        if spot_label.client._deleted:
+            return
 
         spot_val = None
         for result in chain_data.values():

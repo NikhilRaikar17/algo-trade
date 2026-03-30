@@ -3,6 +3,7 @@ RSI-only algo trading tab page.
 Fetches index daily candles, computes RSI, backtests signals, shows chart + results.
 """
 
+import asyncio
 import traceback
 import pandas as pd
 from nicegui import ui
@@ -38,8 +39,15 @@ def render_rsi_only_tab(container, index_name="NIFTY"):
 
     async def refresh():
         try:
-            _build_rsi_only_content(content_container, index_name)
+            candles = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: fetch_index_15min_candles(index_name)
+            )
+            if content_container.client._deleted:
+                return
+            _build_rsi_only_content(content_container, index_name, candles)
         except Exception as e:
+            if content_container.client._deleted:
+                return
             content_container.clear()
             with content_container:
                 ui.label(f"Error: {e}").classes("text-red-500")
@@ -48,10 +56,8 @@ def render_rsi_only_tab(container, index_name="NIFTY"):
     return refresh
 
 
-def _build_rsi_only_content(container, index_name="NIFTY"):
-    """Fetch data, run backtest, render charts and tables."""
-    candles = fetch_index_15min_candles(index_name)
-
+def _build_rsi_only_content(container, index_name, candles):
+    """Run backtest and render charts and tables from pre-fetched candles."""
     container.clear()
     with container:
         if candles.empty:

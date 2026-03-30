@@ -38,9 +38,9 @@ def find_swing_points(df, order=3):
         ):
             swings.append(
                 {
-                    "index": i,
+                    "index": int(i),
                     "type": "high",
-                    "price": highs[i],
+                    "price": float(highs[i]),
                     "time": df["timestamp"].iloc[i],
                 }
             )
@@ -49,9 +49,9 @@ def find_swing_points(df, order=3):
         ):
             swings.append(
                 {
-                    "index": i,
+                    "index": int(i),
                     "type": "low",
-                    "price": lows[i],
+                    "price": float(lows[i]),
                     "time": df["timestamp"].iloc[i],
                 }
             )
@@ -85,11 +85,11 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "B": b,
                         "C": c,
                         "D": d,
-                        "BC_retrace": round(bc_ratio, 3),
-                        "CD_AB_ratio": round(cd_ab_ratio, 3),
-                        "entry": d["price"],
-                        "target": d["price"] + ab,
-                        "stop_loss": c["price"],
+                        "BC_retrace": round(float(bc_ratio), 3),
+                        "CD_AB_ratio": round(float(cd_ab_ratio), 3),
+                        "entry": float(d["price"]),
+                        "target": float(d["price"] + ab),
+                        "stop_loss": float(c["price"]),
                         "signal": "SELL CE / BUY PE at D",
                     }
                 )
@@ -116,11 +116,11 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "B": b,
                         "C": c,
                         "D": d,
-                        "BC_retrace": round(bc_ratio, 3),
-                        "CD_AB_ratio": round(cd_ab_ratio, 3),
-                        "entry": d["price"],
-                        "target": d["price"] - ab,
-                        "stop_loss": c["price"],
+                        "BC_retrace": round(float(bc_ratio), 3),
+                        "CD_AB_ratio": round(float(cd_ab_ratio), 3),
+                        "entry": float(d["price"]),
+                        "target": float(d["price"] - ab),
+                        "stop_loss": float(c["price"]),
                         "signal": "BUY CE / SELL PE at D",
                     }
                 )

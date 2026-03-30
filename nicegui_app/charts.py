@@ -9,14 +9,15 @@ from config import SMA_FAST, SMA_SLOW, RSI_OVERBOUGHT, RSI_OVERSOLD
 
 def build_candlestick_with_abcd(candles, swings, patterns, contract_name, current_price):
     """Build a Plotly candlestick chart with ABCD pattern overlay."""
+    ts = _to_str_timestamps(candles["timestamp"])
     fig = go.Figure()
     fig.add_trace(
         go.Candlestick(
-            x=candles["timestamp"],
-            open=candles["open"],
-            high=candles["high"],
-            low=candles["low"],
-            close=candles["close"],
+            x=ts,
+            open=candles["open"].tolist(),
+            high=candles["high"].tolist(),
+            low=candles["low"].tolist(),
+            close=candles["close"].tolist(),
             name="Price",
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
@@ -29,8 +30,8 @@ def build_candlestick_with_abcd(candles, swings, patterns, contract_name, curren
         if swing_highs:
             fig.add_trace(
                 go.Scatter(
-                    x=[s["time"] for s in swing_highs],
-                    y=[s["price"] for s in swing_highs],
+                    x=[_sig_time_str(s) for s in swing_highs],
+                    y=[float(s["price"]) for s in swing_highs],
                     mode="markers",
                     marker=dict(symbol="triangle-down", size=10, color="#ef5350"),
                     name="Swing High",
@@ -39,8 +40,8 @@ def build_candlestick_with_abcd(candles, swings, patterns, contract_name, curren
         if swing_lows:
             fig.add_trace(
                 go.Scatter(
-                    x=[s["time"] for s in swing_lows],
-                    y=[s["price"] for s in swing_lows],
+                    x=[_sig_time_str(s) for s in swing_lows],
+                    y=[float(s["price"]) for s in swing_lows],
                     mode="markers",
                     marker=dict(symbol="triangle-up", size=10, color="#26a69a"),
                     name="Swing Low",
@@ -53,8 +54,8 @@ def build_candlestick_with_abcd(candles, swings, patterns, contract_name, curren
         pts = [p["A"], p["B"], p["C"], p["D"]]
         fig.add_trace(
             go.Scatter(
-                x=[pt["time"] for pt in pts],
-                y=[pt["price"] for pt in pts],
+                x=[_sig_time_str({"time": pt["time"]}) for pt in pts],
+                y=[float(pt["price"]) for pt in pts],
                 mode="lines+markers+text",
                 line=dict(color=color, width=2, dash="dot"),
                 marker=dict(size=12, color=color),
@@ -65,17 +66,17 @@ def build_candlestick_with_abcd(candles, swings, patterns, contract_name, curren
             )
         )
         fig.add_hline(
-            y=p["target"],
+            y=float(p["target"]),
             line_dash="dash",
             line_color="green",
-            annotation_text=f"Target {p['target']:.2f}",
+            annotation_text=f"Target {float(p['target']):.2f}",
             annotation_position="bottom right",
         )
         fig.add_hline(
-            y=p["stop_loss"],
+            y=float(p["stop_loss"]),
             line_dash="dash",
             line_color="red",
-            annotation_text=f"SL {p['stop_loss']:.2f}",
+            annotation_text=f"SL {float(p['stop_loss']):.2f}",
             annotation_position="bottom right",
         )
 
@@ -92,24 +93,26 @@ def build_candlestick_with_abcd(candles, swings, patterns, contract_name, curren
 
 def build_candlestick_with_rsi_sma(candles, df_ind, signals):
     """Build Plotly candlestick + SMA + RSI charts for RSI+SMA strategy."""
+    ts = _to_str_timestamps(candles["timestamp"])
     fig = go.Figure()
     fig.add_trace(
         go.Candlestick(
-            x=candles["timestamp"],
-            open=candles["open"],
-            high=candles["high"],
-            low=candles["low"],
-            close=candles["close"],
+            x=ts,
+            open=candles["open"].tolist(),
+            high=candles["high"].tolist(),
+            low=candles["low"].tolist(),
+            close=candles["close"].tolist(),
             name="Price",
             increasing_line_color="#26a69a",
             decreasing_line_color="#ef5350",
         )
     )
     if not df_ind.empty:
+        ind_ts = _to_str_timestamps(df_ind["timestamp"])
         fig.add_trace(
             go.Scatter(
-                x=df_ind["timestamp"],
-                y=df_ind["sma_fast"],
+                x=ind_ts,
+                y=df_ind["sma_fast"].tolist(),
                 mode="lines",
                 line=dict(color="#2196f3", width=1.5),
                 name=f"SMA {SMA_FAST}",
@@ -117,8 +120,8 @@ def build_candlestick_with_rsi_sma(candles, df_ind, signals):
         )
         fig.add_trace(
             go.Scatter(
-                x=df_ind["timestamp"],
-                y=df_ind["sma_slow"],
+                x=ind_ts,
+                y=df_ind["sma_slow"].tolist(),
                 mode="lines",
                 line=dict(color="#ff9800", width=1.5),
                 name=f"SMA {SMA_SLOW}",
@@ -130,8 +133,8 @@ def build_candlestick_with_rsi_sma(candles, df_ind, signals):
     if buy_sigs:
         fig.add_trace(
             go.Scatter(
-                x=[s["time"] for s in buy_sigs],
-                y=[s["entry"] for s in buy_sigs],
+                x=[_sig_time_str(s) for s in buy_sigs],
+                y=[float(s["entry"]) for s in buy_sigs],
                 mode="markers",
                 marker=dict(symbol="triangle-up", size=14, color="#26a69a"),
                 name="Buy Signal",
@@ -140,8 +143,8 @@ def build_candlestick_with_rsi_sma(candles, df_ind, signals):
     if sell_sigs:
         fig.add_trace(
             go.Scatter(
-                x=[s["time"] for s in sell_sigs],
-                y=[s["entry"] for s in sell_sigs],
+                x=[_sig_time_str(s) for s in sell_sigs],
+                y=[float(s["entry"]) for s in sell_sigs],
                 mode="markers",
                 marker=dict(symbol="triangle-down", size=14, color="#ef5350"),
                 name="Sell Signal",
@@ -160,8 +163,8 @@ def build_candlestick_with_rsi_sma(candles, df_ind, signals):
     if not df_ind.empty:
         fig_rsi.add_trace(
             go.Scatter(
-                x=df_ind["timestamp"],
-                y=df_ind["rsi"],
+                x=ind_ts,
+                y=df_ind["rsi"].tolist(),
                 mode="lines",
                 line=dict(color="#9c27b0", width=1.5),
                 name="RSI",

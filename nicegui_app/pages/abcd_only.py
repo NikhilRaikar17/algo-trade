@@ -3,6 +3,7 @@ ABCD Harmonic historical backtest tab page.
 Fetches index 15-min candles, detects ABCD patterns, backtests, shows chart + results.
 """
 
+import asyncio
 import traceback
 from nicegui import ui
 
@@ -33,8 +34,15 @@ def render_abcd_only_tab(container, index_name="NIFTY"):
 
     async def refresh():
         try:
-            _build_abcd_content(content_container, index_name)
+            candles = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: fetch_index_15min_candles(index_name)
+            )
+            if content_container.client._deleted:
+                return
+            _build_abcd_content(content_container, index_name, candles)
         except Exception as e:
+            if content_container.client._deleted:
+                return
             content_container.clear()
             with content_container:
                 ui.label(f"Error: {e}").classes("text-red-500")
@@ -43,10 +51,8 @@ def render_abcd_only_tab(container, index_name="NIFTY"):
     return refresh
 
 
-def _build_abcd_content(container, index_name="NIFTY"):
-    """Fetch data, detect patterns, backtest, render charts and tables."""
-    candles = fetch_index_15min_candles(index_name)
-
+def _build_abcd_content(container, index_name, candles):
+    """Detect patterns, backtest, render charts and tables from pre-fetched candles."""
     container.clear()
     with container:
         if candles.empty:
