@@ -92,18 +92,21 @@ async def index():
                    white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
                    min-height: 36px !important; padding: 4px 12px !important; font-size: 0.85rem !important; }
         .nav-btn .q-btn__content { justify-content: flex-start !important; gap: 10px; flex-wrap: nowrap !important; overflow: hidden !important; }
+        .nav-btn .q-icon { color: #3b82f6 !important; }
         .nav-btn-active { background: rgba(59, 130, 246, 0.12) !important; color: #3b82f6 !important; font-weight: 600 !important; }
         .nav-sub-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important;
                        white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
                        min-height: 32px !important; padding: 2px 8px !important; font-size: 0.8rem !important; }
         .nav-sub-btn .q-btn__content { justify-content: flex-start !important; gap: 6px; flex-wrap: nowrap !important; overflow: hidden !important; }
+        .nav-sub-btn .q-icon { color: #3b82f6 !important; }
         .header-bar { backdrop-filter: blur(8px); }
         .nav-section-label {
             font-size: 0.6rem; font-weight: 700; color: #9ca3af;
             text-transform: uppercase; letter-spacing: 0.08em;
             padding: 6px 16px 2px 16px;
         }
-        .q-expansion-item { font-size: 0.82rem !important; }
+        .q-expansion-item { font-size: 0.82rem !important; color: #111827 !important; }
+        .q-expansion-item .q-icon { color: #3b82f6 !important; }
         .q-expansion-item .q-item__label { white-space: nowrap !important; }
 
         /* ---- Dashboard clock cards ---- */

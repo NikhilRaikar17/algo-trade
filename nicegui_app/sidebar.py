@@ -31,8 +31,8 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                 icon=icon,
                 on_click=lambda e, pid=page_id: set_active_page(pid),
             )
-            .props("flat no-caps align=left")
-            .classes(f"{cls} rounded-lg mx-2 mb-1 {color} {ml}")
+            .props("flat no-caps align=left color=dark")
+            .classes(f"{cls} rounded-lg mx-2 mb-1 {ml}")
         )
         if page_id == active_page["value"]:
             btn.classes(add="nav-btn-active")
