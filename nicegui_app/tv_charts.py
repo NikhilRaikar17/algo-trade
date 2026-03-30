@@ -643,3 +643,98 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
     }})();
     """
     _schedule_js(js)
+
+
+# ---------------------------------------------------------------------------
+# Channel Breakout (Donchian) chart
+# ---------------------------------------------------------------------------
+
+def render_tv_channel_breakout_chart(candles, df_ind, signals, height: int = 500) -> None:
+    """Render candlestick chart with Donchian channel bands and breakout signals."""
+    chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+
+    ohlc = _candles_to_tv(candles)
+
+    upper_data: list[dict] = []
+    lower_data: list[dict] = []
+    if df_ind is not None and not df_ind.empty:
+        for _, row in df_ind.iterrows():
+            ts = _to_unix(row["timestamp"])
+            v = _safe_float(row.get("upper"))
+            if v is not None:
+                upper_data.append({"time": ts, "value": v})
+            v = _safe_float(row.get("lower"))
+            if v is not None:
+                lower_data.append({"time": ts, "value": v})
+
+    markers: list[dict] = []
+    price_lines: list[dict] = []
+    for s in signals:
+        ts = _to_unix(s["time"])
+        is_buy = s["type"] == "Bullish"
+        markers.append({
+            "time":     ts,
+            "position": "belowBar" if is_buy else "aboveBar",
+            "color":    "#26a69a" if is_buy else "#ef5350",
+            "shape":    "arrowUp" if is_buy else "arrowDown",
+            "text":     "B" if is_buy else "S",
+            "size":     1.2,
+        })
+        tgt = _safe_float(s.get("target"))
+        sl  = _safe_float(s.get("stop_loss"))
+        if tgt is not None:
+            price_lines.append({"price": tgt, "color": "#26a69a", "style": _LS_DASHED, "title": ""})
+        if sl is not None:
+            price_lines.append({"price": sl,  "color": "#ef5350", "style": _LS_DASHED, "title": ""})
+
+    markers.sort(key=lambda m: m["time"])
+
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+
+    opts = dict(_BASE_OPTS)
+    opts["height"] = height
+
+    js = f"""
+    (function initCB_{chart_id}() {{
+        var el = document.getElementById('{chart_id}');
+        if (!el || !el.clientWidth) {{
+            setTimeout(initCB_{chart_id}, 50);
+            return;
+        }}
+        var opts = {json.dumps(opts)};
+        opts.width = el.clientWidth;
+        var chart = LightweightCharts.createChart(el, opts);
+
+        var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+        cs.setData({json.dumps(ohlc)});
+        cs.setMarkers({json.dumps(markers)});
+
+        {json.dumps(price_lines)}.forEach(function(pl) {{
+            cs.createPriceLine({{
+                price: pl.price, color: pl.color, lineWidth: 1,
+                lineStyle: pl.style, axisLabelVisible: false, title: pl.title,
+            }});
+        }});
+
+        var upperData = {json.dumps(upper_data)};
+        if (upperData.length) {{
+            chart.addLineSeries({{
+                color: '#3b82f6', lineWidth: 1.5, lineStyle: {_LS_DASHED},
+                crosshairMarkerVisible: false, lastValueVisible: true,
+                priceLineVisible: false, title: 'Upper',
+            }}).setData(upperData);
+        }}
+        var lowerData = {json.dumps(lower_data)};
+        if (lowerData.length) {{
+            chart.addLineSeries({{
+                color: '#f59e0b', lineWidth: 1.5, lineStyle: {_LS_DASHED},
+                crosshairMarkerVisible: false, lastValueVisible: true,
+                priceLineVisible: false, title: 'Lower',
+            }}).setData(lowerData);
+        }}
+
+        chart.timeScale().fitContent();
+        {_resize_listener("chart", "el")}
+    }})();
+    """
+    _schedule_js(js)

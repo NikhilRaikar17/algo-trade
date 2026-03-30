@@ -642,6 +642,137 @@ def backtest_double_bottom(signals, candles):
     return trades
 
 
+# ================= CHANNEL BREAKOUT (DONCHIAN) =================
+
+CB_PERIOD = 20
+CB_TARGET_PCT = 0.015  # 1.5% target
+CB_SL_PCT = 0.01       # 1.0% stop loss
+
+
+def detect_channel_breakout_signals(candles, period=CB_PERIOD):
+    """
+    Donchian channel breakout strategy.
+
+    Upper channel = rolling max(high) over last N bars (excluding current).
+    Lower channel = rolling min(low) over last N bars (excluding current).
+    BUY when close crosses above upper channel; SELL when close crosses below lower.
+    """
+    df = candles.copy().reset_index(drop=True)
+    if len(df) < period + 2:
+        return [], df
+
+    # Shift by 1 so the current bar is not included in the channel calculation
+    df["upper"] = df["high"].shift(1).rolling(period).max()
+    df["lower"] = df["low"].shift(1).rolling(period).min()
+    df = df.dropna().reset_index(drop=True)
+    if len(df) < 2:
+        return [], df
+
+    signals = []
+    for i in range(1, len(df)):
+        prev = df.iloc[i - 1]
+        curr = df.iloc[i]
+        prev_close = float(prev["close"])
+        curr_close = float(curr["close"])
+        prev_upper = float(prev["upper"])
+        curr_upper = float(curr["upper"])
+        prev_lower = float(prev["lower"])
+        curr_lower = float(curr["lower"])
+
+        # BUY: close crosses above upper channel
+        if prev_close <= prev_upper and curr_close > curr_upper:
+            entry = curr_close
+            signals.append({
+                "type": "Bullish",
+                "signal": "BUY — Donchian breakout above upper",
+                "entry": round(entry, 2),
+                "target": round(entry * (1 + CB_TARGET_PCT), 2),
+                "stop_loss": round(entry * (1 - CB_SL_PCT), 2),
+                "time": curr["timestamp"],
+                "upper": round(curr_upper, 2),
+                "lower": round(curr_lower, 2),
+            })
+
+        # SELL: close crosses below lower channel
+        if prev_close >= prev_lower and curr_close < curr_lower:
+            entry = curr_close
+            signals.append({
+                "type": "Bearish",
+                "signal": "SELL — Donchian breakdown below lower",
+                "entry": round(entry, 2),
+                "target": round(entry * (1 - CB_TARGET_PCT), 2),
+                "stop_loss": round(entry * (1 + CB_SL_PCT), 2),
+                "time": curr["timestamp"],
+                "upper": round(curr_upper, 2),
+                "lower": round(curr_lower, 2),
+            })
+
+    return signals, df
+
+
+def backtest_channel_breakout(signals, candles):
+    """Walk through same-day candles after each channel breakout signal. Force-close at 3:30 PM."""
+    trades = []
+    for s in signals:
+        entry = s["entry"]
+        target = s["target"]
+        sl = s["stop_loss"]
+        signal_time = s["time"]
+        future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
+        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        last_bar = None
+        for _, bar in future.iterrows():
+            last_bar = bar
+            if s["type"] == "Bullish":
+                if float(bar["high"]) >= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(target - entry), 2),
+                    }
+                    break
+                if float(bar["low"]) <= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(sl - entry), 2),
+                    }
+                    break
+            else:
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
+                    }
+                    break
+                if float(bar["high"]) >= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+        if result["status"] == "Open" and last_bar is not None:
+            exit_px = round(float(last_bar["close"]), 2)
+            if s["type"] == "Bullish":
+                pnl = round(float(exit_px - entry), 2)
+            else:
+                pnl = round(float(entry - exit_px), 2)
+            result = {
+                "status": "Day Close",
+                "exit_price": exit_px,
+                "exit_time": last_bar["timestamp"],
+                "pnl": pnl,
+            }
+        trades.append({**s, **result})
+    return trades
+
+
 def backtest_rsi_only(signals, candles):
     """Walk through same-day candles after each signal. Force-close at 3:30 PM."""
     trades = []
