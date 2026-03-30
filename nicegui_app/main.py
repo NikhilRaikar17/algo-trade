@@ -283,7 +283,7 @@ async def index():
         refresh_fns["abcd_nifty"]   = render_abcd_only_tab(page_containers["abcd_nifty"], "NIFTY")
         refresh_fns["abcd_banknifty"]= render_abcd_only_tab(page_containers["abcd_banknifty"], "BANKNIFTY")
 
-        # Live algo tabs need market open
+        # Live algo tabs — countdown when closed, live data when open
         if market_open:
             refresh_fns["abcd"] = render_algo_tab(page_containers["abcd"], "abcd")
             refresh_fns["rsi"]  = render_algo_tab(page_containers["rsi"], "rsi")

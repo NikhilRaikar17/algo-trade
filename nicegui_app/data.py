@@ -365,7 +365,7 @@ def fetch_index_15min_candles(index_name="NIFTY"):
     return df
 
 
-def fetch_5min_candles(security_id):
+def fetch_5min_candles(security_id, interval=5):
     today = now_ist().strftime("%Y-%m-%d")
     from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=5)).strftime(
         "%Y-%m-%d"
@@ -377,7 +377,7 @@ def fetch_5min_candles(security_id):
         "OPTIDX",
         from_date,
         today,
-        interval=5,
+        interval=interval,
     )
     if r.get("status") != "success":
         return pd.DataFrame()
