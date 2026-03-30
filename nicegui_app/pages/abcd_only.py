@@ -9,7 +9,7 @@ from nicegui import ui
 
 from data import fetch_index_15min_candles
 from algo_strategies import find_swing_points, detect_abcd_patterns, backtest_abcd
-from charts import build_candlestick_with_abcd_hist
+from tv_charts import render_tv_abcd_chart
 
 
 def render_abcd_only_tab(container, index_name="NIFTY"):
@@ -67,13 +67,12 @@ def _build_abcd_content(container, index_name, candles):
         trades = backtest_abcd(patterns, candles)
 
         # --- Chart ---
-        fig = build_candlestick_with_abcd_hist(candles, swings, patterns)
         ui.label(
             f"{index_name} — Last: {candles['close'].iloc[-1]:,.2f} | "
             f"{len(candles)} candles (15-min, 5 days) | "
             f"{len(swings)} swings | {len(patterns)} patterns"
         ).classes("text-md font-semibold mb-2")
-        ui.plotly(fig).classes("w-full")
+        render_tv_abcd_chart(candles, swings, patterns)
 
         # --- Summary ---
         if not trades:

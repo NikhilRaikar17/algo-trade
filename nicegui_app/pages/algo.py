@@ -18,7 +18,7 @@ from algo_strategies import (
     detect_rsi_sma_signals,
     classify_rsi_trades,
 )
-from charts import build_candlestick_with_abcd, build_candlestick_with_rsi_sma
+from tv_charts import render_tv_abcd_chart, render_tv_rsi_sma_chart
 from ui_components import build_trade_table
 import ws_feed
 
@@ -142,10 +142,7 @@ def _render_algo_option(container, cfg, expiry, raw, candles_by_type, algo_type=
                             f"{len(candles)} candles (5-min, today)"
                         ).classes("text-md font-semibold")
 
-                        fig = build_candlestick_with_abcd(
-                            candles, swings, patterns, contract_name, current_price
-                        )
-                        ui.plotly(fig).classes("w-full")
+                        render_tv_abcd_chart(candles, swings, patterns, contract_name, current_price)
 
                         if not patterns:
                             ui.label("No ABCD patterns detected today.").classes(
@@ -181,10 +178,7 @@ def _render_algo_option(container, cfg, expiry, raw, candles_by_type, algo_type=
                             f"{len(candles)} candles (5-min, today)"
                         ).classes("text-md font-semibold")
 
-                        fig, fig_rsi = build_candlestick_with_rsi_sma(candles, df_ind, signals)
-                        ui.plotly(fig).classes("w-full")
-                        if not df_ind.empty:
-                            ui.plotly(fig_rsi).classes("w-full")
+                        render_tv_rsi_sma_chart(candles, df_ind, signals)
 
                         if not signals:
                             ui.label("No RSI+SMA signals detected today.").classes(

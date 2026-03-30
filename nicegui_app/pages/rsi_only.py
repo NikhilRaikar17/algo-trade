@@ -14,7 +14,7 @@ from algo_strategies import (
     detect_rsi_only_signals,
     backtest_rsi_only,
 )
-from charts import build_candlestick_with_rsi_only
+from tv_charts import render_tv_rsi_only_chart
 
 
 def render_rsi_only_tab(container, index_name="NIFTY"):
@@ -71,14 +71,11 @@ def _build_rsi_only_content(container, index_name, candles):
         trades = backtest_rsi_only(signals, candles)
 
         # --- Charts ---
-        fig, fig_rsi = build_candlestick_with_rsi_only(candles, df_ind, signals)
         ui.label(
             f"{index_name} — Last: {candles['close'].iloc[-1]:,.2f} | "
             f"{len(candles)} candles (15-min, 5 days)"
         ).classes("text-md font-semibold mb-2")
-        ui.plotly(fig).classes("w-full")
-        if not df_ind.empty:
-            ui.plotly(fig_rsi).classes("w-full")
+        render_tv_rsi_only_chart(candles, df_ind, signals)
 
         # --- Summary ---
         if not trades:

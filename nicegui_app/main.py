@@ -67,7 +67,10 @@ async def _start_scheduler():
 async def index():
     ui.page_title("Algo Trading")
 
-    # ---- Custom CSS ----
+    # ---- Custom CSS + TradingView ----
+    ui.add_head_html(
+        '<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>'
+    )
     ui.add_head_html(
         """
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
