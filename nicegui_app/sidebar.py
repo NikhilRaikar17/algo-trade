@@ -58,18 +58,26 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
         ui.separator().classes("my-2 mx-4")
 
-        # ---- Historical Backtest ----
-        _section_label("Backtest", "bg-purple-400")
-        with ui.expansion("RSI", icon="speed").classes(
+        # ---- Strategies ----
+        _section_label("Strategies", "bg-purple-400")
+        with ui.expansion("Strategies", icon="history_edu").classes(
             "mx-2 rounded-lg text-gray-700"
         ).props("dense default-opened"):
-            _nav_button("rsi_nifty",     "NIFTY",    "show_chart",        indent=True)
-            _nav_button("rsi_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
-        with ui.expansion("ABCD", icon="insights").classes(
-            "mx-2 rounded-lg text-gray-700"
-        ).props("dense default-opened"):
-            _nav_button("abcd_nifty",     "NIFTY",    "show_chart",        indent=True)
-            _nav_button("abcd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
+            with ui.expansion("RSI", icon="speed").classes(
+                "ml-2 rounded-lg text-gray-600"
+            ).props("dense default-opened"):
+                _nav_button("rsi_nifty",     "NIFTY",    "show_chart",        indent=True)
+                _nav_button("rsi_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
+            with ui.expansion("ABCD", icon="insights").classes(
+                "ml-2 rounded-lg text-gray-600"
+            ).props("dense default-opened"):
+                _nav_button("abcd_nifty",     "NIFTY",    "show_chart",        indent=True)
+                _nav_button("abcd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
+            with ui.expansion("Double Top", icon="moving").classes(
+                "ml-2 rounded-lg text-gray-600"
+            ).props("dense default-opened"):
+                _nav_button("dt_nifty",     "NIFTY",    "show_chart",        indent=True)
+                _nav_button("dt_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
 
         ui.separator().classes("my-2 mx-4")
 
