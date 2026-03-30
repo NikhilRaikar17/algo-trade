@@ -2,6 +2,7 @@
 P&L collection, daily summary, and scheduled Telegram messages.
 """
 
+import ssl
 import urllib.request
 import xml.etree.ElementTree as ET
 
@@ -36,23 +37,33 @@ def _fetch_index_summary():
     return lines
 
 
+_RSS_FEEDS = [
+    "https://economictimes.indiatimes.com/markets/rss.cms",
+    "https://www.moneycontrol.com/rss/MCtopnews.xml",
+]
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
+
+
 def _fetch_market_news(max_items=4):
-    """Fetch top headlines from Economic Times Markets RSS."""
-    url = "https://economictimes.indiatimes.com/markets/rss.cms"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            xml_data = resp.read()
-        root = ET.fromstring(xml_data)
-        headlines = []
-        for item in root.findall(".//item")[:max_items]:
-            title = item.findtext("title", "").strip()
-            if title:
-                headlines.append(title)
-        return headlines
-    except Exception as e:
-        print(f"  [news] fetch failed: {e}")
-        return []
+    """Fetch top headlines from market RSS feeds, trying each in order."""
+    for url in _RSS_FEEDS:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
+                xml_data = resp.read()
+            root = ET.fromstring(xml_data)
+            headlines = []
+            for item in root.findall(".//item")[:max_items]:
+                title = item.findtext("title", "").strip()
+                if title:
+                    headlines.append(title)
+            if headlines:
+                return headlines
+        except Exception as e:
+            print(f"  [news] {url} failed: {e}")
+    return []
 
 
 def collect_all_trades():
@@ -88,7 +99,6 @@ def send_premarket_alert():
         return
     if _is_already_sent(premarket_key):
         return
-    _mark_sent(premarket_key)
 
     day_name = now.strftime("%A, %d %b %Y")
 
@@ -127,6 +137,7 @@ def send_premarket_alert():
             f"Market News:\n{news_section}"
             f"{caution}"
         )
+    _mark_sent(premarket_key)
     print(f"  [telegram] Pre-market alert sent for {today_str}")
 
 
@@ -142,7 +153,6 @@ def send_morning_message():
         return
     if _is_already_sent(morning_key):
         return
-    _mark_sent(morning_key)
 
     day_name = now.strftime("%A, %d %b %Y")
     _send_telegram(
@@ -152,6 +162,7 @@ def send_morning_message():
         f"Refresh interval: {REFRESH_SECONDS}s\n"
         f"Market opens at 9:15 AM IST. Let's go!"
     )
+    _mark_sent(morning_key)
     print(f"  [telegram] Morning message sent for {today_str}")
 
 
