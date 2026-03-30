@@ -646,6 +646,123 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Channel Down chart
+# ---------------------------------------------------------------------------
+
+def render_tv_channel_down_chart(candles, signals, height: int = 500) -> None:
+    """Render candlestick chart with descending channel trendlines and SELL signals."""
+    chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+
+    ohlc = _candles_to_tv(candles)
+    candle_list = list(candles.iterrows())
+
+    # Build per-signal trendline point lists spanning from H1 to end of candles
+    trendlines: list[dict] = []
+    for s in signals:
+        H1_idx      = s.get("H1_idx", 0)
+        H2_idx      = s.get("H2_idx", H1_idx + 1)
+        L1_idx      = s.get("L1_idx", H1_idx)
+        L2_idx      = s.get("L2_idx", L1_idx)
+        H1_price    = float(s["H1"])
+        H2_price    = float(s["H2"])
+        L1_price    = float(s["L1"])
+        L2_price    = float(s["L2"])
+
+        h_bars      = max(H2_idx - H1_idx, 1)
+        upper_slope = (H2_price - H1_price) / h_bars
+        if L2_idx != L1_idx:
+            l_bars      = max(L2_idx - L1_idx, 1)
+            lower_slope = (L2_price - L1_price) / l_bars
+        else:
+            lower_slope = upper_slope
+
+        upper_pts: list[dict] = []
+        lower_pts: list[dict] = []
+        for pos, (_, row) in enumerate(candle_list):
+            if pos < H1_idx:
+                continue
+            ts = _to_unix(row["timestamp"])
+            u = H1_price + upper_slope * (pos - H1_idx)
+            l = L1_price + lower_slope * (pos - L1_idx)
+            upper_pts.append({"time": ts, "value": round(float(u), 2)})
+            lower_pts.append({"time": ts, "value": round(float(l), 2)})
+
+        trendlines.append({"upper": upper_pts, "lower": lower_pts})
+
+    markers: list[dict] = []
+    price_lines: list[dict] = []
+    for s in signals:
+        ts = _to_unix(s["time"])
+        markers.append({
+            "time":     ts,
+            "position": "aboveBar",
+            "color":    "#ef5350",
+            "shape":    "arrowDown",
+            "text":     "S",
+            "size":     1.2,
+        })
+        tgt = _safe_float(s.get("target"))
+        sl  = _safe_float(s.get("stop_loss"))
+        if tgt is not None:
+            price_lines.append({"price": tgt, "color": "#26a69a", "style": _LS_DASHED, "title": ""})
+        if sl is not None:
+            price_lines.append({"price": sl,  "color": "#ef5350", "style": _LS_DASHED, "title": ""})
+
+    markers.sort(key=lambda m: m["time"])
+
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+
+    opts = dict(_BASE_OPTS)
+    opts["height"] = height
+
+    js = f"""
+    (function initCDown_{chart_id}() {{
+        var el = document.getElementById('{chart_id}');
+        if (!el || !el.clientWidth) {{
+            setTimeout(initCDown_{chart_id}, 50);
+            return;
+        }}
+        var opts = {json.dumps(opts)};
+        opts.width = el.clientWidth;
+        var chart = LightweightCharts.createChart(el, opts);
+
+        var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+        cs.setData({json.dumps(ohlc)});
+        cs.setMarkers({json.dumps(markers)});
+
+        {json.dumps(price_lines)}.forEach(function(pl) {{
+            cs.createPriceLine({{
+                price: pl.price, color: pl.color, lineWidth: 1,
+                lineStyle: pl.style, axisLabelVisible: false, title: pl.title,
+            }});
+        }});
+
+        var trendlines = {json.dumps(trendlines)};
+        trendlines.forEach(function(tl, idx) {{
+            if (tl.upper.length) {{
+                chart.addLineSeries({{
+                    color: '#ef5350', lineWidth: 1.5, lineStyle: {_LS_DASHED},
+                    crosshairMarkerVisible: false, lastValueVisible: false,
+                    priceLineVisible: false, title: idx === 0 ? 'Upper' : '',
+                }}).setData(tl.upper);
+            }}
+            if (tl.lower.length) {{
+                chart.addLineSeries({{
+                    color: '#3b82f6', lineWidth: 1.5, lineStyle: {_LS_DASHED},
+                    crosshairMarkerVisible: false, lastValueVisible: false,
+                    priceLineVisible: false, title: idx === 0 ? 'Lower' : '',
+                }}).setData(tl.lower);
+            }}
+        }});
+
+        chart.timeScale().fitContent();
+        {_resize_listener("chart", "el")}
+    }})();
+    """
+    _schedule_js(js)
+
+
+# ---------------------------------------------------------------------------
 # Channel Breakout (Donchian) chart
 # ---------------------------------------------------------------------------
 
