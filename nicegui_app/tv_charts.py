@@ -19,11 +19,19 @@ from config import SMA_FAST, SMA_SLOW, RSI_OVERBOUGHT, RSI_OVERSOLD
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+_IST_OFFSET = 5 * 3600 + 30 * 60  # UTC+5:30 in seconds
+
+
 def _to_unix(ts) -> int:
-    """Convert a pandas Timestamp (or anything with .timestamp()) to Unix seconds."""
+    """Convert a pandas Timestamp to a UTC-shifted unix value for IST display.
+
+    Lightweight Charts v4 has no timezone config — it always renders timestamps
+    as UTC wall-clock time.  Adding the IST offset (19800 s) makes the chart
+    show the correct IST time regardless of the browser's locale.
+    """
     if hasattr(ts, "timestamp"):
-        return int(ts.timestamp())
-    return int(ts)
+        return int(ts.timestamp()) + _IST_OFFSET
+    return int(ts) + _IST_OFFSET
 
 
 def _candles_to_tv(candles) -> list:
@@ -47,6 +55,30 @@ def _safe_float(v) -> float | None:
         return None if math.isnan(f) else f
     except (TypeError, ValueError):
         return None
+
+
+def _dedup_markers(markers: list[dict]) -> list[dict]:
+    """
+    TradingView silently drops all but the last marker when multiple markers
+    share the same unix timestamp.  Merge colliding markers by concatenating
+    their text labels separated by '/'.
+    """
+    seen: dict[int, dict] = {}
+    for m in markers:
+        t = m["time"]
+        if t in seen:
+            existing = seen[t]
+            # Merge text; keep the higher-priority marker's style (larger size wins)
+            merged_text = "/".join(
+                p for p in [existing["text"], m["text"]] if p
+            )
+            if m["size"] >= existing["size"]:
+                seen[t] = {**m, "text": merged_text}
+            else:
+                seen[t] = {**existing, "text": merged_text}
+        else:
+            seen[t] = m
+    return sorted(seen.values(), key=lambda m: m["time"])
 
 
 _BASE_OPTS = {
@@ -140,8 +172,11 @@ def render_tv_abcd_chart(
             pt = p[key]
             t  = _to_unix(pt["time"])
             pts.append({"time": t, "value": float(pt["price"])})
-            # Label marker for each ABCD point
-            is_high_pt = key in ("A", "C")
+            # Label marker for each ABCD point.
+            # Bullish ABCD: A=low, B=high, C=low, D=low (entry).
+            # Bearish ABCD: A=high, B=low, C=high, D=high (entry).
+            is_bearish = p.get("type", "").lower() == "bearish"
+            is_high_pt = (key in ("A", "C")) if is_bearish else (key in ("B",))
             markers.append({
                 "time":     t,
                 "position": "aboveBar" if is_high_pt else "belowBar",
@@ -166,7 +201,7 @@ def render_tv_abcd_chart(
         })
 
     # Markers must be sorted by time for TradingView
-    markers.sort(key=lambda m: m["time"])
+    markers = _dedup_markers(markers)
 
     ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
 
@@ -245,8 +280,8 @@ def render_tv_rsi_sma_chart(
             "text":     "",
             "size":     0.8,
         })
-    price_markers.sort(key=lambda m: m["time"])
-    rsi_markers.sort(key=lambda m: m["time"])
+    price_markers = _dedup_markers(price_markers)
+    rsi_markers = _dedup_markers(rsi_markers)
 
     # Indicator series data
     sma_fast: list[dict] = []
@@ -385,8 +420,8 @@ def render_tv_rsi_only_chart(
         if sl is not None:
             price_lines.append({"price": sl,  "color": "#ef5350", "style": _LS_DASHED, "title": ""})
 
-    price_markers.sort(key=lambda m: m["time"])
-    rsi_markers.sort(key=lambda m: m["time"])
+    price_markers = _dedup_markers(price_markers)
+    rsi_markers = _dedup_markers(rsi_markers)
 
     # RSI series data
     rsi_data: list[dict] = []
@@ -516,7 +551,7 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> None:
             "title": f"SL {s['stop_loss']:.0f}",
         })
 
-    markers.sort(key=lambda m: m["time"])
+    markers = _dedup_markers(markers)
 
     ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
 
@@ -609,7 +644,7 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
             "title": f"SL {s['stop_loss']:.0f}",
         })
 
-    markers.sort(key=lambda m: m["time"])
+    markers = _dedup_markers(markers)
 
     ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
 
@@ -692,9 +727,41 @@ def render_tv_channel_down_chart(candles, signals, height: int = 500) -> None:
     markers: list[dict] = []
     price_lines: list[dict] = []
     for s in signals:
-        ts = _to_unix(s["time"])
+        # Mark the two upper-channel highs (H1, H2) and lower-channel lows (L1, L2)
         markers.append({
-            "time":     ts,
+            "time":     _to_unix(s["H1_time"]),
+            "position": "aboveBar",
+            "color":    "#ef5350",
+            "shape":    "circle",
+            "text":     "H1",
+            "size":     0.8,
+        })
+        markers.append({
+            "time":     _to_unix(s["H2_time"]),
+            "position": "aboveBar",
+            "color":    "#ef5350",
+            "shape":    "circle",
+            "text":     "H2",
+            "size":     0.8,
+        })
+        markers.append({
+            "time":     _to_unix(s["L1_time"]),
+            "position": "belowBar",
+            "color":    "#3b82f6",
+            "shape":    "circle",
+            "text":     "L1",
+            "size":     0.8,
+        })
+        markers.append({
+            "time":     _to_unix(s["L2_time"]),
+            "position": "belowBar",
+            "color":    "#3b82f6",
+            "shape":    "circle",
+            "text":     "L2",
+            "size":     0.8,
+        })
+        markers.append({
+            "time":     _to_unix(s["time"]),
             "position": "aboveBar",
             "color":    "#ef5350",
             "shape":    "arrowDown",
@@ -704,11 +771,11 @@ def render_tv_channel_down_chart(candles, signals, height: int = 500) -> None:
         tgt = _safe_float(s.get("target"))
         sl  = _safe_float(s.get("stop_loss"))
         if tgt is not None:
-            price_lines.append({"price": tgt, "color": "#26a69a", "style": _LS_DASHED, "title": ""})
+            price_lines.append({"price": tgt, "color": "#26a69a", "style": _LS_DASHED, "title": f"T {tgt:.0f}"})
         if sl is not None:
-            price_lines.append({"price": sl,  "color": "#ef5350", "style": _LS_DASHED, "title": ""})
+            price_lines.append({"price": sl,  "color": "#ef5350", "style": _LS_DASHED, "title": f"SL {sl:.0f}"})
 
-    markers.sort(key=lambda m: m["time"])
+    markers = _dedup_markers(markers)
 
     ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
 
@@ -733,7 +800,7 @@ def render_tv_channel_down_chart(candles, signals, height: int = 500) -> None:
         {json.dumps(price_lines)}.forEach(function(pl) {{
             cs.createPriceLine({{
                 price: pl.price, color: pl.color, lineWidth: 1,
-                lineStyle: pl.style, axisLabelVisible: false, title: pl.title,
+                lineStyle: pl.style, axisLabelVisible: true, title: pl.title,
             }});
         }});
 
@@ -804,7 +871,7 @@ def render_tv_channel_breakout_chart(candles, df_ind, signals, height: int = 500
         if sl is not None:
             price_lines.append({"price": sl,  "color": "#ef5350", "style": _LS_DASHED, "title": ""})
 
-    markers.sort(key=lambda m: m["time"])
+    markers = _dedup_markers(markers)
 
     ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
 
@@ -886,7 +953,7 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> None:
             "text":     "B" if is_buy else "S",
             "size":     1.2,
         })
-    markers.sort(key=lambda m: m["time"])
+    markers = _dedup_markers(markers)
 
     ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
 
