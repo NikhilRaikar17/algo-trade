@@ -38,18 +38,12 @@ ALL_PAGE_IDS = [
     "banknifty",
     "abcd",
     "rsi",
-    "rsi_nifty",
-    "rsi_banknifty",
-    "abcd_nifty",
-    "abcd_banknifty",
-    "dt_nifty",
-    "dt_banknifty",
-    "db_nifty",
-    "db_banknifty",
-    "cb_nifty",
-    "cb_banknifty",
-    "cd_nifty",
-    "cd_banknifty",
+    "rsi_only",
+    "abcd_only",
+    "dt_only",
+    "db_only",
+    "cb_only",
+    "cd_only",
     "sma50",
     "pnl",
 ]
@@ -305,23 +299,17 @@ async def index():
             if pid != "dashboard":
                 page_containers[pid].clear()
 
-        refresh_fns["markets"]      = render_markets_tab(page_containers["markets"])
-        refresh_fns["nifty"]        = render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
-        refresh_fns["banknifty"]    = render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"])
-        refresh_fns["pnl"]          = render_pnl_tab(page_containers["pnl"])
-        refresh_fns["rsi_nifty"]    = render_rsi_only_tab(page_containers["rsi_nifty"], "NIFTY")
-        refresh_fns["rsi_banknifty"]= render_rsi_only_tab(page_containers["rsi_banknifty"], "BANKNIFTY")
-        refresh_fns["abcd_nifty"]    = render_abcd_only_tab(page_containers["abcd_nifty"], "NIFTY")
-        refresh_fns["abcd_banknifty"] = render_abcd_only_tab(page_containers["abcd_banknifty"], "BANKNIFTY")
-        refresh_fns["dt_nifty"]      = render_double_top_tab(page_containers["dt_nifty"], "NIFTY")
-        refresh_fns["dt_banknifty"]  = render_double_top_tab(page_containers["dt_banknifty"], "BANKNIFTY")
-        refresh_fns["db_nifty"]      = render_double_bottom_tab(page_containers["db_nifty"], "NIFTY")
-        refresh_fns["db_banknifty"]  = render_double_bottom_tab(page_containers["db_banknifty"], "BANKNIFTY")
-        refresh_fns["cb_nifty"]      = render_channel_breakout_tab(page_containers["cb_nifty"], "NIFTY")
-        refresh_fns["cb_banknifty"]  = render_channel_breakout_tab(page_containers["cb_banknifty"], "BANKNIFTY")
-        refresh_fns["cd_nifty"]      = render_channel_down_tab(page_containers["cd_nifty"], "NIFTY")
-        refresh_fns["cd_banknifty"]  = render_channel_down_tab(page_containers["cd_banknifty"], "BANKNIFTY")
-        refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
+        refresh_fns["markets"]   = render_markets_tab(page_containers["markets"])
+        refresh_fns["nifty"]     = render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
+        refresh_fns["banknifty"] = render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"])
+        refresh_fns["pnl"]       = render_pnl_tab(page_containers["pnl"])
+        refresh_fns["rsi_only"]  = render_rsi_only_tab(page_containers["rsi_only"])
+        refresh_fns["abcd_only"] = render_abcd_only_tab(page_containers["abcd_only"])
+        refresh_fns["dt_only"]   = render_double_top_tab(page_containers["dt_only"])
+        refresh_fns["db_only"]   = render_double_bottom_tab(page_containers["db_only"])
+        refresh_fns["cb_only"]   = render_channel_breakout_tab(page_containers["cb_only"])
+        refresh_fns["cd_only"]   = render_channel_down_tab(page_containers["cd_only"])
+        refresh_fns["sma50"]     = render_sma50_tab(page_containers["sma50"])
 
         # Live algo tabs — countdown when closed, live data when open
         if market_open:

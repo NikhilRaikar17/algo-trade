@@ -1,6 +1,6 @@
 """
 RSI-only algo trading tab page.
-Fetches index daily candles, computes RSI, backtests signals, shows chart + results.
+Fetches 15-min candles for any NSE index or stock, computes RSI, backtests signals.
 """
 
 import asyncio
@@ -8,7 +8,7 @@ import traceback
 import pandas as pd
 from nicegui import ui
 
-from data import fetch_index_15min_candles
+from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles
 from algo_strategies import (
     compute_rsi,
     detect_rsi_only_signals,
@@ -17,12 +17,46 @@ from algo_strategies import (
 from tv_charts import render_tv_rsi_only_chart
 
 
-def render_rsi_only_tab(container, index_name="NIFTY"):
-    """Build the RSI-only backtester tab for given index."""
+# Build option groups: {group_label: {value: display_name}}
+# Stock IDs prefixed with "EQ:" to distinguish from index IDs
+_OPTION_GROUPS: dict[str, dict[str, str]] = {}
+for _g in MARKET_WATCH_GROUPS:
+    _OPTION_GROUPS[_g["group"]] = {
+        idx["security_id"]: idx["name"]
+        for idx in _g["indices"]
+    }
+for _g in STOCK_WATCH_GROUPS:
+    key = f"Stocks – {_g['group']}"
+    _OPTION_GROUPS[key] = {
+        f"EQ:{s['security_id']}:{s['name']}": s["name"]
+        for s in _g["stocks"]
+    }
+
+_ALL_OPTIONS: dict[str, str] = {
+    k: v
+    for group_opts in _OPTION_GROUPS.values()
+    for k, v in group_opts.items()
+}
+
+_DEFAULT_SEC_ID = "13"   # NIFTY 50
+_DEFAULT_LABEL  = _ALL_OPTIONS[_DEFAULT_SEC_ID]
+
+
+def _parse_option_value(value: str):
+    """Return (security_id, is_equity) from the dropdown value key."""
+    if value.startswith("EQ:"):
+        _, sec_id, _ = value.split(":", 2)
+        return sec_id, True
+    return value, False
+
+
+def render_rsi_only_tab(container):
+    """Build the RSI-only backtester tab. Returns an async refresh() closure."""
+
+    selected = {"security_id": _DEFAULT_SEC_ID, "label": _DEFAULT_LABEL}
+
     with container:
-        ui.label(f"RSI-Only Scanner — {index_name} Daily").classes(
-            "text-xl font-bold mb-2"
-        )
+        ui.label("RSI-Only Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
             "bg-purple-50 border border-purple-200 rounded-lg px-4 py-2 mb-3"
         ):
@@ -30,38 +64,69 @@ def render_rsi_only_tab(container, index_name="NIFTY"):
                 "Strategy: Trade on RSI overbought/oversold crossings | "
                 "Target: 1.5% | SL: 1% | RSI Period: 14 | 15-min candles | 5 days"
             ).classes("text-sm text-purple-700")
+
+        # ---- Instrument selector ----
+        with ui.row().classes("items-center gap-3 mb-4"):
+            ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
+            ui.select(
+                options=_ALL_OPTIONS,
+                value=_DEFAULT_SEC_ID,
+                label="",
+                on_change=lambda e: asyncio.ensure_future(
+                    _load(e.value, _ALL_OPTIONS.get(e.value, e.value))
+                ),
+            ).props("outlined dense use-input input-debounce=0").classes("w-64")
+
         content_container = ui.element("div").classes("w-full")
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            ui.label(f"Loading {index_name} RSI data...").classes(
+            ui.label(f"Loading {_DEFAULT_LABEL} RSI data...").classes(
                 "text-gray-500 text-center w-full"
             )
 
-    async def refresh():
+    async def _load(security_id: str, label: str):
+        selected["security_id"] = security_id
+        selected["label"] = label
+
+        if content_container.client._deleted:
+            return
+
+        content_container.clear()
+        with content_container:
+            ui.spinner("dots", size="lg").classes("mx-auto my-8")
+            ui.label(f"Loading {label} RSI data...").classes(
+                "text-gray-500 text-center w-full"
+            )
+
         try:
+            sec_id, is_equity = _parse_option_value(security_id)
+            fetch_fn = _fetch_any_stock_candles if is_equity else _fetch_any_index_candles
             candles = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: fetch_index_15min_candles(index_name)
+                None, lambda: fetch_fn(sec_id)
             )
             if content_container.client._deleted:
                 return
-            _build_rsi_only_content(content_container, index_name, candles)
+            _build_rsi_only_content(content_container, label, candles)
         except Exception as e:
             if content_container.client._deleted:
                 return
             content_container.clear()
             with content_container:
                 ui.label(f"Error: {e}").classes("text-red-500")
-            print(f"  [rsi_only:{index_name}] error:\n{traceback.format_exc()}")
+            print(f"  [rsi_only:{label}] error:\n{traceback.format_exc()}")
+
+    async def refresh():
+        await _load(selected["security_id"], selected["label"])
 
     return refresh
 
 
-def _build_rsi_only_content(container, index_name, candles):
+def _build_rsi_only_content(container, label, candles):
     """Run backtest and render charts and tables from pre-fetched candles."""
     container.clear()
     with container:
         if candles.empty:
-            ui.label(f"No {index_name} daily candle data available.").classes(
+            ui.label(f"No candle data available for {label}.").classes(
                 "text-orange-500"
             )
             return
@@ -72,7 +137,7 @@ def _build_rsi_only_content(container, index_name, candles):
 
         # --- Charts ---
         ui.label(
-            f"{index_name} — Last: {candles['close'].iloc[-1]:,.2f} | "
+            f"{label} — Last: {candles['close'].iloc[-1]:,.2f} | "
             f"{len(candles)} candles (15-min, 5 days)"
         ).classes("text-md font-semibold mb-2")
         render_tv_rsi_only_chart(candles, df_ind, signals)
@@ -156,7 +221,6 @@ def _build_rsi_only_content(container, index_name, candles):
         ).classes("w-full")
         table.props("dense flat bordered")
 
-        # Color P&L cells
         table.add_slot(
             "body-cell-pnl",
             r"""

@@ -63,37 +63,13 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         with ui.expansion("Strategies", icon="history_edu").classes(
             "mx-2 rounded-lg text-gray-700"
         ).props("dense"):
-            with ui.expansion("RSI", icon="speed").classes(
-                "ml-2 rounded-lg text-gray-600"
-            ).props("dense"):
-                _nav_button("rsi_nifty",     "NIFTY",    "show_chart",        indent=True)
-                _nav_button("rsi_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
-            with ui.expansion("ABCD", icon="insights").classes(
-                "ml-2 rounded-lg text-gray-600"
-            ).props("dense"):
-                _nav_button("abcd_nifty",     "NIFTY",    "show_chart",        indent=True)
-                _nav_button("abcd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
-            with ui.expansion("Double Top", icon="moving").classes(
-                "ml-2 rounded-lg text-gray-600"
-            ).props("dense"):
-                _nav_button("dt_nifty",     "NIFTY",    "show_chart",        indent=True)
-                _nav_button("dt_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
-            with ui.expansion("Double Bottom", icon="moving").classes(
-                "ml-2 rounded-lg text-gray-600"
-            ).props("dense"):
-                _nav_button("db_nifty",     "NIFTY",    "show_chart",        indent=True)
-                _nav_button("db_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
-            with ui.expansion("Channel Breakout", icon="swap_vert").classes(
-                "ml-2 rounded-lg text-gray-600"
-            ).props("dense"):
-                _nav_button("cb_nifty",     "NIFTY",    "show_chart",        indent=True)
-                _nav_button("cb_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
-            with ui.expansion("Channel Down", icon="trending_down").classes(
-                "ml-2 rounded-lg text-gray-600"
-            ).props("dense"):
-                _nav_button("cd_nifty",     "NIFTY",    "show_chart",        indent=True)
-                _nav_button("cd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
-            _nav_button("sma50", "SMA 50 Crossover", "stacked_line_chart", indent=False)
+            _nav_button("rsi_only",  "RSI Only",          "speed")
+            _nav_button("abcd_only", "ABCD Harmonic",     "insights")
+            _nav_button("dt_only",   "Double Top",        "moving")
+            _nav_button("db_only",   "Double Bottom",     "moving")
+            _nav_button("cb_only",   "Channel Breakout",  "swap_vert")
+            _nav_button("cd_only",   "Channel Down",      "trending_down")
+            _nav_button("sma50",     "SMA 50 Crossover",  "stacked_line_chart")
 
         ui.separator().classes("my-2 mx-4")
 
