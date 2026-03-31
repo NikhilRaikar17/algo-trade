@@ -7,8 +7,8 @@ import asyncio
 import traceback
 from nicegui import ui
 
-from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles
-from ui_components import build_grouped_options_dict
+from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles
+from ui_components import build_grouped_options_dict, resolve_option_labels_in_dropdown
 from algo_strategies import detect_channel_breakout_signals, backtest_channel_breakout, CB_PERIOD
 from tv_charts import render_tv_channel_breakout_chart
 
@@ -26,6 +26,12 @@ for _g in STOCK_WATCH_GROUPS:
         f"EQ:{s['security_id']}:{s['name']}": s["name"]
         for s in _g["stocks"]
     }
+_OPTION_GROUPS["NIFTY Weekly Options"] = {
+    f"OPT:NIFTY:{i}:CE": f"NIFTY Weekly +{i} CE (ATM)" for i in range(3)
+} | {f"OPT:NIFTY:{i}:PE": f"NIFTY Weekly +{i} PE (ATM)" for i in range(3)}
+_OPTION_GROUPS["BANKNIFTY Monthly Options"] = {
+    f"OPT:BANKNIFTY:{i}:CE": f"BANKNIFTY Monthly +{i} CE (ATM)" for i in range(3)
+} | {f"OPT:BANKNIFTY:{i}:PE": f"BANKNIFTY Monthly +{i} PE (ATM)" for i in range(3)}
 
 _ALL_OPTIONS: dict[str, str] = {
     k: v
@@ -38,17 +44,20 @@ _DEFAULT_LABEL  = _ALL_OPTIONS[_DEFAULT_SEC_ID]
 
 
 def _parse_option_value(value: str):
-    """Return (security_id, is_equity) from the dropdown value key."""
+    """Return (security_id, is_equity, is_option) from the dropdown value key."""
     if value.startswith("EQ:"):
         _, sec_id, _ = value.split(":", 2)
-        return sec_id, True
-    return value, False
+        return sec_id, True, False
+    if value.startswith("OPT:"):
+        return value, False, True
+    return value, False, False
 
 
 def render_channel_breakout_tab(container):
     """Build the Channel Breakout historical backtester tab. Returns an async refresh() closure."""
 
     selected = {"security_id": _DEFAULT_SEC_ID, "label": _DEFAULT_LABEL}
+    live_options = dict(_ALL_OPTIONS)
 
     with container:
         ui.label("Channel Breakout Scanner").classes("text-xl font-bold mb-2")
@@ -64,12 +73,12 @@ def render_channel_breakout_tab(container):
         # ---- Instrument selector ----
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
-            ui.select(
+            select_widget = ui.select(
                 options=build_grouped_options_dict(_OPTION_GROUPS),
                 value=_DEFAULT_SEC_ID,
                 label="",
                 on_change=lambda e: asyncio.ensure_future(
-                    _load(e.value, _ALL_OPTIONS.get(e.value, e.value))
+                    _load(e.value, live_options.get(e.value, e.value))
                 ) if not str(e.value).startswith("__hdr_") else None,
             ).props("outlined dense use-input input-debounce=0").classes("w-64")
 
@@ -95,11 +104,17 @@ def render_channel_breakout_tab(container):
             )
 
         try:
-            sec_id, is_equity = _parse_option_value(security_id)
-            fetch_fn = _fetch_any_stock_candles if is_equity else _fetch_any_index_candles
-            candles = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: fetch_fn(sec_id)
-            )
+            sec_id, is_equity, is_option = _parse_option_value(security_id)
+            loop = asyncio.get_event_loop()
+            if is_option:
+                _, index_name, expiry_idx_str, opt_type = sec_id.split(":")
+                _contract_label, candles = await loop.run_in_executor(
+                    None, lambda i=index_name, e=int(expiry_idx_str), o=opt_type: fetch_atm_option_15min_candles(i, e, o)
+                )
+            elif is_equity:
+                candles = await loop.run_in_executor(None, lambda: _fetch_any_stock_candles(sec_id))
+            else:
+                candles = await loop.run_in_executor(None, lambda: _fetch_any_index_candles(sec_id))
             if content_container.client._deleted:
                 return
             try:
@@ -119,6 +134,7 @@ def render_channel_breakout_tab(container):
 
     async def refresh():
         await _load(selected["security_id"], selected["label"])
+        await resolve_option_labels_in_dropdown(select_widget, _OPTION_GROUPS, live_options)
 
     return refresh
 

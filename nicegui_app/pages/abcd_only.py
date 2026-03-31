@@ -7,8 +7,8 @@ import asyncio
 import traceback
 from nicegui import ui
 
-from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles, resolve_option_label
-from ui_components import build_grouped_options_dict
+from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles
+from ui_components import build_grouped_options_dict, resolve_option_labels_in_dropdown
 from algo_strategies import find_swing_points, detect_abcd_patterns, backtest_abcd
 from tv_charts import render_tv_abcd_chart
 
@@ -149,33 +149,9 @@ def render_abcd_only_tab(container):
                 return
             print(f"  [abcd_hist:{label}] error:\n{traceback.format_exc()}")
 
-    async def _resolve_option_labels():
-        """Fetch real strike/expiry labels for all OPT: entries and update the dropdown."""
-        loop = asyncio.get_event_loop()
-        updated = False
-        for key in list(live_options.keys()):
-            if not key.startswith("OPT:"):
-                continue
-            _, index_name, expiry_idx_str, opt_type = key.split(":")
-            try:
-                real_label = await loop.run_in_executor(
-                    None, lambda i=index_name, e=int(expiry_idx_str), o=opt_type: resolve_option_label(i, e, o)
-                )
-                live_options[key] = real_label
-                updated = True
-            except Exception:
-                pass
-        if updated and not select_widget.client._deleted:
-            resolved_groups = {
-                grp: {k: live_options.get(k, v) for k, v in opts.items()}
-                for grp, opts in _OPTION_GROUPS.items()
-            }
-            select_widget.options = build_grouped_options_dict(resolved_groups)
-            select_widget.update()
-
     async def refresh():
         await _load(selected["security_id"], selected["label"])
-        await _resolve_option_labels()
+        await resolve_option_labels_in_dropdown(select_widget, _OPTION_GROUPS, live_options)
 
     return refresh
 
