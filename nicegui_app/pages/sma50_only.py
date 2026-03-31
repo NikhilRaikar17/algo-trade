@@ -8,20 +8,43 @@ import asyncio
 import traceback
 from nicegui import ui
 
-from data import MARKET_WATCH_GROUPS, _fetch_any_index_candles
+from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles
 from algo_strategies import detect_sma50_signals, backtest_sma50
 from tv_charts import render_tv_sma50_chart
 
 
-# {security_id: display_name} dict for ui.select
+# Build option groups: {group_label: {security_id: display_name}}
+# Prefix stock IDs with "EQ:" to distinguish them from index IDs
+_OPTION_GROUPS: dict[str, dict[str, str]] = {}
+for _g in MARKET_WATCH_GROUPS:
+    _OPTION_GROUPS[_g["group"]] = {
+        idx["security_id"]: idx["name"]
+        for idx in _g["indices"]
+    }
+for _g in STOCK_WATCH_GROUPS:
+    key = f"Stocks – {_g['group']}"
+    _OPTION_GROUPS[key] = {
+        f"EQ:{s['security_id']}:{s['name']}": s["name"]
+        for s in _g["stocks"]
+    }
+
+# Flat {value: label} for ui.select — values encode type+id
 _ALL_OPTIONS: dict[str, str] = {
-    idx["security_id"]: idx["name"]
-    for group in MARKET_WATCH_GROUPS
-    for idx in group["indices"]
+    k: v
+    for group_opts in _OPTION_GROUPS.values()
+    for k, v in group_opts.items()
 }
 
 _DEFAULT_SEC_ID = "13"   # NIFTY 50
 _DEFAULT_LABEL  = _ALL_OPTIONS[_DEFAULT_SEC_ID]
+
+
+def _parse_option_value(value: str):
+    """Return (security_id, is_equity) from the dropdown value key."""
+    if value.startswith("EQ:"):
+        _, sec_id, _ = value.split(":", 2)
+        return sec_id, True
+    return value, False
 
 
 def render_sma50_tab(container):
@@ -43,7 +66,7 @@ def render_sma50_tab(container):
 
         # ---- Instrument selector ----
         with ui.row().classes("items-center gap-3 mb-4"):
-            ui.label("Index / Instrument:").classes("text-sm font-medium text-gray-700")
+            ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
             select = ui.select(
                 options=_ALL_OPTIONS,
                 value=_DEFAULT_SEC_ID,
@@ -51,7 +74,7 @@ def render_sma50_tab(container):
                 on_change=lambda e: asyncio.ensure_future(
                     _load(e.value, _ALL_OPTIONS.get(e.value, e.value))
                 ),
-            ).props("outlined dense").classes("w-56")
+            ).props("outlined dense use-input input-debounce=0").classes("w-64")
 
         # ---- Content container (chart + stats + table) ----
         content_container = ui.element("div").classes("w-full")
@@ -77,8 +100,10 @@ def render_sma50_tab(container):
             )
 
         try:
+            sec_id, is_equity = _parse_option_value(security_id)
+            fetch_fn = _fetch_any_stock_candles if is_equity else _fetch_any_index_candles
             candles = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: _fetch_any_index_candles(security_id)
+                None, lambda: fetch_fn(sec_id)
             )
             if content_container.client._deleted:
                 return

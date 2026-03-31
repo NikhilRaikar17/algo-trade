@@ -260,6 +260,95 @@ def _candles_to_daily_change(df):
     }
 
 
+STOCK_WATCH_GROUPS = [
+    {
+        "group": "Large Cap",
+        "stocks": [
+            {"name": "RELIANCE",    "security_id": "1333"},
+            {"name": "TCS",         "security_id": "11536"},
+            {"name": "HDFCBANK",    "security_id": "1330"},
+            {"name": "INFY",        "security_id": "1594"},
+            {"name": "ICICIBANK",   "security_id": "4963"},
+            {"name": "HINDUNILVR",  "security_id": "1394"},
+            {"name": "ITC",         "security_id": "1660"},
+            {"name": "SBIN",        "security_id": "3045"},
+            {"name": "BHARTIARTL",  "security_id": "317"},
+            {"name": "KOTAKBANK",   "security_id": "1922"},
+            {"name": "LT",          "security_id": "11483"},
+            {"name": "AXISBANK",    "security_id": "5900"},
+            {"name": "WIPRO",       "security_id": "3787"},
+            {"name": "HCLTECH",     "security_id": "7229"},
+            {"name": "ASIANPAINT",  "security_id": "236"},
+            {"name": "MARUTI",      "security_id": "10999"},
+            {"name": "BAJFINANCE",  "security_id": "16675"},
+            {"name": "TITAN",       "security_id": "3506"},
+            {"name": "SUNPHARMA",   "security_id": "3351"},
+            {"name": "ULTRACEMCO",  "security_id": "11532"},
+        ],
+    },
+    {
+        "group": "Mid Cap",
+        "stocks": [
+            {"name": "PIIND",       "security_id": "2412"},
+            {"name": "MPHASIS",     "security_id": "4397"},
+            {"name": "PERSISTENT",  "security_id": "2452"},
+            {"name": "COFORGE",     "security_id": "10096"},
+            {"name": "LTIM",        "security_id": "17818"},
+            {"name": "TATACOMM",    "security_id": "14109"},
+            {"name": "ADANIPORTS",  "security_id": "15083"},
+            {"name": "GRASIM",      "security_id": "1232"},
+            {"name": "HINDALCO",    "security_id": "1375"},
+            {"name": "JSWSTEEL",    "security_id": "11723"},
+        ],
+    },
+    {
+        "group": "Banks",
+        "stocks": [
+            {"name": "INDUSINDBK",  "security_id": "5258"},
+            {"name": "FEDERALBNK",  "security_id": "1023"},
+            {"name": "BANDHANBNK",  "security_id": "1510"},
+            {"name": "IDFCFIRSTB",  "security_id": "11809"},
+            {"name": "PNB",         "security_id": "2730"},
+            {"name": "BANKBARODA",  "security_id": "1152"},
+            {"name": "CANBK",       "security_id": "10794"},
+            {"name": "AUBANK",      "security_id": "3660"},
+        ],
+    },
+]
+
+
+def _fetch_any_stock_candles(security_id: str) -> pd.DataFrame:
+    """Fetch 15-min candles for any NSE equity (stock) by security_id."""
+    today     = now_ist().strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+    cache_key = f"eq_candles_{security_id}:{from_date}:{today}"
+    cached    = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    r = api_call(
+        dhan.intraday_minute_data,
+        security_id, "NSE_EQ", "EQUITY",
+        from_date, today, interval=15,
+        retries=1,
+    )
+    if r.get("status") != "success":
+        return pd.DataFrame()
+    d  = r["data"]
+    df = pd.DataFrame({
+        "timestamp": d.get("timestamp", []),
+        "open":      d.get("open", []),
+        "high":      d.get("high", []),
+        "low":       d.get("low", []),
+        "close":     d.get("close", []),
+    })
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"], unit="s", utc=True
+        ).dt.tz_convert("Asia/Kolkata")
+    _cache_set(cache_key, df)
+    return df
+
+
 def _fetch_any_index_candles(security_id: str) -> pd.DataFrame:
     """Fetch 15-min candles for any NSE index by security_id."""
     today     = now_ist().strftime("%Y-%m-%d")
