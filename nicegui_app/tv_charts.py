@@ -133,6 +133,45 @@ def _resize_listener(chart_var: str, el_var: str) -> str:
     )
 
 
+def _ohlc_tooltip_js(chart_var: str, cs_var: str, el_var: str) -> str:
+    """Return JS that creates an OHLC tooltip overlay on crosshair move.
+
+    The tooltip is an absolutely-positioned div inside the chart container.
+    It shows O / H / L / C values for the bar under the crosshair and hides
+    when the cursor leaves the chart.
+    """
+    return f"""
+    (function() {{
+        var _tip = document.createElement('div');
+        _tip.style.cssText = [
+            'position:absolute', 'top:8px', 'left:8px', 'z-index:10',
+            'background:rgba(255,255,255,0.88)', 'border:1px solid #e5e7eb',
+            'border-radius:4px', 'padding:4px 8px', 'font-size:11px',
+            'font-family:monospace', 'line-height:1.6', 'pointer-events:none',
+            'display:none',
+        ].join(';');
+        {el_var}.style.position = 'relative';
+        {el_var}.appendChild(_tip);
+
+        {chart_var}.subscribeCrosshairMove(function(param) {{
+            if (!param || !param.time || !param.seriesData) {{
+                _tip.style.display = 'none';
+                return;
+            }}
+            var bar = param.seriesData.get({cs_var});
+            if (!bar) {{ _tip.style.display = 'none'; return; }}
+            var clr = bar.close >= bar.open ? '#26a69a' : '#ef5350';
+            _tip.innerHTML =
+                '<span style="color:#374151">O</span> <b style="color:' + clr + '">' + bar.open.toFixed(2) + '</b>  ' +
+                '<span style="color:#374151">H</span> <b style="color:' + clr + '">' + bar.high.toFixed(2) + '</b>  ' +
+                '<span style="color:#374151">L</span> <b style="color:' + clr + '">' + bar.low.toFixed(2) + '</b>  ' +
+                '<span style="color:#374151">C</span> <b style="color:' + clr + '">' + bar.close.toFixed(2) + '</b>';
+            _tip.style.display = 'block';
+        }});
+    }})();
+    """
+
+
 # ---------------------------------------------------------------------------
 # ABCD pattern chart
 # ---------------------------------------------------------------------------
@@ -238,6 +277,7 @@ def render_tv_abcd_chart(
             }});
         }});
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
         {_resize_listener("chart", "el")}
     }})();
@@ -343,6 +383,7 @@ def render_tv_rsi_sma_chart(
                 priceLineVisible: false, title: 'SMA {SMA_SLOW}',
             }}).setData(smaSlow);
         }}
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
 
         // ---- RSI chart ----
@@ -464,6 +505,7 @@ def render_tv_rsi_only_chart(
             }});
         }});
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
 
         // ---- RSI chart ----
@@ -580,6 +622,7 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> None:
             }});
         }});
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
         {_resize_listener("chart", "el")}
     }})();
@@ -673,6 +716,7 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
             }});
         }});
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
         {_resize_listener("chart", "el")}
     }})();
@@ -822,6 +866,7 @@ def render_tv_channel_down_chart(candles, signals, height: int = 500) -> None:
             }}
         }});
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
         {_resize_listener("chart", "el")}
     }})();
@@ -917,6 +962,7 @@ def render_tv_channel_breakout_chart(candles, df_ind, signals, height: int = 500
             }}).setData(lowerData);
         }}
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
         {_resize_listener("chart", "el")}
     }})();
@@ -982,6 +1028,7 @@ def render_tv_ema10_chart(candles, df_ind, signals, height: int = 500) -> None:
             }}).setData(ema10Data);
         }}
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
         {_resize_listener("chart", "el")}
     }})();
@@ -1045,6 +1092,7 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> None:
             }}).setData(sma50Data);
         }}
 
+        {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();
         {_resize_listener("chart", "el")}
     }})();
