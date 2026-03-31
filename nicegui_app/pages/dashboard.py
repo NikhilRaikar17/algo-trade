@@ -9,7 +9,7 @@ from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
 from state import _cache_get, _cache_set
-from data import get_expiries, fetch_option_chain
+from data import get_expiries, fetch_option_chain, _fetch_any_index_candles, _candles_to_daily_change
 
 
 def _compute_synthetic_futures(spot, df, strike_step):
@@ -43,10 +43,16 @@ def fetch_dashboard_prices():
             expiry = expiries[0]
             spot, df = fetch_option_chain(scrip, segment, expiry)
             fut = _compute_synthetic_futures(spot, df, strike_step)
-            prices[name] = {"spot": spot, "fut": fut, "expiry": expiry}
+            candles = _fetch_any_index_candles(str(scrip))
+            day_stats = _candles_to_daily_change(candles) if candles is not None and not candles.empty else None
+            spot_change = day_stats["change"] if day_stats else None
+            spot_change_pct = day_stats["change_pct"] if day_stats else None
+            prices[name] = {"spot": spot, "fut": fut, "expiry": expiry,
+                            "spot_change": spot_change, "spot_change_pct": spot_change_pct}
         except Exception as e:
             print(f"  [dashboard] {name} price error: {e}")
-            prices[name] = {"spot": None, "fut": None, "expiry": None}
+            prices[name] = {"spot": None, "fut": None, "expiry": None,
+                            "spot_change": None, "spot_change_pct": None}
         time.sleep(1)
 
     _cache_set(cache_key, prices)
@@ -160,6 +166,8 @@ def render_dashboard(container):
                     spot = data.get("spot")
                     fut = data.get("fut")
                     expiry = data.get("expiry")
+                    spot_change = data.get("spot_change")
+                    spot_change_pct = data.get("spot_change_pct")
 
                     card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
                     dot_color = "bg-blue-500" if name == "NIFTY" else "bg-indigo-500"
@@ -178,6 +186,21 @@ def render_dashboard(container):
                             ui.label(spot_text).classes(
                                 "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
                             )
+                            if spot_change is not None and spot_change_pct is not None:
+                                sign = "+" if spot_change >= 0 else ""
+                                if spot_change >= 0:
+                                    bg = "bg-green-50 text-green-700"
+                                    icon = "arrow_drop_up"
+                                else:
+                                    bg = "bg-red-50 text-red-700"
+                                    icon = "arrow_drop_down"
+                                with ui.row().classes(
+                                    f"items-center gap-0 mt-2 px-2 py-0.5 rounded-md {bg}"
+                                ).style("width: fit-content"):
+                                    ui.icon(icon, size="18px")
+                                    ui.label(
+                                        f"{sign}{spot_change:,.2f} ({sign}{spot_change_pct}%)"
+                                    ).classes("text-xs font-semibold")
 
                     # Futures card
                     with ui.card().classes(
