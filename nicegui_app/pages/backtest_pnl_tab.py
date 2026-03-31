@@ -115,7 +115,7 @@ def _run_double_bottom(candles):
     return backtest_double_bottom(signals, candles)
 
 def _run_channel_breakout(candles):
-    signals = detect_channel_breakout_signals(candles)
+    signals, _ = detect_channel_breakout_signals(candles)
     return backtest_channel_breakout(signals, candles)
 
 def _run_channel_down(candles):
@@ -123,7 +123,7 @@ def _run_channel_down(candles):
     return backtest_channel_down(signals, candles)
 
 def _run_sma50(candles):
-    signals = detect_sma50_signals(candles)
+    signals, _ = detect_sma50_signals(candles)
     return backtest_sma50(signals, candles)
 
 
