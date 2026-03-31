@@ -62,35 +62,35 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         _section_label("Strategies", "bg-purple-400")
         with ui.expansion("Strategies", icon="history_edu").classes(
             "mx-2 rounded-lg text-gray-700"
-        ).props("dense default-opened"):
+        ).props("dense"):
             with ui.expansion("RSI", icon="speed").classes(
                 "ml-2 rounded-lg text-gray-600"
-            ).props("dense default-opened"):
+            ).props("dense"):
                 _nav_button("rsi_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("rsi_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
             with ui.expansion("ABCD", icon="insights").classes(
                 "ml-2 rounded-lg text-gray-600"
-            ).props("dense default-opened"):
+            ).props("dense"):
                 _nav_button("abcd_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("abcd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
             with ui.expansion("Double Top", icon="moving").classes(
                 "ml-2 rounded-lg text-gray-600"
-            ).props("dense default-opened"):
+            ).props("dense"):
                 _nav_button("dt_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("dt_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
             with ui.expansion("Double Bottom", icon="moving").classes(
                 "ml-2 rounded-lg text-gray-600"
-            ).props("dense default-opened"):
+            ).props("dense"):
                 _nav_button("db_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("db_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
             with ui.expansion("Channel Breakout", icon="swap_vert").classes(
                 "ml-2 rounded-lg text-gray-600"
-            ).props("dense default-opened"):
+            ).props("dense"):
                 _nav_button("cb_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("cb_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
             with ui.expansion("Channel Down", icon="trending_down").classes(
                 "ml-2 rounded-lg text-gray-600"
-            ).props("dense default-opened"):
+            ).props("dense"):
                 _nav_button("cd_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("cd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
             _nav_button("sma50", "SMA 50 Crossover", "stacked_line_chart", indent=False)

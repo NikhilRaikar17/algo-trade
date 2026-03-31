@@ -155,17 +155,19 @@ async def index():
         }
 
         /* ---- Responsive tabs & header ---- */
-        .q-drawer { background: #fff !important; }
-        @media (max-width: 768px) {
+        .q-drawer { background: #fff !important; overflow-y: auto !important; }
+        .q-drawer .q-scrollarea { overflow: visible !important; }
+        @media (max-width: 1023px) {
             .q-tab { font-size: 0.85rem !important; padding: 8px 10px !important; }
             .q-header { padding-left: 12px !important; padding-right: 12px !important; }
-            .q-drawer { width: 190px !important; }
+            .q-drawer { width: 200px !important; }
             .nav-btn { font-size: 0.78rem !important; padding: 3px 8px !important; }
             .nav-sub-btn { font-size: 0.73rem !important; padding: 2px 6px !important; }
             .nav-section-label { font-size: 0.55rem; padding: 4px 12px 2px 12px; }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 599px) {
             .q-tab { font-size: 0.75rem !important; padding: 6px 6px !important; white-space: nowrap !important; }
+            .q-drawer { width: 220px !important; }
         }
 
         /* ---- Markets grid ---- */
@@ -253,8 +255,9 @@ async def index():
     # ---- Sidebar ----
     with (
         ui.left_drawer(value=True, bordered=False)
+        .props("breakpoint=1023")
         .classes("bg-white")
-        .style("width: 240px; padding-top: 8px; box-shadow: 2px 0 12px rgba(0,0,0,0.06);") as drawer
+        .style("width: 240px; padding-top: 8px; box-shadow: 2px 0 12px rgba(0,0,0,0.06); overflow-y: auto; max-height: 100vh;") as drawer
     ):
         pass  # content built after page_containers exist
 
@@ -270,9 +273,17 @@ async def index():
     # Now build sidebar (needs page_containers to be defined)
     # _refresh_trigger is set after full_refresh is defined below; late-binding via list
     _refresh_trigger = [None]
+    async def _on_navigate(pid):
+        if _refresh_trigger[0]:
+            asyncio.ensure_future(_refresh_trigger[0]())
+        # Auto-close drawer on mobile when a nav item is tapped
+        result = await ui.run_javascript("window.innerWidth")
+        if result is not None and result <= 1023:
+            drawer.hide()
+
     build_sidebar(
         drawer, active_page, nav_btn_refs, page_containers,
-        on_navigate=lambda pid: _refresh_trigger[0] and asyncio.ensure_future(_refresh_trigger[0]()),
+        on_navigate=lambda pid: asyncio.ensure_future(_on_navigate(pid)),
     )
 
     # ---- Build Page Content ----
