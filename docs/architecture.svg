@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" width="900" height="620" font-family="'Segoe UI', Arial, sans-serif">
+  <!-- Background -->
+  <rect width="900" height="620" fill="#0f172a" rx="12"/>
+
+  <!-- Title -->
+  <text x="450" y="38" text-anchor="middle" fill="#f1f5f9" font-size="18" font-weight="700">AlgoTrading Platform — Architecture</text>
+
+  <!-- ── Browser ── -->
+  <rect x="320" y="60" width="260" height="54" rx="8" fill="#1e40af" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="450" y="81" text-anchor="middle" fill="#bfdbfe" font-size="11" font-weight="600">BROWSER (NiceGUI UI)</text>
+  <text x="450" y="100" text-anchor="middle" fill="#93c5fd" font-size="10">Dashboard · Options · Strategies · P&amp;L</text>
+
+  <!-- Arrow Browser → main.py -->
+  <line x1="450" y1="114" x2="450" y2="148" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="460" y="135" fill="#64748b" font-size="9">refresh every 120s</text>
+
+  <!-- ── main.py ── -->
+  <rect x="300" y="148" width="300" height="54" rx="8" fill="#065f46" stroke="#10b981" stroke-width="1.5"/>
+  <text x="450" y="169" text-anchor="middle" fill="#a7f3d0" font-size="11" font-weight="600">main.py  (NiceGUI App Server)</text>
+  <text x="450" y="188" text-anchor="middle" fill="#6ee7b7" font-size="10">Page containers · Refresh timer · Scheduler</text>
+
+  <!-- Arrow down from main.py -->
+  <line x1="450" y1="202" x2="450" y2="236" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ── pages/ ── -->
+  <rect x="300" y="236" width="300" height="54" rx="8" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+  <text x="450" y="257" text-anchor="middle" fill="#bae6fd" font-size="11" font-weight="600">pages/  (render_*_tab functions)</text>
+  <text x="450" y="276" text-anchor="middle" fill="#7dd3fc" font-size="10">dashboard · option_chain · algo · pnl · backtests</text>
+
+  <!-- Fan-out lines from pages -->
+  <!-- data.py -->
+  <line x1="370" y1="290" x2="160" y2="358" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- algo_strategies.py -->
+  <line x1="420" y1="290" x2="330" y2="358" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- charts.py -->
+  <line x1="480" y1="290" x2="490" y2="358" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- pnl.py -->
+  <line x1="530" y1="290" x2="660" y2="358" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ── data.py ── -->
+  <rect x="60" y="358" width="180" height="54" rx="8" fill="#3b0764" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="150" y="379" text-anchor="middle" fill="#e9d5ff" font-size="11" font-weight="600">data.py</text>
+  <text x="150" y="398" text-anchor="middle" fill="#d8b4fe" font-size="10">Dhan REST API calls</text>
+
+  <!-- ── algo_strategies.py ── -->
+  <rect x="265" y="358" width="175" height="54" rx="8" fill="#422006" stroke="#f97316" stroke-width="1.5"/>
+  <text x="352" y="379" text-anchor="middle" fill="#fed7aa" font-size="11" font-weight="600">algo_strategies.py</text>
+  <text x="352" y="398" text-anchor="middle" fill="#fdba74" font-size="10">ABCD · RSI+SMA · Patterns</text>
+
+  <!-- ── charts.py ── -->
+  <rect x="460" y="358" width="150" height="54" rx="8" fill="#1c1917" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="535" y="379" text-anchor="middle" fill="#fef3c7" font-size="11" font-weight="600">charts.py</text>
+  <text x="535" y="398" text-anchor="middle" fill="#fde68a" font-size="10">Plotly candlestick charts</text>
+
+  <!-- ── pnl.py ── -->
+  <rect x="635" y="358" width="200" height="54" rx="8" fill="#0c1a2e" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="735" y="379" text-anchor="middle" fill="#bae6fd" font-size="11" font-weight="600">pnl.py</text>
+  <text x="735" y="398" text-anchor="middle" fill="#7dd3fc" font-size="10">P&amp;L tracking · Telegram alerts</text>
+
+  <!-- ── state.py + config.py ── (shared) -->
+  <rect x="185" y="456" width="200" height="54" rx="8" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="285" y="477" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">state.py / config.py</text>
+  <text x="285" y="496" text-anchor="middle" fill="#cbd5e1" font-size="10">Cache · Market hours · Params</text>
+
+  <!-- ── Dhan API ── -->
+  <rect x="60" y="456" width="100" height="54" rx="8" fill="#0f172a" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="110" y="477" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="600">Dhan API</text>
+  <text x="110" y="496" text-anchor="middle" fill="#a5b4fc" font-size="10">REST · Option chains</text>
+
+  <!-- ── Telegram ── -->
+  <rect x="635" y="456" width="200" height="54" rx="8" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+  <text x="735" y="477" text-anchor="middle" fill="#cffafe" font-size="11" font-weight="600">Telegram Bot</text>
+  <text x="735" y="496" text-anchor="middle" fill="#a5f3fc" font-size="10">Daily alerts · 9 AM &amp; 3:30 PM IST</text>
+
+  <!-- data.py → Dhan API -->
+  <line x1="110" y1="412" x2="110" y2="456" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowIndigo)"/>
+
+  <!-- pnl.py → Telegram -->
+  <line x1="735" y1="412" x2="735" y2="456" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowCyan)"/>
+
+  <!-- state/config shared lines (dashed) -->
+  <line x1="225" y1="412" x2="265" y2="456" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="330" y1="412" x2="300" y2="456" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="505" y1="412" x2="350" y2="456" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+
+  <!-- ── Legend ── -->
+  <rect x="60" y="544" width="780" height="54" rx="6" fill="#1e293b" opacity="0.7"/>
+  <text x="90" y="562" fill="#94a3b8" font-size="10" font-weight="600">LEGEND</text>
+  <rect x="90" y="568" width="12" height="8" rx="2" fill="#10b981"/>
+  <text x="108" y="576" fill="#94a3b8" font-size="10">App core</text>
+  <rect x="180" y="568" width="12" height="8" rx="2" fill="#f97316"/>
+  <text x="198" y="576" fill="#94a3b8" font-size="10">Strategy engine</text>
+  <rect x="300" y="568" width="12" height="8" rx="2" fill="#6366f1"/>
+  <text x="318" y="576" fill="#94a3b8" font-size="10">External broker API</text>
+  <rect x="440" y="568" width="12" height="8" rx="2" fill="#22d3ee"/>
+  <text x="458" y="576" fill="#94a3b8" font-size="10">Notifications</text>
+  <line x1="540" y1="572" x2="570" y2="572" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="576" y="576" fill="#94a3b8" font-size="10">Shared utilities</text>
+  <text x="680" y="576" fill="#475569" font-size="10">NIFTY / BANKNIFTY · IST market hours 9:15–15:30</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowIndigo" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+    </marker>
+    <marker id="arrowCyan" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#22d3ee"/>
+    </marker>
+  </defs>
+</svg>
