@@ -10,6 +10,7 @@ from config import (
     now_ist,
     EXPIRY_ROLLOVER_HOUR,
     SMA_PERIOD,
+    INDICES,
 )
 from state import api_call, _cache_get, _cache_set, _ltp_history
 
@@ -452,6 +453,96 @@ def fetch_index_15min_candles(index_name="NIFTY"):
         ).dt.tz_convert("Asia/Kolkata")
     _cache_set(cache_key, df)
     return df
+
+
+def fetch_atm_option_15min_candles(index_name: str, expiry_idx: int, opt_type: str) -> tuple[str, pd.DataFrame]:
+    """Fetch 15-min candles for the ATM CE or PE of NIFTY/BANKNIFTY at a given expiry index.
+
+    Args:
+        index_name: "NIFTY" or "BANKNIFTY"
+        expiry_idx: 0 = current/nearest expiry, 1 = next, 2 = next+1
+        opt_type: "CE" or "PE"
+
+    Returns:
+        (contract_label, candles_df)  — label e.g. "NIFTY 03APR 23000 CE"
+    """
+    cfg = INDICES[index_name]
+    scrip = cfg["scrip"]
+    segment = cfg["segment"]
+
+    # Fetch enough expiries (expiry_idx + 1)
+    expiries = get_expiries(scrip, segment, count=expiry_idx + 1)
+    expiry = expiries[expiry_idx]
+
+    raw = fetch_option_chain_raw(scrip, segment, expiry)
+    spot = round(float(raw["last_price"]), 2)
+    atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
+
+    strikes = sorted(raw["oc"].keys(), key=lambda s: abs(float(s) - atm))
+    if not strikes:
+        raise RuntimeError(f"No strikes found in option chain for {index_name} {expiry}")
+
+    sides = raw["oc"][strikes[0]]
+    key = opt_type.lower()
+    sec_id = sides.get(key, {}).get("security_id")
+    if not sec_id:
+        raise RuntimeError(f"No security_id for {index_name} {expiry} ATM {opt_type}")
+
+    exp_date = pd.Timestamp(expiry)
+    exp_tag = exp_date.strftime("%d%b").upper()
+    ltp = round(float(sides.get(opt_type.lower(), {}).get("last_price", 0)), 2)
+    ltp_str = f" @ {ltp:.2f}" if ltp else ""
+    contract_label = f"{index_name} {exp_tag} {int(atm)} {opt_type}{ltp_str}"
+
+    today = now_ist().strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+    cache_key = f"opt_15min:{sec_id}:{from_date}:{today}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return contract_label, cached
+
+    r = api_call(
+        dhan.intraday_minute_data,
+        str(sec_id),
+        "NSE_FNO",
+        "OPTIDX",
+        from_date,
+        today,
+        interval=15,
+        retries=1,
+    )
+    if r.get("status") != "success":
+        return contract_label, pd.DataFrame()
+
+    d = r["data"]
+    df = pd.DataFrame({
+        "timestamp": d.get("timestamp", []),
+        "open":      d.get("open", []),
+        "high":      d.get("high", []),
+        "low":       d.get("low", []),
+        "close":     d.get("close", []),
+        "volume":    d.get("volume", []),
+    })
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"], unit="s", utc=True
+        ).dt.tz_convert("Asia/Kolkata")
+    _cache_set(cache_key, df)
+    return contract_label, df
+
+
+def resolve_option_label(index_name: str, expiry_idx: int, opt_type: str) -> str:
+    """Resolve the real contract label (e.g. 'NIFTY 07APR 22350 CE') without fetching candles."""
+    cfg = INDICES[index_name]
+    scrip = cfg["scrip"]
+    segment = cfg["segment"]
+    expiries = get_expiries(scrip, segment, count=expiry_idx + 1)
+    expiry = expiries[expiry_idx]
+    raw = fetch_option_chain_raw(scrip, segment, expiry)
+    spot = round(float(raw["last_price"]), 2)
+    atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
+    exp_tag = pd.Timestamp(expiry).strftime("%d%b").upper()
+    return f"{index_name} {exp_tag} {int(atm)} {opt_type}"
 
 
 def fetch_5min_candles(security_id, interval=5):
