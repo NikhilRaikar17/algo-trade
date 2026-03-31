@@ -28,6 +28,7 @@ from pages import (
     render_pnl_tab,
     render_backtest_pnl_tab,
     render_market_closed,
+    render_market_news_tab,
 )
 
 
@@ -36,6 +37,7 @@ from pages import (
 ALL_PAGE_IDS = [
     "dashboard",
     "markets",
+    "market_news",
     "nifty",
     "banknifty",
     "abcd",
@@ -184,6 +186,19 @@ async def index():
             .markets-grid { grid-template-columns: 1fr; }
         }
 
+        /* ---- News grid ---- */
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+        @media (max-width: 1024px) {
+            .news-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .news-grid { grid-template-columns: 1fr; }
+        }
+
         /* ---- Responsive tables ---- */
         .responsive-table-wrap {
             overflow-x: auto;
@@ -303,7 +318,8 @@ async def index():
             if pid != "dashboard":
                 page_containers[pid].clear()
 
-        refresh_fns["markets"]   = render_markets_tab(page_containers["markets"])
+        refresh_fns["markets"]      = render_markets_tab(page_containers["markets"])
+        refresh_fns["market_news"]  = render_market_news_tab(page_containers["market_news"])
         refresh_fns["nifty"]     = render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
         refresh_fns["banknifty"] = render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"])
         refresh_fns["pnl"]       = render_pnl_tab(page_containers["pnl"])

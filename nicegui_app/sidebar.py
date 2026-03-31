@@ -47,7 +47,11 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         # ---- Top-level ----
         ui.element("div").classes("pt-1")
         _nav_button("dashboard", "Dashboard", "dashboard")
-        _nav_button("markets",   "Markets",   "bar_chart")
+
+        # ---- Markets section ----
+        _section_label("Markets", "bg-orange-400")
+        _nav_button("markets",      "Overview",     "bar_chart")
+        _nav_button("market_news",  "Market News",  "newspaper")
 
         ui.separator().classes("my-2 mx-4")
 

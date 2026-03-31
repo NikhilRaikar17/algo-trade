@@ -13,3 +13,4 @@ from pages.ema10_only import render_ema10_tab
 from pages.pnl_tab import render_pnl_tab
 from pages.backtest_pnl_tab import render_backtest_pnl_tab
 from pages.market_closed import render_market_closed
+from pages.market_news import render_market_news_tab
