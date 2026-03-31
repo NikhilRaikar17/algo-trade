@@ -8,6 +8,21 @@ import pandas as pd
 from nicegui import ui
 
 
+def build_grouped_options_dict(option_groups: dict) -> dict:
+    """Convert {group_label: {value: display_name}} into a flat dict for ui.select
+    with visual group headers embedded as sentinel entries.
+
+    Returns a {value: label} dict compatible with NiceGUI's ui.select(options=dict).
+    Header sentinel keys are prefixed '__hdr_' — guard on_change with:
+        if e.value and str(e.value).startswith('__hdr_'): return
+    """
+    result: dict[str, str] = {}
+    for group_label, opts in option_groups.items():
+        result[f"__hdr_{group_label}"] = f"── {group_label} ──"
+        result.update(opts)
+    return result
+
+
 def _f2(v):
     """Format a value to 2 decimal places if numeric."""
     if isinstance(v, float):

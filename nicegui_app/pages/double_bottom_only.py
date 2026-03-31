@@ -8,6 +8,7 @@ import traceback
 from nicegui import ui
 
 from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles
+from ui_components import build_grouped_options_dict
 from algo_strategies import detect_double_bottom_signals, backtest_double_bottom
 from tv_charts import render_tv_double_bottom_chart
 
@@ -63,12 +64,12 @@ def render_double_bottom_tab(container):
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
             ui.select(
-                options=_ALL_OPTIONS,
+                options=build_grouped_options_dict(_OPTION_GROUPS),
                 value=_DEFAULT_SEC_ID,
                 label="",
                 on_change=lambda e: asyncio.ensure_future(
                     _load(e.value, _ALL_OPTIONS.get(e.value, e.value))
-                ),
+                ) if not str(e.value).startswith("__hdr_") else None,
             ).props("outlined dense use-input input-debounce=0").classes("w-64")
 
         content_container = ui.element("div").classes("w-full")

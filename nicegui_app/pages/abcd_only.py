@@ -8,6 +8,7 @@ import traceback
 from nicegui import ui
 
 from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles, resolve_option_label
+from ui_components import build_grouped_options_dict
 from algo_strategies import find_swing_points, detect_abcd_patterns, backtest_abcd
 from tv_charts import render_tv_abcd_chart
 
@@ -79,15 +80,16 @@ def render_abcd_only_tab(container):
         # ---- Instrument selector ----
         # Start with static names; real option labels resolved async below
         live_options = dict(_ALL_OPTIONS)
+        grouped_options = build_grouped_options_dict(_OPTION_GROUPS)
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
             select_widget = ui.select(
-                options=live_options,
+                options=grouped_options,
                 value=_DEFAULT_SEC_ID,
                 label="",
                 on_change=lambda e: asyncio.ensure_future(
                     _load(e.value, live_options.get(e.value, e.value))
-                ),
+                ) if not str(e.value).startswith("__hdr_") else None,
             ).props("outlined dense use-input input-debounce=0").classes("w-64")
 
         content_container = ui.element("div").classes("w-full")
@@ -164,7 +166,11 @@ def render_abcd_only_tab(container):
             except Exception:
                 pass
         if updated and not select_widget.client._deleted:
-            select_widget.options = live_options
+            resolved_groups = {
+                grp: {k: live_options.get(k, v) for k, v in opts.items()}
+                for grp, opts in _OPTION_GROUPS.items()
+            }
+            select_widget.options = build_grouped_options_dict(resolved_groups)
             select_widget.update()
 
     async def refresh():
