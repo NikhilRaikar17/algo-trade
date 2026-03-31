@@ -93,6 +93,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             ).props("dense default-opened"):
                 _nav_button("cd_nifty",     "NIFTY",    "show_chart",        indent=True)
                 _nav_button("cd_banknifty", "BANKNIFTY","candlestick_chart", indent=True)
+            _nav_button("sma50", "SMA 50 Crossover", "stacked_line_chart", indent=False)
 
         ui.separator().classes("my-2 mx-4")
 

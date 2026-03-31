@@ -23,6 +23,7 @@ from pages import (
     render_double_bottom_tab,
     render_channel_breakout_tab,
     render_channel_down_tab,
+    render_sma50_tab,
     render_pnl_tab,
     render_market_closed,
 )
@@ -49,6 +50,7 @@ ALL_PAGE_IDS = [
     "cb_banknifty",
     "cd_nifty",
     "cd_banknifty",
+    "sma50",
     "pnl",
 ]
 
@@ -308,6 +310,7 @@ async def index():
         refresh_fns["cb_banknifty"]  = render_channel_breakout_tab(page_containers["cb_banknifty"], "BANKNIFTY")
         refresh_fns["cd_nifty"]      = render_channel_down_tab(page_containers["cd_nifty"], "NIFTY")
         refresh_fns["cd_banknifty"]  = render_channel_down_tab(page_containers["cd_banknifty"], "BANKNIFTY")
+        refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
 
         # Live algo tabs — countdown when closed, live data when open
         if market_open:

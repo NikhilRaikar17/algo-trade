@@ -983,3 +983,110 @@ def backtest_rsi_only(signals, candles):
             }
         trades.append({**s, **result})
     return trades
+
+
+# ================= SMA 50 CROSSOVER =================
+
+SMA50_PERIOD = 50
+SMA50_TARGET_PCT = 0.015  # 1.5% target
+SMA50_SL_PCT = 0.01       # 1.0% stop loss
+
+
+def detect_sma50_signals(candles):
+    """Generate signals when price crosses above/below SMA(50)."""
+    df = candles.copy()
+    df["sma50"] = compute_sma(df["close"], SMA50_PERIOD)
+    df = df.dropna().reset_index(drop=True)
+    if len(df) < 2:
+        return [], df
+    signals = []
+    for i in range(1, len(df)):
+        prev = df.iloc[i - 1]
+        curr = df.iloc[i]
+        # Bullish: close crosses above SMA 50
+        if prev["close"] <= prev["sma50"] and curr["close"] > curr["sma50"]:
+            target = curr["close"] * (1 + SMA50_TARGET_PCT)
+            sl = curr["close"] * (1 - SMA50_SL_PCT)
+            signals.append({
+                "type": "Bullish",
+                "signal": "BUY — Price crosses above SMA 50",
+                "entry": round(float(curr["close"]), 2),
+                "target": round(float(target), 2),
+                "stop_loss": round(float(sl), 2),
+                "time": curr["timestamp"],
+                "sma50": round(float(curr["sma50"]), 2),
+            })
+        # Bearish: close crosses below SMA 50
+        elif prev["close"] >= prev["sma50"] and curr["close"] < curr["sma50"]:
+            target = curr["close"] * (1 - SMA50_TARGET_PCT)
+            sl = curr["close"] * (1 + SMA50_SL_PCT)
+            signals.append({
+                "type": "Bearish",
+                "signal": "SELL — Price crosses below SMA 50",
+                "entry": round(float(curr["close"]), 2),
+                "target": round(float(target), 2),
+                "stop_loss": round(float(sl), 2),
+                "time": curr["timestamp"],
+                "sma50": round(float(curr["sma50"]), 2),
+            })
+    return signals, df
+
+
+def backtest_sma50(signals, candles):
+    """Walk through same-day candles after each SMA50 signal. Force-close at 3:30 PM."""
+    trades = []
+    for s in signals:
+        entry = s["entry"]
+        target = s["target"]
+        sl = s["stop_loss"]
+        signal_time = s["time"]
+        future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
+        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        last_bar = None
+        for _, bar in future.iterrows():
+            last_bar = bar
+            if s["type"] == "Bullish":
+                if float(bar["high"]) >= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(target - entry), 2),
+                    }
+                    break
+                if float(bar["low"]) <= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(sl - entry), 2),
+                    }
+                    break
+            else:
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
+                    }
+                    break
+                if float(bar["high"]) >= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+        if result["status"] == "Open" and last_bar is not None:
+            exit_px = round(float(last_bar["close"]), 2)
+            pnl = round(float(exit_px - entry), 2) if s["type"] == "Bullish" else round(float(entry - exit_px), 2)
+            result = {
+                "status": "Day Close",
+                "exit_price": exit_px,
+                "exit_time": last_bar["timestamp"],
+                "pnl": pnl,
+            }
+        trades.append({**s, **result})
+    return trades
