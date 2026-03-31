@@ -70,6 +70,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             _nav_button("cb_only",   "Channel Breakout",  "swap_vert")
             _nav_button("cd_only",   "Channel Down",      "trending_down")
             _nav_button("sma50",         "SMA 50 Crossover",  "stacked_line_chart")
+            _nav_button("ema10",         "EMA 10 Crossover",  "show_chart")
             ui.separator().classes("my-1 mx-2")
             _nav_button("backtest_pnl",  "Backtest P&L",      "analytics", indent=True)
 

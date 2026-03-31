@@ -928,6 +928,67 @@ def render_tv_channel_breakout_chart(candles, df_ind, signals, height: int = 500
 # SMA 50 Crossover chart (single panel: candles + SMA 50 line)
 # ---------------------------------------------------------------------------
 
+def render_tv_ema10_chart(candles, df_ind, signals, height: int = 500) -> None:
+    """Render candlestick chart with EMA 10 overlay and BUY/SELL signal markers."""
+    chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+
+    ohlc = _candles_to_tv(candles)
+
+    ema10_data = []
+    for _, row in df_ind.iterrows():
+        v = _safe_float(row["ema10"])
+        if v is not None:
+            ema10_data.append({"time": _to_unix(row["timestamp"]), "value": v})
+
+    markers: list[dict] = []
+    for s in signals:
+        is_buy = s["type"] == "Bullish"
+        markers.append({
+            "time":     _to_unix(s["time"]),
+            "position": "belowBar" if is_buy else "aboveBar",
+            "color":    "#26a69a" if is_buy else "#ef5350",
+            "shape":    "arrowUp" if is_buy else "arrowDown",
+            "text":     "B" if is_buy else "S",
+            "size":     1.2,
+        })
+    markers = _dedup_markers(markers)
+
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+
+    opts = dict(_BASE_OPTS)
+    opts["height"] = height
+
+    js = f"""
+    (function initEma10_{chart_id}() {{
+        var el = document.getElementById('{chart_id}');
+        if (!el || !el.clientWidth) {{
+            setTimeout(initEma10_{chart_id}, 50);
+            return;
+        }}
+        var opts = {json.dumps(opts)};
+        opts.width = el.clientWidth;
+        var chart = LightweightCharts.createChart(el, opts);
+
+        var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+        cs.setData({json.dumps(ohlc)});
+        cs.setMarkers({json.dumps(markers)});
+
+        var ema10Data = {json.dumps(ema10_data)};
+        if (ema10Data.length) {{
+            chart.addLineSeries({{
+                color: '#8b5cf6', lineWidth: 2, lineStyle: {_LS_SOLID},
+                crosshairMarkerVisible: false, lastValueVisible: true,
+                priceLineVisible: false, title: 'EMA 10',
+            }}).setData(ema10Data);
+        }}
+
+        chart.timeScale().fitContent();
+        {_resize_listener("chart", "el")}
+    }})();
+    """
+    _schedule_js(js)
+
+
 def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> None:
     """Render candlestick chart with SMA 50 overlay and BUY/SELL signal markers."""
     chart_id = f"tv_{uuid.uuid4().hex[:10]}"

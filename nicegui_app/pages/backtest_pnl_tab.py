@@ -18,6 +18,7 @@ from algo_strategies import (
     detect_channel_down_signals, backtest_channel_down,
     detect_channel_breakout_signals, backtest_channel_breakout, CB_PERIOD,
     detect_sma50_signals, backtest_sma50,
+    detect_ema10_signals, backtest_ema10,
 )
 from ui_components import build_trade_table, build_grouped_options_dict, resolve_option_labels_in_dropdown
 
@@ -66,6 +67,7 @@ _ALL_STRATEGIES = [
     "Channel Breakout",
     "Channel Down",
     "SMA 50",
+    "EMA 10",
 ]
 
 
@@ -103,6 +105,7 @@ def _run_all_backtests(candles):
         ("Channel Breakout", _run_channel_breakout),
         ("Channel Down",     _run_channel_down),
         ("SMA 50",           _run_sma50),
+        ("EMA 10",           _run_ema10),
     ]
     for name, fn in runners:
         try:
@@ -142,6 +145,10 @@ def _run_channel_down(candles):
 def _run_sma50(candles):
     signals, _ = detect_sma50_signals(candles)
     return backtest_sma50(signals, candles)
+
+def _run_ema10(candles):
+    signals, _ = detect_ema10_signals(candles)
+    return backtest_ema10(signals, candles)
 
 
 # ── Page renderer ─────────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ from pages.double_bottom_only import render_double_bottom_tab
 from pages.channel_breakout_only import render_channel_breakout_tab
 from pages.channel_down_only import render_channel_down_tab
 from pages.sma50_only import render_sma50_tab
+from pages.ema10_only import render_ema10_tab
 from pages.pnl_tab import render_pnl_tab
 from pages.backtest_pnl_tab import render_backtest_pnl_tab
 from pages.market_closed import render_market_closed

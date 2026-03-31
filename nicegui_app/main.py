@@ -24,6 +24,7 @@ from pages import (
     render_channel_breakout_tab,
     render_channel_down_tab,
     render_sma50_tab,
+    render_ema10_tab,
     render_pnl_tab,
     render_backtest_pnl_tab,
     render_market_closed,
@@ -46,6 +47,7 @@ ALL_PAGE_IDS = [
     "cb_only",
     "cd_only",
     "sma50",
+    "ema10",
     "backtest_pnl",
     "pnl",
 ]
@@ -312,6 +314,7 @@ async def index():
         refresh_fns["cb_only"]   = render_channel_breakout_tab(page_containers["cb_only"])
         refresh_fns["cd_only"]   = render_channel_down_tab(page_containers["cd_only"])
         refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
+        refresh_fns["ema10"]         = render_ema10_tab(page_containers["ema10"])
         refresh_fns["backtest_pnl"]  = render_backtest_pnl_tab(page_containers["backtest_pnl"])
 
         # Live algo tabs — countdown when closed, live data when open
