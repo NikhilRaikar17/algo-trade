@@ -430,6 +430,8 @@ async def index():
     def _update_header_tickers():
         if page_client._deleted:
             return
+        if not is_market_open():
+            return
         from state import _cache_get
         prices = _cache_get("dashboard_prices")
         if not prices:
