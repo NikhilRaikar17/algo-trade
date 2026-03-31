@@ -154,6 +154,24 @@ async def index():
             }
         }
 
+        /* ---- Header ticker (spot prices) ---- */
+        .ticker-badge {
+            display: flex; align-items: center; gap: 6px;
+            border-radius: 8px; padding: 4px 10px;
+            font-size: 0.78rem; font-weight: 700;
+            transition: background 0.3s;
+            cursor: default; user-select: none;
+        }
+        .ticker-badge.up   { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .ticker-badge.down { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        .ticker-badge.flat { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        @keyframes ticker-blink {
+            0%   { opacity: 1; }
+            40%  { opacity: 0.25; }
+            100% { opacity: 1; }
+        }
+        .ticker-blink { animation: ticker-blink 0.6s ease-in-out; }
+
         /* ---- Responsive tabs & header ---- */
         .q-drawer { background: #fff !important; overflow-y: auto !important; }
         .q-drawer .q-scrollarea { overflow: visible !important; }
@@ -240,6 +258,16 @@ async def index():
             ui.label("Algo Trade").classes(
                 "text-xl font-bold text-gray-800 tracking-tight"
             )
+
+            ui.space()
+
+            # ---- Live spot price tickers ----
+            _header_tickers = {}
+            for _idx in ["NIFTY", "BANKNIFTY"]:
+                _badge = ui.element("div").classes("ticker-badge flat")
+                with _badge:
+                    _lbl = ui.label(f"{_idx}  --").classes("font-bold text-sm")
+                _header_tickers[_idx] = {"badge": _badge, "label": _lbl, "prev": None}
 
             ui.space()
 
@@ -397,6 +425,47 @@ async def index():
             status_label.text = f"Next open: {h:02d}h {m:02d}m {s:02d}s"
 
     ui.timer(1, update_countdown)
+
+    # ---- Header ticker updater ----
+    def _update_header_tickers():
+        if page_client._deleted:
+            return
+        from state import _cache_get
+        prices = _cache_get("dashboard_prices")
+        if not prices:
+            return
+        for idx_name, ticker in _header_tickers.items():
+            data = prices.get(idx_name, {})
+            spot = data.get("spot")
+            if spot is None:
+                continue
+            prev = ticker["prev"]
+            if prev is None:
+                direction = "flat"
+            elif spot > prev:
+                direction = "up"
+            elif spot < prev:
+                direction = "down"
+            else:
+                direction = "flat"
+            ticker["prev"] = spot
+            badge = ticker["badge"]
+            lbl   = ticker["label"]
+            # Update label text
+            lbl.set_text(f"{idx_name}  {spot:,.2f}")
+            # Swap CSS class for color and trigger blink via JS
+            bid = badge.id
+            ui.run_javascript(
+                f"(function(){{"
+                f"var el=document.getElementById('c{bid}');"
+                f"if(!el)return;"
+                f"el.classList.remove('up','down','flat','ticker-blink');"
+                f"void el.offsetWidth;"
+                f"el.classList.add('{direction}','ticker-blink');"
+                f"}})()"
+            )
+
+    ui.timer(5, _update_header_tickers)
 
 
 # ================= RUN =================
