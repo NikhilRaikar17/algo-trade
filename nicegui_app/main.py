@@ -25,6 +25,7 @@ from pages import (
     render_channel_down_tab,
     render_sma50_tab,
     render_pnl_tab,
+    render_backtest_pnl_tab,
     render_market_closed,
 )
 
@@ -45,6 +46,7 @@ ALL_PAGE_IDS = [
     "cb_only",
     "cd_only",
     "sma50",
+    "backtest_pnl",
     "pnl",
 ]
 
@@ -277,7 +279,7 @@ async def index():
 
     build_sidebar(
         drawer, active_page, nav_btn_refs, page_containers,
-        on_navigate=lambda pid: asyncio.ensure_future(_on_navigate(pid)),
+        on_navigate=_on_navigate,
     )
 
     # ---- Build Page Content ----
@@ -309,7 +311,8 @@ async def index():
         refresh_fns["db_only"]   = render_double_bottom_tab(page_containers["db_only"])
         refresh_fns["cb_only"]   = render_channel_breakout_tab(page_containers["cb_only"])
         refresh_fns["cd_only"]   = render_channel_down_tab(page_containers["cd_only"])
-        refresh_fns["sma50"]     = render_sma50_tab(page_containers["sma50"])
+        refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
+        refresh_fns["backtest_pnl"]  = render_backtest_pnl_tab(page_containers["backtest_pnl"])
 
         # Live algo tabs — countdown when closed, live data when open
         if market_open:

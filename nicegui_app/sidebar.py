@@ -10,7 +10,7 @@ from config import now_ist, REFRESH_SECONDS, get_next_holiday
 def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigate=None):
     """Build the sidebar navigation inside the given drawer."""
 
-    def set_active_page(page_id):
+    async def set_active_page(page_id):
         active_page["value"] = page_id
         for nid, btn in nav_btn_refs.items():
             if nid == page_id:
@@ -20,7 +20,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         for nid, cont in page_containers.items():
             cont.set_visibility(nid == page_id)
         if on_navigate:
-            on_navigate(page_id)
+            await on_navigate(page_id)
 
     def _nav_button(page_id, label, icon, indent=False, color="text-gray-800"):
         cls = "nav-sub-btn" if indent else "nav-btn"
@@ -69,7 +69,9 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             _nav_button("db_only",   "Double Bottom",     "moving")
             _nav_button("cb_only",   "Channel Breakout",  "swap_vert")
             _nav_button("cd_only",   "Channel Down",      "trending_down")
-            _nav_button("sma50",     "SMA 50 Crossover",  "stacked_line_chart")
+            _nav_button("sma50",         "SMA 50 Crossover",  "stacked_line_chart")
+            ui.separator().classes("my-1 mx-2")
+            _nav_button("backtest_pnl",  "Backtest P&L",      "analytics", indent=True)
 
         ui.separator().classes("my-2 mx-4")
 

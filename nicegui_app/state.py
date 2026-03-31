@@ -55,6 +55,44 @@ _trade_store = {}  # key -> {"active": [...], "completed": [...]}
 _ltp_history = {}  # history for SMA trend
 
 
+# ================= TRADE HISTORY (PERSISTENT) =================
+_TRADE_HISTORY_FILE = os.path.join(os.path.dirname(__file__), ".trade_history.json")
+
+
+def load_trade_history():
+    """Load all persisted completed trades from disk."""
+    try:
+        with open(_TRADE_HISTORY_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def save_completed_trade(key, trade):
+    """Persist a completed trade keyed by dedup key. Deduplicates and trims to 90 days."""
+    try:
+        history = load_trade_history()
+        if any(r.get("key") == key for r in history):
+            return
+        record = {
+            "key": key,
+            "trade_date": trade.get("trade_date", now_ist().strftime("%Y-%m-%d")),
+            "strategy": str(trade.get("strategy", "Unknown")),
+            "signal": str(trade.get("signal", "")),
+            "entry": float(trade.get("entry", 0)),
+            "exit_price": float(trade.get("exit_price", 0)),
+            "pnl": float(trade.get("pnl", 0)),
+            "status": str(trade.get("status", "")),
+        }
+        history.append(record)
+        cutoff = (now_ist() - timedelta(days=90)).strftime("%Y-%m-%d")
+        history = [r for r in history if r.get("trade_date", "") >= cutoff]
+        with open(_TRADE_HISTORY_FILE, "w") as f:
+            json.dump(history, f)
+    except Exception as e:
+        print(f"  [trade_history] save failed: {e}")
+
+
 # ================= TELEGRAM =================
 
 

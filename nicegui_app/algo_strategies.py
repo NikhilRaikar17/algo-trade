@@ -7,8 +7,8 @@ from datetime import time as _dtime
 import numpy as np
 import talib
 
-from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT
-from state import _is_already_sent, _mark_sent, _send_telegram
+from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT, now_ist
+from state import _is_already_sent, _mark_sent, _send_telegram, save_completed_trade
 
 _MARKET_CLOSE = _dtime(15, 30)
 
@@ -150,6 +150,9 @@ def classify_trades(patterns, current_price, contract_name=""):
                 p["status"] = "Target Hit" if current_price <= target else "SL Hit"
                 completed.append(p)
                 if not _is_already_sent(completed_key):
+                    p["trade_date"] = now_ist().strftime("%Y-%m-%d")
+                    p["strategy"] = "ABCD"
+                    save_completed_trade(completed_key, p)
                     _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
                     _send_telegram(
@@ -171,6 +174,9 @@ def classify_trades(patterns, current_price, contract_name=""):
                 p["status"] = "Target Hit" if current_price >= target else "SL Hit"
                 completed.append(p)
                 if not _is_already_sent(completed_key):
+                    p["trade_date"] = now_ist().strftime("%Y-%m-%d")
+                    p["strategy"] = "ABCD"
+                    save_completed_trade(completed_key, p)
                     _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
                     _send_telegram(
@@ -366,6 +372,9 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
             if not _is_already_sent(completed_key):
+                s["trade_date"] = now_ist().strftime("%Y-%m-%d")
+                s["strategy"] = "RSI+SMA"
+                save_completed_trade(completed_key, s)
                 _mark_sent(completed_key)
                 emoji = "+" if pnl > 0 else ""
                 _send_telegram(

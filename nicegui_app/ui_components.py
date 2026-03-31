@@ -1,6 +1,8 @@
 """
-Reusable NiceGUI UI components: option chain table, trade table.
+Reusable NiceGUI UI components: option chain table, trade table, backtest P&L section.
 """
+
+from collections import defaultdict
 
 import pandas as pd
 from nicegui import ui
@@ -105,3 +107,91 @@ def build_trade_table(container, rows, pnl_col="PnL"):
                                     ui.label(
                                         _f2(val) if isinstance(val, float) else str(val)
                                     ).classes("text-xs")
+
+
+def render_backtest_pnl_section(completed):
+    """Render a P&L summary section for backtest trades.
+
+    Matches the layout of the live P&L tab:
+      - Summary cards (Total P&L, Trades, Win Rate, W/L)
+      - Signal/type breakdown (Bullish / Bearish) when both exist
+      - Day-wise P&L table
+
+    Expects each trade dict to have: pnl (float), time (Timestamp or str),
+    and optionally type (str).
+    """
+    if not completed:
+        return
+
+    total_pnl = sum(t["pnl"] for t in completed)
+    total_trades = len(completed)
+    winners = sum(1 for t in completed if t["pnl"] > 0)
+    losers = sum(1 for t in completed if t["pnl"] < 0)
+    win_rate = (winners / total_trades * 100) if total_trades else 0
+
+    ui.label("P&L Summary").classes("text-lg font-semibold mb-3")
+
+    # ── Summary cards ─────────────────────────────────────────────────────────
+    with ui.row().classes("gap-4 flex-wrap mb-4"):
+        with ui.card().classes("p-3 min-w-[120px] flex-1"):
+            ui.label("Total P&L").classes("text-sm text-gray-500")
+            color = "text-green-600" if total_pnl >= 0 else "text-red-600"
+            ui.label(f"{total_pnl:+.2f}").classes(f"text-2xl font-bold {color}")
+        with ui.card().classes("p-3 min-w-[120px] flex-1"):
+            ui.label("Trades").classes("text-sm text-gray-500")
+            ui.label(str(total_trades)).classes("text-2xl font-bold")
+        with ui.card().classes("p-3 min-w-[120px] flex-1"):
+            ui.label("Win Rate").classes("text-sm text-gray-500")
+            ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-blue-600")
+        with ui.card().classes("p-3 min-w-[120px] flex-1"):
+            ui.label("W / L").classes("text-sm text-gray-500")
+            ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")
+
+    # ── Signal/type breakdown (Bullish / Bearish) ─────────────────────────────
+    types = sorted(set(t.get("type", "") for t in completed if t.get("type")))
+    if len(types) > 1:
+        ui.label("Signal Breakdown").classes("text-base font-semibold mb-1")
+        with ui.row().classes("gap-3 flex-wrap mb-4"):
+            for typ in types:
+                type_trades = [t for t in completed if t.get("type") == typ]
+                tpnl = sum(t["pnl"] for t in type_trades)
+                tw = sum(1 for t in type_trades if t["pnl"] > 0)
+                tl = sum(1 for t in type_trades if t["pnl"] < 0)
+                twr = f"{tw / len(type_trades) * 100:.0f}%" if type_trades else "—"
+                tcolor = "text-green-600" if tpnl >= 0 else "text-red-600"
+                with ui.card().classes("p-3 min-w-[150px] flex-1"):
+                    ui.label(typ).classes("text-sm font-bold text-gray-600 mb-1")
+                    ui.label(f"{tpnl:+.2f}").classes(f"text-xl font-bold {tcolor}")
+                    ui.label(
+                        f"{len(type_trades)} trades · {tw}W/{tl}L · WR {twr}"
+                    ).classes("text-xs text-gray-500")
+
+    # ── Day-wise P&L table ────────────────────────────────────────────────────
+    ui.label("Day-wise P&L").classes("text-base font-semibold mb-2")
+    date_groups: dict = defaultdict(list)
+    for t in completed:
+        entry_time = t.get("time")
+        date_str = (
+            entry_time.strftime("%Y-%m-%d")
+            if hasattr(entry_time, "strftime")
+            else str(entry_time)[:10]
+        )
+        date_groups[date_str].append(t)
+
+    day_rows = []
+    for date in sorted(date_groups.keys(), reverse=True):
+        dtrades = date_groups[date]
+        dpnl = sum(t["pnl"] for t in dtrades)
+        dw = sum(1 for t in dtrades if t["pnl"] > 0)
+        dl = sum(1 for t in dtrades if t["pnl"] < 0)
+        dwr = f"{dw / len(dtrades) * 100:.0f}%" if dtrades else "0%"
+        day_rows.append({
+            "Date": date,
+            "Trades": len(dtrades),
+            "Winners": dw,
+            "Losers": dl,
+            "Win %": dwr,
+            "P&L": round(dpnl, 2),
+        })
+
+    build_trade_table(ui.element("div").classes("w-full"), day_rows, "P&L")
