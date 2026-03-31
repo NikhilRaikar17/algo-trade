@@ -107,13 +107,19 @@ def render_sma50_tab(container):
             )
             if content_container.client._deleted:
                 return
-            _build_sma50_content(content_container, label, candles)
+            try:
+                _build_sma50_content(content_container, label, candles)
+            except RuntimeError:
+                return
         except Exception as e:
             if content_container.client._deleted:
                 return
-            content_container.clear()
-            with content_container:
-                ui.label(f"Error: {e}").classes("text-red-500")
+            try:
+                content_container.clear()
+                with content_container:
+                    ui.label(f"Error: {e}").classes("text-red-500")
+            except RuntimeError:
+                return
             print(f"  [sma50:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():

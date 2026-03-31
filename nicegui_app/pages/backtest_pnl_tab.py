@@ -353,6 +353,9 @@ def render_backtest_pnl_tab(container):
                 None, lambda: _run_all_backtests(candles)
             )
 
+            if content_container.client._deleted:
+                return
+
             _data["trades"] = all_trades
 
             strategies = sorted(set(t.get("strategy", "") for t in all_trades if t.get("strategy")))
@@ -366,15 +369,21 @@ def render_backtest_pnl_tab(container):
             if _state["date"] not in (["All"] + dates):
                 _state["date"] = "All"
 
-            _build_filter_row(strategies, dates)
-            _render()
+            try:
+                _build_filter_row(strategies, dates)
+                _render()
+            except RuntimeError:
+                return  # container was cleared by a concurrent build_ui()
 
         except Exception as e:
             if content_container.client._deleted:
                 return
-            content_container.clear()
-            with content_container:
-                ui.label(f"Error: {e}").classes("text-red-500")
+            try:
+                content_container.clear()
+                with content_container:
+                    ui.label(f"Error: {e}").classes("text-red-500")
+            except RuntimeError:
+                return  # container was cleared by a concurrent build_ui()
             print(f"  [backtest_pnl:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
