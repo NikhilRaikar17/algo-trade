@@ -12,6 +12,7 @@ from config import now_ist, REFRESH_SECONDS, INDICES
 from state import is_market_open, get_next_market_open
 from sidebar import build_sidebar
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
+from email_report import send_backtest_email_report
 from pages.homepage import render_homepage
 from pages import (
     render_dashboard,
@@ -68,6 +69,7 @@ async def _start_scheduler():
                 send_premarket_alert()
                 send_morning_message()
                 send_daily_pnl_summary()
+                send_backtest_email_report()
             except Exception as e:
                 print(f"  [scheduler error] {e}")
 
