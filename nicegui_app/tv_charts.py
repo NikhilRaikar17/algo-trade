@@ -117,11 +117,27 @@ _LS_DASHED      = 2
 _LS_LARGE_DASH  = 3
 
 
+_CHART_HELPER_JS = """
+if (!window._tvElWidth) {
+    window._tvElWidth = function(el) {
+        if (el.clientWidth > 0) return el.clientWidth;
+        var p = el.parentElement;
+        while (p) { if (p.clientWidth > 0) return p.clientWidth; p = p.parentElement; }
+        return window.innerWidth * 0.85;
+    };
+}
+"""
+
 def _schedule_js(js_code: str) -> None:
-    """Schedule a JS snippet after the next NiceGUI DOM sync (100 ms timer)."""
+    """Schedule a JS snippet after the next NiceGUI DOM sync."""
     async def _run():
-        await ui.run_javascript(js_code)
+        await ui.run_javascript(_CHART_HELPER_JS + js_code)
+
     ui.timer(0.1, _run, once=True)
+
+
+async def flush_pending_js() -> None:
+    """No-op: kept for call-site compatibility. JS is scheduled via timers."""
 
 
 def _resize_listener(chart_var: str, el_var: str) -> str:
@@ -242,7 +258,7 @@ def render_tv_abcd_chart(
     # Markers must be sorted by time for TradingView
     markers = _dedup_markers(markers)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -250,12 +266,9 @@ def render_tv_abcd_chart(
     js = f"""
     (function initAbcd_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initAbcd_{chart_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -341,8 +354,8 @@ def render_tv_rsi_sma_chart(
             if v is not None:
                 rsi_data.append({"time": ts, "value": v})
 
-    ui.html(f'<div id="{price_id}" style="width:100%; height:{height}px;"></div>')
-    ui.html(f'<div id="{rsi_id}" style="width:100%; height:{rsi_height}px; margin-top:4px;"></div>')
+    ui.html(f'<div id="{price_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div id="{rsi_id}" style="width:100%; height:{rsi_height}px; margin-top:4px;"></div>', sanitize=False)
 
     price_opts = dict(_BASE_OPTS)
     price_opts["height"] = height
@@ -353,14 +366,11 @@ def render_tv_rsi_sma_chart(
     (function initRsiSma_{price_id}() {{
         var el  = document.getElementById('{price_id}');
         var el2 = document.getElementById('{rsi_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initRsiSma_{price_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
 
         // ---- Price chart ----
         var opts = {json.dumps(price_opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -389,7 +399,7 @@ def render_tv_rsi_sma_chart(
         // ---- RSI chart ----
         if (el2) {{
             var opts2 = {json.dumps(rsi_opts)};
-            opts2.width = el2.clientWidth || el.clientWidth;
+            opts2.width = _tvElWidth(el2);
             var rsiChart = LightweightCharts.createChart(el2, opts2);
             var rsiLine = rsiChart.addLineSeries({{
                 color: '#9c27b0', lineWidth: 1.5,
@@ -402,8 +412,8 @@ def render_tv_rsi_sma_chart(
             rsiChart.timeScale().fitContent();
 
             window.addEventListener('resize', function() {{
-                chart.applyOptions({{width: el.clientWidth}});
-                rsiChart.applyOptions({{width: el2.clientWidth}});
+                chart.applyOptions({{width: _tvElWidth(el)}});
+                rsiChart.applyOptions({{width: _tvElWidth(el2)}});
             }});
         }} else {{
             {_resize_listener("chart", "el")}
@@ -472,8 +482,8 @@ def render_tv_rsi_only_chart(
             if v is not None:
                 rsi_data.append({"time": _to_unix(row["timestamp"]), "value": v})
 
-    ui.html(f'<div id="{price_id}" style="width:100%; height:{height}px;"></div>')
-    ui.html(f'<div id="{rsi_id}" style="width:100%; height:{rsi_height}px; margin-top:4px;"></div>')
+    ui.html(f'<div id="{price_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div id="{rsi_id}" style="width:100%; height:{rsi_height}px; margin-top:4px;"></div>', sanitize=False)
 
     price_opts = dict(_BASE_OPTS)
     price_opts["height"] = height
@@ -484,14 +494,11 @@ def render_tv_rsi_only_chart(
     (function initRsiOnly_{price_id}() {{
         var el  = document.getElementById('{price_id}');
         var el2 = document.getElementById('{rsi_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initRsiOnly_{price_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
 
         // ---- Price chart ----
         var opts = {json.dumps(price_opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -511,7 +518,7 @@ def render_tv_rsi_only_chart(
         // ---- RSI chart ----
         if (el2) {{
             var opts2 = {json.dumps(rsi_opts)};
-            opts2.width = el2.clientWidth || el.clientWidth;
+            opts2.width = _tvElWidth(el2);
             var rsiChart = LightweightCharts.createChart(el2, opts2);
             var rsiLine = rsiChart.addLineSeries({{
                 color: '#9c27b0', lineWidth: 1.5,
@@ -525,8 +532,8 @@ def render_tv_rsi_only_chart(
             rsiChart.timeScale().fitContent();
 
             window.addEventListener('resize', function() {{
-                chart.applyOptions({{width: el.clientWidth}});
-                rsiChart.applyOptions({{width: el2.clientWidth}});
+                chart.applyOptions({{width: _tvElWidth(el)}});
+                rsiChart.applyOptions({{width: _tvElWidth(el2)}});
             }});
         }} else {{
             {_resize_listener("chart", "el")}
@@ -595,7 +602,7 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> None:
 
     markers = _dedup_markers(markers)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -603,12 +610,9 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> None:
     js = f"""
     (function initDT_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initDT_{chart_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -689,7 +693,7 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
 
     markers = _dedup_markers(markers)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -697,12 +701,9 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
     js = f"""
     (function initDB_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initDB_{chart_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -821,7 +822,7 @@ def render_tv_channel_down_chart(candles, signals, height: int = 500) -> None:
 
     markers = _dedup_markers(markers)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -829,12 +830,9 @@ def render_tv_channel_down_chart(candles, signals, height: int = 500) -> None:
     js = f"""
     (function initCDown_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initCDown_{chart_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -918,7 +916,7 @@ def render_tv_channel_breakout_chart(candles, df_ind, signals, height: int = 500
 
     markers = _dedup_markers(markers)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -926,12 +924,9 @@ def render_tv_channel_breakout_chart(candles, df_ind, signals, height: int = 500
     js = f"""
     (function initCB_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initCB_{chart_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -999,7 +994,7 @@ def render_tv_ema10_chart(candles, df_ind, signals, height: int = 500) -> None:
         })
     markers = _dedup_markers(markers)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -1007,12 +1002,9 @@ def render_tv_ema10_chart(candles, df_ind, signals, height: int = 500) -> None:
     js = f"""
     (function initEma10_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initEma10_{chart_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -1063,7 +1055,7 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> None:
         })
     markers = _dedup_markers(markers)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>')
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -1071,12 +1063,9 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> None:
     js = f"""
     (function initSma50_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
-        if (!el || !el.clientWidth) {{
-            setTimeout(initSma50_{chart_id}, 50);
-            return;
-        }}
+        if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
-        opts.width = el.clientWidth;
+        opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
@@ -1091,6 +1080,35 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> None:
                 priceLineVisible: false, title: 'SMA 50',
             }}).setData(sma50Data);
         }}
+
+        {_ohlc_tooltip_js("chart", "cs", "el")}
+        chart.timeScale().fitContent();
+        {_resize_listener("chart", "el")}
+    }})();
+    """
+    _schedule_js(js)
+
+
+def render_tv_simple_candle_chart(candles, height: int = 300) -> None:
+    """Render a plain candlestick chart — used for ATM CE/PE option charts on the dashboard."""
+    chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+    ohlc = _candles_to_tv(candles)
+
+    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+
+    opts = dict(_BASE_OPTS)
+    opts["height"] = height
+
+    js = f"""
+    (function initSimple_{chart_id}() {{
+        var el = document.getElementById('{chart_id}');
+        if (!el) {{ return; }}
+        var opts = {json.dumps(opts)};
+        opts.width = _tvElWidth(el);
+        var chart = LightweightCharts.createChart(el, opts);
+
+        var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+        cs.setData({json.dumps(ohlc)});
 
         {_ohlc_tooltip_js("chart", "cs", "el")}
         chart.timeScale().fitContent();

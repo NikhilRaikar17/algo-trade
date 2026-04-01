@@ -82,8 +82,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
         # ---- Live Trading ----
         _section_label("Live Trading", "bg-green-400")
-        _nav_button("abcd", "ABCD Algo", "insights")
-        _nav_button("rsi",  "RSI + SMA", "analytics")
+        _nav_button("algo", "Live Trading", "insights")
 
         ui.separator().classes("my-2 mx-4")
 

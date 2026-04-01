@@ -44,12 +44,15 @@ def subscribe(securities: list):
     _consuming.clear()
 
     def _run():
+        import asyncio
+        # DhanFeed.run_forever() calls asyncio internally — the background thread
+        # has no event loop by default, so we create one explicitly.
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
             instruments = [(seg, str(sid), marketfeed.Full) for seg, sid in securities]
             feed = marketfeed.DhanFeed(CLIENT_ID, ACCESS_TOKEN, instruments, version="v2")
 
-            # run_forever() = loop.run_until_complete(connect())
-            # Blocks until the WebSocket handshake is complete, then returns.
             feed.run_forever()
             _consuming.set()
             ids = [str(s) for _, s in securities]

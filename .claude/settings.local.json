@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from dhanhq import dhanhq; print\\([m for m in dir\\(dhanhq\\) if not m.startswith\\(''_''\\) and ''market'' in m.lower\\(\\) or ''ltp'' in m.lower\\(\\) or ''quote'' in m.lower\\(\\)]\\)\")",
+      "Bash(python -c \"from dhanhq import dhanhq; help\\(dhanhq.quote_data\\)\")",
+      "Bash(python -c \"from dhanhq import dhanhq; help\\(dhanhq.intraday_minute_data\\)\")",
+      "Bash(pip list:*)",
+      "Bash(pip install:*)",
+      "Bash(uv sync:*)",
+      "Bash(python -c \":*)",
+      "Bash(python -c \"from datetime import datetime; print\\(''Local time:'', datetime.now\\(\\)\\); import time; print\\(''Timezone:'', time.tzname\\)\")",
+      "Bash(python -m py_compile dhan_websockets/nifty_option_chain_app.py)",
+      "Bash(uv run:*)"
+    ]
+  }
+}

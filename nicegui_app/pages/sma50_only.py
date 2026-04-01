@@ -11,7 +11,7 @@ from nicegui import ui
 from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles
 from ui_components import build_grouped_options_dict, resolve_option_labels_in_dropdown
 from algo_strategies import detect_sma50_signals, backtest_sma50
-from tv_charts import render_tv_sma50_chart
+from tv_charts import render_tv_sma50_chart, flush_pending_js
 
 
 # Build option groups: {group_label: {security_id: display_name}}
@@ -125,6 +125,7 @@ def render_sma50_tab(container):
                 return
             try:
                 _build_sma50_content(content_container, label, candles)
+                await flush_pending_js()
             except RuntimeError:
                 return
         except Exception as e:

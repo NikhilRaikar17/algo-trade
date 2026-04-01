@@ -40,8 +40,7 @@ ALL_PAGE_IDS = [
     "market_news",
     "nifty",
     "banknifty",
-    "abcd",
-    "rsi",
+    "algo",
     "rsi_only",
     "abcd_only",
     "dt_only",
@@ -361,13 +360,11 @@ async def index():
         refresh_fns["ema10"]         = render_ema10_tab(page_containers["ema10"])
         refresh_fns["backtest_pnl"]  = render_backtest_pnl_tab(page_containers["backtest_pnl"])
 
-        # Live algo tabs — countdown when closed, live data when open
+        # Live algo tab — countdown when closed, live data when open
         if market_open:
-            refresh_fns["abcd"] = render_algo_tab(page_containers["abcd"], "abcd")
-            refresh_fns["rsi"]  = render_algo_tab(page_containers["rsi"], "rsi")
+            refresh_fns["algo"] = render_algo_tab(page_containers["algo"])
         else:
-            render_market_closed(page_containers["abcd"])
-            render_market_closed(page_containers["rsi"])
+            render_market_closed(page_containers["algo"])
 
     async def full_refresh():
         """Rebuild UI if market state changed, then refresh active page only."""

@@ -11,7 +11,7 @@ from pnl import collect_all_trades
 from state import load_trade_history
 from ui_components import build_trade_table
 
-_ALL_STRATEGIES = ["ABCD", "RSI+SMA", "RSI"]
+_ALL_STRATEGIES = ["ABCD", "Double Top", "Double Bottom", "Channel Down", "Channel Breakout", "EMA10", "SMA50"]
 
 
 def render_pnl_tab(container):
@@ -164,15 +164,26 @@ def render_pnl_tab(container):
             if not filtered:
                 ui.label("No completed trades for this filter.").classes("text-gray-500 italic")
             else:
+                def _fmt(t_val):
+                    if t_val is None:
+                        return "—"
+                    if hasattr(t_val, "strftime"):
+                        return t_val.strftime("%d %b %H:%M")
+                    return str(t_val)
+
                 rows = [
                     {
-                        "Date": t.get("trade_date", ""),
-                        "Strategy": t.get("strategy", ""),
-                        "Signal": t.get("signal", ""),
-                        "Entry": t.get("entry", 0),
-                        "Exit": round(t.get("exit_price", 0), 2),
-                        "P&L": t.get("pnl", 0),
-                        "Status": t.get("status", ""),
+                        "Date":      t.get("trade_date", ""),
+                        "Strategy":  t.get("strategy", ""),
+                        "Signal":    t.get("signal", ""),
+                        "Entry":     t.get("entry", 0),
+                        "Target":    round(t.get("target", 0), 2) if t.get("target") else "—",
+                        "SL":        round(t.get("stop_loss", 0), 2) if t.get("stop_loss") else "—",
+                        "Exit":      round(t.get("exit_price", 0), 2),
+                        "Entry Time": _fmt(t.get("time")),
+                        "Exit Time":  _fmt(t.get("exit_time")),
+                        "P&L":       t.get("pnl", 0),
+                        "Status":    t.get("status", ""),
                     }
                     for t in filtered
                 ]
@@ -194,13 +205,21 @@ def render_pnl_tab(container):
                 ui.label(f"Unrealized P&L: {total_unreal:+.2f}").classes(
                     f"text-base font-bold {ucolor} mb-2"
                 )
+                def _fmt_t(t_val):
+                    if t_val is None:
+                        return "—"
+                    if hasattr(t_val, "strftime"):
+                        return t_val.strftime("%d %b %H:%M")
+                    return str(t_val)
+
                 rows = [
                     {
-                        "Strategy": t.get("strategy", ""),
-                        "Signal": t.get("signal", ""),
-                        "Entry": t.get("entry", 0),
-                        "Target": t.get("target", 0),
-                        "Stop Loss": t.get("stop_loss", 0),
+                        "Strategy":   t.get("strategy", ""),
+                        "Signal":     t.get("signal", ""),
+                        "Entry":      t.get("entry", 0),
+                        "Target":     t.get("target", 0),
+                        "Stop Loss":  t.get("stop_loss", 0),
+                        "Entry Time": _fmt_t(t.get("time")),
                         "Unreal. P&L": t.get("unrealized_pnl", 0),
                     }
                     for t in active_filtered

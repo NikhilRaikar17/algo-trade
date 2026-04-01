@@ -5,11 +5,13 @@ Dashboard page: clocks (IST / CEST) and market price cards.
 import time
 import asyncio
 from datetime import datetime
+import pandas as pd
 from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
 from state import _cache_get, _cache_set
-from data import get_expiries, fetch_option_chain, _fetch_any_index_candles, _candles_to_daily_change
+from data import get_expiries, fetch_option_chain, fetch_option_chain_raw, fetch_5min_candles, _fetch_any_index_candles, _candles_to_daily_change
+from tv_charts import render_tv_simple_candle_chart
 
 
 def _compute_synthetic_futures(spot, df, strike_step):
@@ -57,6 +59,45 @@ def fetch_dashboard_prices():
 
     _cache_set(cache_key, prices)
     return prices
+
+
+def fetch_atm_candles():
+    """Fetch today's 5-min candles for ATM CE and PE for each index."""
+    cache_key = "dashboard_atm_candles"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    today = now_ist().date()
+    result = {}
+    for name, cfg in INDICES.items():
+        result[name] = {}
+        try:
+            expiries = get_expiries(cfg["scrip"], cfg["segment"], 1)
+            expiry = expiries[0]
+            raw = fetch_option_chain_raw(cfg["scrip"], cfg["segment"], expiry)
+            spot = round(float(raw["last_price"]), 2)
+            atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
+            strikes = sorted(raw["oc"].keys(), key=lambda s: abs(float(s) - atm))
+            sides = raw["oc"][strikes[0]] if strikes else {}
+            for opt_type, key in [("CE", "ce"), ("PE", "pe")]:
+                sec_id = sides.get(key, {}).get("security_id")
+                if not sec_id:
+                    continue
+                try:
+                    candles = fetch_5min_candles(sec_id)
+                    if not candles.empty:
+                        candles = candles[candles["timestamp"].dt.date == today].reset_index(drop=True)
+                    result[name][opt_type] = {"atm": atm, "candles": candles, "expiry": expiry}
+                except Exception:
+                    pass
+                time.sleep(0.3)
+        except Exception as e:
+            print(f"  [dashboard] {name} ATM candles error: {e}")
+        time.sleep(0.5)
+
+    _cache_set(cache_key, result)
+    return result
 
 
 def render_dashboard(container):
@@ -141,6 +182,9 @@ def render_dashboard(container):
                                 ui.label("--").classes(
                                     "text-2xl font-bold text-gray-300 mt-1"
                                 )
+
+        # ---- ATM Option Charts ----
+        charts_container = ui.element("div").classes("w-full mt-6")
 
     page_client = context.client
 
@@ -243,6 +287,61 @@ def render_dashboard(container):
         update_time_label.set_text(
             f"Updated {now_ist().strftime('%H:%M:%S')} IST"
         )
+
+        # ---- ATM Option Charts ----
+        atm_candles = await asyncio.get_event_loop().run_in_executor(
+            None, fetch_atm_candles
+        )
+        if page_client._deleted:
+            return
+
+        charts_container.clear()
+        with charts_container:
+            with ui.row().classes("items-center gap-2 mb-4"):
+                ui.icon("candlestick_chart", size="22px").classes("text-blue-500")
+                ui.label("ATM Option Charts (5-min)").classes("text-lg font-semibold text-gray-800")
+
+            for name in ["NIFTY", "BANKNIFTY"]:
+                index_data = atm_candles.get(name, {})
+                if not index_data:
+                    continue
+
+                # Use CE data to get atm/expiry (same for both legs)
+                sample = index_data.get("CE") or index_data.get("PE")
+                if not sample:
+                    continue
+                atm = sample["atm"]
+                expiry = sample["expiry"]
+                exp_tag = datetime.strptime(expiry, "%Y-%m-%d").strftime("%d%b").upper()
+
+                with ui.card().classes("w-full border border-gray-200 shadow-sm !rounded-xl mb-4 p-4"):
+                    with ui.row().classes("items-center gap-3 mb-3"):
+                        dot_color = "bg-blue-500" if name == "NIFTY" else "bg-indigo-500"
+                        ui.element("div").classes(f"w-3 h-3 rounded-full {dot_color}")
+                        ui.label(f"{name} — ATM {int(atm)} ({exp_tag})").classes(
+                            "text-base font-bold text-gray-800"
+                        )
+
+                    with ui.tabs().classes("w-full") as opt_tabs:
+                        ce_tab = ui.tab(f"CE {int(atm)}")
+                        pe_tab = ui.tab(f"PE {int(atm)}")
+
+                    with ui.tab_panels(opt_tabs, value=ce_tab).classes("w-full"):
+                        for tab_item, opt_type in [(ce_tab, "CE"), (pe_tab, "PE")]:
+                            with ui.tab_panel(tab_item):
+                                entry = index_data.get(opt_type)
+                                if entry is None:
+                                    ui.label(f"No data for {opt_type}").classes("text-orange-500 italic")
+                                    continue
+                                candles = entry["candles"]
+                                if candles is None or candles.empty:
+                                    ui.label(f"No candle data yet for {opt_type} today.").classes("text-gray-400 italic")
+                                    continue
+                                ltp = round(float(candles["close"].iloc[-1]), 2)
+                                ui.label(f"LTP: {ltp:,.2f} | {len(candles)} candles today").classes(
+                                    "text-xs text-gray-500 mb-2"
+                                )
+                                render_tv_simple_candle_chart(candles, height=300)
 
     return refresh
 

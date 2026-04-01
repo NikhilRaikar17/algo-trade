@@ -15,7 +15,7 @@ from algo_strategies import (
     detect_rsi_only_signals,
     backtest_rsi_only,
 )
-from tv_charts import render_tv_rsi_only_chart
+from tv_charts import render_tv_rsi_only_chart, flush_pending_js
 
 
 # Build option groups: {group_label: {value: display_name}}
@@ -144,6 +144,7 @@ def render_rsi_only_tab(container):
                 return
             try:
                 _build_rsi_only_content(content_container, resolved_label, candles)
+                await flush_pending_js()
             except RuntimeError:
                 return
         except Exception as e:

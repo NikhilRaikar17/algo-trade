@@ -1214,3 +1214,89 @@ def backtest_sma50(signals, candles):
             }
         trades.append({**s, **result})
     return trades
+
+
+# ================= LIVE CLASSIFY HELPERS =================
+
+def _classify_generic(signals, current_price, contract_name, strategy_name, store_prefix, extra_alert_fn=None):
+    active = []
+    completed = []
+    for s in signals:
+        entry = s["entry"]
+        target = s["target"]
+        sl = s["stop_loss"]
+        sig_key = "{}_{}".format(store_prefix, str(s["time"]))
+        active_key = "live_active_" + sig_key
+        completed_key = "live_closed_" + sig_key
+        is_buy = target > entry
+        if is_buy:
+            pnl = current_price - entry
+            hit_target = current_price >= target
+            hit_sl = current_price <= sl
+        else:
+            pnl = entry - current_price
+            hit_target = current_price <= target
+            hit_sl = current_price >= sl
+        pnl = round(pnl, 2)
+        if hit_target or hit_sl:
+            s["exit_price"] = current_price
+            s["pnl"] = pnl
+            s["status"] = "Target Hit" if hit_target else "SL Hit"
+            completed.append(s)
+            if not _is_already_sent(completed_key):
+                s["trade_date"] = now_ist().strftime("%Y-%m-%d")
+                s["strategy"] = strategy_name
+                save_completed_trade(completed_key, s)
+                _mark_sent(completed_key)
+                emoji = "+" if pnl > 0 else ""
+                _send_telegram(
+                    "TRADE CLOSED [{}] | {}\nSignal: {}\nEntry: {:.2f} | Exit: {:.2f}\nPnL: {}{:.2f}\nStatus: {}".format(
+                        strategy_name, contract_name, s["signal"], entry, current_price, emoji, pnl, s["status"]
+                    )
+                )
+        else:
+            s["unrealized_pnl"] = pnl
+            active.append(s)
+            if not _is_already_sent(active_key):
+                _mark_sent(active_key)
+                alert = "NEW TRADE [{}] | {}\nSignal: {}\nEntry: {:.2f} | Target: {:.2f} | SL: {:.2f}".format(
+                    strategy_name, contract_name, s["signal"], entry, target, sl
+                )
+                if extra_alert_fn:
+                    alert += extra_alert_fn(s)
+                _send_telegram(alert)
+    return active, completed
+
+
+def classify_rsi_only_trades(signals, current_price, contract_name=""):
+    return _classify_generic(signals, current_price, contract_name, "RSI", "rsionly",
+        extra_alert_fn=lambda s: "\nRSI: {}".format(s.get("rsi", "-")))
+
+
+def classify_double_top_trades(signals, current_price, contract_name=""):
+    return _classify_generic(signals, current_price, contract_name, "Double Top", "dt",
+        extra_alert_fn=lambda s: "\nNeckline: {} | Height: {}".format(s.get("neckline", "-"), s.get("height", "-")))
+
+
+def classify_double_bottom_trades(signals, current_price, contract_name=""):
+    return _classify_generic(signals, current_price, contract_name, "Double Bottom", "db",
+        extra_alert_fn=lambda s: "\nNeckline: {} | Height: {}".format(s.get("neckline", "-"), s.get("height", "-")))
+
+
+def classify_channel_down_trades(signals, current_price, contract_name=""):
+    return _classify_generic(signals, current_price, contract_name, "Channel Down", "cd",
+        extra_alert_fn=lambda s: "\nChannel width: {}".format(s.get("channel_width", "-")))
+
+
+def classify_channel_breakout_trades(signals, current_price, contract_name=""):
+    return _classify_generic(signals, current_price, contract_name, "Channel Breakout", "cb")
+
+
+def classify_ema10_trades(signals, current_price, contract_name=""):
+    return _classify_generic(signals, current_price, contract_name, "EMA10", "ema10",
+        extra_alert_fn=lambda s: "\nEMA10: {}".format(s.get("ema10", "-")))
+
+
+def classify_sma50_trades(signals, current_price, contract_name=""):
+    return _classify_generic(signals, current_price, contract_name, "SMA50", "sma50",
+        extra_alert_fn=lambda s: "\nSMA50: {}".format(s.get("sma50", "-")))
