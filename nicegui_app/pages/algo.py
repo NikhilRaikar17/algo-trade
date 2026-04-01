@@ -309,24 +309,19 @@ def _render_algo_option(container, cfg, expiry, raw, candles_by_type, algo_type,
 
         ui.separator()
 
-        with ui.tabs().classes("w-full") as opt_tabs:
-            ce_tab = ui.tab(f"ATM CE — {int(atm)} CE")
-            pe_tab = ui.tab(f"ATM PE — {int(atm)} PE")
-
-        with ui.tab_panels(opt_tabs, value=ce_tab).classes("w-full"):
-            for tab_item, opt_type in [(ce_tab, "CE"), (pe_tab, "PE")]:
-                with ui.tab_panel(tab_item):
-                    entry = candles_by_type.get(opt_type)
-                    if entry is None:
-                        ui.label(f"No security ID for ATM {opt_type}").classes("text-orange-500")
-                        continue
-                    sec_id, candles = entry
-                    if candles is None or candles.empty:
-                        ui.label(f"No candle data for ATM {opt_type} (ID: {sec_id})").classes("text-orange-500")
-                        continue
-                    contract_name = f"{cfg['name_prefix']} {exp_tag} {int(atm)} {opt_type}"
-                    current_price = round(float(candles["close"].iloc[-1]), 2)
-                    _run_strategy(algo_type, candles, current_price, contract_name, candles_by_type, opt_type)
+        for opt_type in ["CE", "PE"]:
+            ui.separator().classes("my-2")
+            entry = candles_by_type.get(opt_type)
+            if entry is None:
+                ui.label(f"No security ID for ATM {opt_type}").classes("text-orange-500")
+                continue
+            sec_id, candles = entry
+            if candles is None or candles.empty:
+                ui.label(f"No candle data for ATM {opt_type} (ID: {sec_id})").classes("text-orange-500")
+                continue
+            contract_name = f"{cfg['name_prefix']} {exp_tag} {int(atm)} {opt_type}"
+            current_price = round(float(candles["close"].iloc[-1]), 2)
+            _run_strategy(algo_type, candles, current_price, contract_name, candles_by_type, opt_type)
 
 
 # ── tab entry point ───────────────────────────────────────────────────────────
@@ -461,24 +456,20 @@ def render_algo_tab(container, algo_type="abcd"):
                 ui.label("No expiries found").classes("text-gray-500")
                 return
 
-            with ui.tabs().classes("w-full") as tabs:
-                tab_items = [ui.tab(f"Expiry: {exp}") for exp in expiries]
-
-            with ui.tab_panels(tabs, value=tab_items[0]).classes("w-full"):
-                for tab_item, exp in zip(tab_items, expiries):
-                    with ui.tab_panel(tab_item):
-                        result = expiry_data.get(exp)
-                        if isinstance(result, Exception):
-                            ui.label(f"Error: {result}").classes("text-red-500")
-                        elif result is None:
-                            ui.label("No data").classes("text-gray-500")
-                        else:
-                            inner = ui.element("div").classes("w-full")
-                            _render_algo_option(
-                                inner, cfg, exp, result,
-                                candles_cache.get(exp, {}),
-                                strat, active_timers,
-                            )
+            for exp in expiries:
+                result = expiry_data.get(exp)
+                with ui.expansion(f"Expiry: {exp}", value=True).classes("w-full border rounded mb-2"):
+                    if isinstance(result, Exception):
+                        ui.label(f"Error: {result}").classes("text-red-500")
+                    elif result is None:
+                        ui.label("No data").classes("text-gray-500")
+                    else:
+                        inner = ui.element("div").classes("w-full")
+                        _render_algo_option(
+                            inner, cfg, exp, result,
+                            candles_cache.get(exp, {}),
+                            strat, active_timers,
+                        )
 
         # Flush all chart JS after UI is fully built and DOM is synced
         await flush_pending_js()

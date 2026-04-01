@@ -126,6 +126,19 @@ if (!window._tvElWidth) {
         return window.innerWidth * 0.85;
     };
 }
+if (!window._tvInitWhenVisible) {
+    window._tvInitWhenVisible = function(elId, initFn) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+        if (el.clientWidth > 0) { initFn(el); return; }
+        var ro = new ResizeObserver(function(entries) {
+            for (var e of entries) {
+                if (e.contentRect.width > 0) { ro.disconnect(); initFn(el); return; }
+            }
+        });
+        ro.observe(el);
+    };
+}
 """
 
 def _schedule_js(js_code: str) -> None:
@@ -133,7 +146,7 @@ def _schedule_js(js_code: str) -> None:
     async def _run():
         await ui.run_javascript(_CHART_HELPER_JS + js_code)
 
-    ui.timer(0.1, _run, once=True)
+    ui.timer(0.8, _run, once=True)
 
 
 async def flush_pending_js() -> None:
@@ -141,11 +154,18 @@ async def flush_pending_js() -> None:
 
 
 def _resize_listener(chart_var: str, el_var: str) -> str:
-    """Return JS that re-applies chart width on window resize."""
+    """Return JS that re-applies chart width on window resize and on first visibility (hidden tab fix)."""
     return (
         f"window.addEventListener('resize', function(){{"
-        f"  {chart_var}.applyOptions({{width: {el_var}.clientWidth}});"
+        f"  {chart_var}.applyOptions({{width: _tvElWidth({el_var})}});"
         f"}});"
+        f"(new ResizeObserver(function(en,ob){{"
+        f"  if(en[0].contentRect.width>0){{"
+        f"    ob.disconnect();"
+        f"    {chart_var}.applyOptions({{width:en[0].contentRect.width}});"
+        f"    {chart_var}.timeScale().fitContent();"
+        f"  }}"
+        f"}})).observe({el_var});"
     )
 
 

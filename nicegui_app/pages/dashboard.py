@@ -322,26 +322,22 @@ def render_dashboard(container):
                             "text-base font-bold text-gray-800"
                         )
 
-                    with ui.tabs().classes("w-full") as opt_tabs:
-                        ce_tab = ui.tab(f"CE {int(atm)}")
-                        pe_tab = ui.tab(f"PE {int(atm)}")
-
-                    with ui.tab_panels(opt_tabs, value=ce_tab).classes("w-full"):
-                        for tab_item, opt_type in [(ce_tab, "CE"), (pe_tab, "PE")]:
-                            with ui.tab_panel(tab_item):
-                                entry = index_data.get(opt_type)
-                                if entry is None:
-                                    ui.label(f"No data for {opt_type}").classes("text-orange-500 italic")
-                                    continue
-                                candles = entry["candles"]
-                                if candles is None or candles.empty:
-                                    ui.label(f"No candle data yet for {opt_type} today.").classes("text-gray-400 italic")
-                                    continue
-                                ltp = round(float(candles["close"].iloc[-1]), 2)
-                                ui.label(f"LTP: {ltp:,.2f} | {len(candles)} candles today").classes(
-                                    "text-xs text-gray-500 mb-2"
-                                )
-                                render_tv_simple_candle_chart(candles, height=300)
+                    for opt_type in ["CE", "PE"]:
+                        label_cls = "text-green-700 font-bold" if opt_type == "CE" else "text-red-700 font-bold"
+                        ui.label(f"{opt_type} {int(atm)}").classes(f"text-sm {label_cls} mt-3 mb-1")
+                        entry = index_data.get(opt_type)
+                        if entry is None:
+                            ui.label(f"No data for {opt_type}").classes("text-orange-500 italic")
+                            continue
+                        candles = entry["candles"]
+                        if candles is None or candles.empty:
+                            ui.label(f"No candle data yet for {opt_type} today.").classes("text-gray-400 italic")
+                            continue
+                        ltp = round(float(candles["close"].iloc[-1]), 2)
+                        ui.label(f"LTP: {ltp:,.2f} | {len(candles)} candles today").classes(
+                            "text-xs text-gray-500 mb-2"
+                        )
+                        render_tv_simple_candle_chart(candles, height=300)
 
     return refresh
 
