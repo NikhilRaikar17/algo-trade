@@ -12,6 +12,7 @@ from config import now_ist, REFRESH_SECONDS, INDICES
 from state import is_market_open, get_next_market_open
 from sidebar import build_sidebar
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
+from pages.homepage import render_homepage
 from pages import (
     render_dashboard,
     render_markets_tab,
@@ -77,6 +78,11 @@ async def _start_scheduler():
 
 
 @ui.page("/")
+async def homepage():
+    render_homepage()
+
+
+@ui.page("/app")
 async def index():
     ui.page_title("Algo Trading")
 
