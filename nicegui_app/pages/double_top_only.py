@@ -203,12 +203,24 @@ def _build_double_top_content(container, label, candles):
                     if hasattr(t["exit_time"], "strftime")
                     else str(t["exit_time"])
                 )
+            peak1_time_str = (
+                t["peak1_time"].strftime("%d %b %H:%M")
+                if hasattr(t.get("peak1_time"), "strftime")
+                else str(t.get("peak1_time", "—"))
+            )
+            peak2_time_str = (
+                t["peak2_time"].strftime("%d %b %H:%M")
+                if hasattr(t.get("peak2_time"), "strftime")
+                else str(t.get("peak2_time", "—"))
+            )
             rows.append(
                 {
                     "Entry Time": time_str,
                     "Signal": t["signal"],
                     "Peak1": t["peak1"],
+                    "Peak1 Time": peak1_time_str,
                     "Peak2": t["peak2"],
+                    "Peak2 Time": peak2_time_str,
                     "Neckline": t["neckline"],
                     "Entry": t["entry"],
                     "Target": t["target"],
@@ -223,8 +235,10 @@ def _build_double_top_content(container, label, candles):
         columns = [
             {"name": "entry_time", "label": "Entry Time", "field": "Entry Time", "sortable": True, "align": "left"},
             {"name": "signal",     "label": "Signal",     "field": "Signal",     "sortable": True, "align": "left"},
-            {"name": "peak1",      "label": "Peak 1",     "field": "Peak1",      "sortable": True, "align": "left"},
-            {"name": "peak2",      "label": "Peak 2",     "field": "Peak2",      "sortable": True, "align": "left"},
+            {"name": "peak1",       "label": "Peak 1",      "field": "Peak1",      "sortable": True, "align": "left"},
+            {"name": "peak1_time", "label": "Peak 1 Time", "field": "Peak1 Time", "sortable": True, "align": "left"},
+            {"name": "peak2",      "label": "Peak 2",      "field": "Peak2",      "sortable": True, "align": "left"},
+            {"name": "peak2_time", "label": "Peak 2 Time", "field": "Peak2 Time", "sortable": True, "align": "left"},
             {"name": "neckline",   "label": "Neckline",   "field": "Neckline",   "sortable": True, "align": "left"},
             {"name": "entry",      "label": "Entry",      "field": "Entry",      "sortable": True, "align": "left"},
             {"name": "target",     "label": "Target",     "field": "Target",     "sortable": True, "align": "left"},

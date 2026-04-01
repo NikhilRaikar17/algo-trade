@@ -203,12 +203,24 @@ def _build_double_bottom_content(container, label, candles):
                     if hasattr(t["exit_time"], "strftime")
                     else str(t["exit_time"])
                 )
+            trough1_time_str = (
+                t["trough1_time"].strftime("%d %b %H:%M")
+                if hasattr(t.get("trough1_time"), "strftime")
+                else str(t.get("trough1_time", "—"))
+            )
+            trough2_time_str = (
+                t["trough2_time"].strftime("%d %b %H:%M")
+                if hasattr(t.get("trough2_time"), "strftime")
+                else str(t.get("trough2_time", "—"))
+            )
             rows.append(
                 {
                     "Entry Time": time_str,
                     "Signal": t["signal"],
                     "Trough1": t["trough1"],
+                    "Trough1 Time": trough1_time_str,
                     "Trough2": t["trough2"],
+                    "Trough2 Time": trough2_time_str,
                     "Neckline": t["neckline"],
                     "Entry": t["entry"],
                     "Target": t["target"],
@@ -223,8 +235,10 @@ def _build_double_bottom_content(container, label, candles):
         columns = [
             {"name": "entry_time", "label": "Entry Time", "field": "Entry Time", "sortable": True, "align": "left"},
             {"name": "signal",     "label": "Signal",     "field": "Signal",     "sortable": True, "align": "left"},
-            {"name": "trough1",    "label": "Trough 1",   "field": "Trough1",    "sortable": True, "align": "left"},
-            {"name": "trough2",    "label": "Trough 2",   "field": "Trough2",    "sortable": True, "align": "left"},
+            {"name": "trough1",       "label": "Trough 1",      "field": "Trough1",      "sortable": True, "align": "left"},
+            {"name": "trough1_time", "label": "Trough 1 Time", "field": "Trough1 Time", "sortable": True, "align": "left"},
+            {"name": "trough2",      "label": "Trough 2",      "field": "Trough2",      "sortable": True, "align": "left"},
+            {"name": "trough2_time", "label": "Trough 2 Time", "field": "Trough2 Time", "sortable": True, "align": "left"},
             {"name": "neckline",   "label": "Neckline",   "field": "Neckline",   "sortable": True, "align": "left"},
             {"name": "entry",      "label": "Entry",      "field": "Entry",      "sortable": True, "align": "left"},
             {"name": "target",     "label": "Target",     "field": "Target",     "sortable": True, "align": "left"},
