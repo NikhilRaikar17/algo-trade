@@ -178,6 +178,9 @@ async def index():
             100% { opacity: 1; }
         }
         .ticker-blink { animation: ticker-blink 0.6s ease-in-out; }
+        @media (max-width: 599px) {
+            .header-tickers { display: none !important; }
+        }
 
         /* ---- Responsive tabs & header ---- */
         .q-drawer { background: #fff !important; overflow-y: auto !important; }
@@ -270,11 +273,12 @@ async def index():
 
             # ---- Live spot price tickers ----
             _header_tickers = {}
-            for _idx in ["NIFTY", "BANKNIFTY"]:
-                _badge = ui.element("div").classes("ticker-badge flat")
-                with _badge:
-                    _lbl = ui.label(f"{_idx}  --").classes("font-bold text-sm")
-                _header_tickers[_idx] = {"badge": _badge, "label": _lbl, "prev": None}
+            with ui.element("div").classes("header-tickers flex items-center gap-2"):
+                for _idx in ["NIFTY", "BANKNIFTY"]:
+                    _badge = ui.element("div").classes("ticker-badge flat")
+                    with _badge:
+                        _lbl = ui.label(f"{_idx}  --").classes("font-bold text-sm")
+                    _header_tickers[_idx] = {"badge": _badge, "label": _lbl, "prev": None}
 
             ui.space()
 
