@@ -265,7 +265,7 @@ STOCK_WATCH_GROUPS = [
     {
         "group": "Large Cap",
         "stocks": [
-            {"name": "RELIANCE",    "security_id": "1333"},
+            {"name": "RELIANCE",    "security_id": "2885"},
             {"name": "TCS",         "security_id": "11536"},
             {"name": "HDFCBANK",    "security_id": "1330"},
             {"name": "INFY",        "security_id": "1594"},
