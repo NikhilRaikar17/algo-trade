@@ -178,7 +178,11 @@ def send_morning_message():
 
 
 def send_daily_pnl_summary():
-    """Send P&L summary + closing message at 3:30 PM on trading days."""
+    """Send intraday live-trading P&L summary at 3:30 PM on trading days.
+    Reads from _trade_store (populated by trading_engine) plus today's
+    persisted records from .trade_history.json so no trade is missed.
+    """
+    from state import load_trade_history
     now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
     summary_key = f"daily_pnl_{today_str}"
@@ -190,7 +194,19 @@ def send_daily_pnl_summary():
     if _is_already_sent(summary_key):
         return
 
-    all_active, all_completed = collect_all_trades()
+    # Merge in-memory trades with today's persisted trades (dedup by entry price + strategy + signal)
+    all_active, mem_completed = collect_all_trades()
+    hist_today = [t for t in load_trade_history() if t.get("trade_date") == today_str]
+    seen = set()
+    all_completed = list(hist_today)
+    for t in hist_today:
+        seen.add((t.get("strategy"), t.get("signal"), round(float(t.get("entry", 0)), 1)))
+    for t in mem_completed:
+        key = (t.get("strategy"), t.get("signal"), round(float(t.get("entry", 0)), 1))
+        if key not in seen:
+            all_completed.append(t)
+            seen.add(key)
+
     total_realized = sum(t.get("pnl", 0) for t in all_completed)
     total_unrealized = sum(t.get("unrealized_pnl", 0) for t in all_active)
     total_trades = len(all_completed)
