@@ -4,6 +4,7 @@ Configuration, constants, environment, and timezone utilities.
 
 import os
 import sys
+import threading
 import pytz
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -101,6 +102,35 @@ ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
 dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 
 BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
+
+
+def reinit_dhan():
+    """Re-read .env and reinitialise the dhan client. Called by the file-watcher or UI button."""
+    global dhan, CLIENT_ID, ACCESS_TOKEN, BOT_TOKEN
+    load_dotenv(dotenv_path=ENV_FILE, override=True)
+    CLIENT_ID = os.getenv("DHAN_CLIENT_CODE")
+    ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
+    BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
+    dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
+
+
+def _watch_env_file():
+    """Background thread: reinit dhan whenever .env is modified."""
+    import time
+    last_mtime = os.path.getmtime(ENV_FILE) if os.path.exists(ENV_FILE) else 0
+    while True:
+        time.sleep(5)
+        try:
+            mtime = os.path.getmtime(ENV_FILE)
+            if mtime != last_mtime:
+                last_mtime = mtime
+                reinit_dhan()
+        except OSError:
+            pass
+
+
+_env_watcher = threading.Thread(target=_watch_env_file, daemon=True)
+_env_watcher.start()
 RECEIVER_CHAT_IDS = ["8272803637", "1623717769"]
 
 # ================= CONFIG =================

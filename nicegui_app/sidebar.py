@@ -4,7 +4,7 @@ Sidebar navigation: tree-structured with Backtest / Live Trading sections.
 
 from nicegui import ui
 
-from config import now_ist, REFRESH_SECONDS, get_next_holiday
+from config import now_ist, REFRESH_SECONDS, get_next_holiday, reinit_dhan, ENV_FILE
 
 
 def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigate=None):
@@ -135,6 +135,33 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         ui.space()
 
         with ui.element("div").classes("px-4 pb-4"):
+            token_input = ui.input(placeholder="Paste new Dhan token...") \
+                .props("dense outlined clearable") \
+                .classes("w-full text-xs mb-1")
+
+            def _apply_token():
+                token = token_input.value.strip()
+                if not token:
+                    ui.notify("Token is empty", type="warning")
+                    return
+                # Write to .env
+                import re
+                with open(ENV_FILE, "r") as f:
+                    content = f.read()
+                if re.search(r"^DHAN_TOKEN_ID=.*", content, re.MULTILINE):
+                    content = re.sub(r"^DHAN_TOKEN_ID=.*", f"DHAN_TOKEN_ID={token}", content, flags=re.MULTILINE)
+                else:
+                    content += f"\nDHAN_TOKEN_ID={token}"
+                with open(ENV_FILE, "w") as f:
+                    f.write(content)
+                reinit_dhan()
+                token_input.set_value("")
+                ui.notify("Dhan token updated", type="positive")
+
+            ui.button("Apply Token", icon="check", on_click=_apply_token) \
+                .props("flat no-caps size=sm color=green") \
+                .classes("w-full mb-2")
+
             ui.label(f"Auto-refresh: {REFRESH_SECONDS}s").classes(
                 "text-xs text-gray-400"
             )
