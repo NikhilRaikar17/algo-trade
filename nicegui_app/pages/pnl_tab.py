@@ -110,7 +110,7 @@ def render_pnl_tab(container):
                     scolor = "text-green-600" if spnl >= 0 else "text-red-600"
                     is_active_filter = _state["strategy"] == strat
                     card_border = "border-2 border-blue-400" if is_active_filter else ""
-                    with ui.card().classes(f"p-3 min-w-[150px] flex-1 {card_border}"):
+                    with ui.card().classes(f"p-3 w-[180px] {card_border}"):
                         ui.label(strat).classes("text-sm font-bold text-gray-600 mb-1")
                         ui.label(f"{spnl:+.2f}").classes(f"text-xl font-bold {scolor}")
                         ui.label(f"{len(strat_trades)} trades · {sw}W/{sl_c}L · WR {swr}").classes(
@@ -161,17 +161,15 @@ def render_pnl_tab(container):
                 "text-base font-semibold mb-2"
             )
 
-            if not filtered:
-                ui.label("No completed trades for this filter.").classes("text-gray-500 italic")
-            else:
-                def _fmt(t_val):
-                    if t_val is None:
-                        return "—"
-                    if hasattr(t_val, "strftime"):
-                        return t_val.strftime("%d %b %H:%M")
-                    return str(t_val)
+            def _fmt(t_val):
+                if t_val is None:
+                    return "—"
+                if hasattr(t_val, "strftime"):
+                    return t_val.strftime("%d %b %H:%M")
+                return str(t_val)
 
-                rows = [
+            def _make_rows(trades):
+                return [
                     {
                         "Date":      t.get("trade_date", ""),
                         "Strategy":  t.get("strategy", ""),
@@ -185,9 +183,27 @@ def render_pnl_tab(container):
                         "P&L":       t.get("pnl", 0),
                         "Status":    t.get("status", ""),
                     }
-                    for t in filtered
+                    for t in trades
                 ]
-                build_trade_table(ui.element("div").classes("w-full"), rows, "P&L")
+
+            profits = [t for t in filtered if t.get("pnl", 0) > 0]
+            losses = [t for t in filtered if t.get("pnl", 0) <= 0]
+
+            with ui.tabs().classes("w-full") as trade_tabs:
+                profits_tab = ui.tab(f"Profits ({len(profits)})").classes("text-green-600")
+                losses_tab = ui.tab(f"Losses ({len(losses)})").classes("text-red-600")
+
+            with ui.tab_panels(trade_tabs, value=profits_tab).classes("w-full"):
+                with ui.tab_panel(profits_tab):
+                    if not profits:
+                        ui.label("No profitable trades for this filter.").classes("text-gray-500 italic")
+                    else:
+                        build_trade_table(ui.element("div").classes("w-full"), _make_rows(profits), "P&L")
+                with ui.tab_panel(losses_tab):
+                    if not losses:
+                        ui.label("No losing trades for this filter.").classes("text-gray-500 italic")
+                    else:
+                        build_trade_table(ui.element("div").classes("w-full"), _make_rows(losses), "P&L")
 
             # ── Active trades ──────────────────────────────────────────────
             ui.separator().classes("my-3")
