@@ -8,6 +8,8 @@ Run:  cd nicegui_app && uv run python main.py
 import asyncio
 from nicegui import ui, context, app
 
+app.storage.SECRET = "algotrade-secret-key"
+
 from config import now_ist, REFRESH_SECONDS, INDICES
 from state import is_market_open, get_next_market_open
 from sidebar import build_sidebar
@@ -15,6 +17,7 @@ from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_ale
 from trading_engine import run_trading_engine
 from email_report import send_backtest_email_report
 from pages.homepage import render_homepage
+from pages.login import render_login_page
 from pages import (
     render_dashboard,
     render_markets_tab,
@@ -86,8 +89,19 @@ async def homepage():
     render_homepage()
 
 
+@ui.page("/login")
+async def login_page():
+    if app.storage.user.get("authenticated"):
+        ui.navigate.to("/app")
+        return
+    render_login_page()
+
+
 @ui.page("/app")
 async def index():
+    if not app.storage.user.get("authenticated"):
+        ui.navigate.to("/login")
+        return
     ui.page_title("Algo Trading")
 
     # ---- Custom CSS + TradingView ----
@@ -484,4 +498,4 @@ async def index():
 # ================= RUN =================
 
 if __name__ in {"__main__", "__mp_main__"}:
-    ui.run(title="AlgTrd", host="0.0.0.0", port=8501, reload=True)
+    ui.run(title="AlgTrd", host="0.0.0.0", port=8501, reload=True, storage_secret="algotrade-secret-key")
