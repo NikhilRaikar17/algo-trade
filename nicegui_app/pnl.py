@@ -38,8 +38,8 @@ def _fetch_index_summary():
 
 
 _RSS_FEEDS = [
-    "https://economictimes.indiatimes.com/markets/rss.cms",
-    "https://www.moneycontrol.com/rss/MCtopnews.xml",
+    "https://www.livemint.com/rss/markets",
+    "https://feeds.feedburner.com/ndtvprofit-latest",
 ]
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
