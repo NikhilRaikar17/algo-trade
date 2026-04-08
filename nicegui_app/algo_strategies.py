@@ -21,7 +21,7 @@ def _same_day_candles(future, signal_time):
     )
     return future[mask]
 
-RSI_ONLY_TARGET_PCT = 0.015  # 1.5% target
+RSI_ONLY_TARGET_PCT = 0.02  # 2% target (1:2 R:R with 1% SL)
 RSI_ONLY_SL_PCT = 0.01      # 1% stop loss
 
 
@@ -88,8 +88,8 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "BC_retrace": round(float(bc_ratio), 3),
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
                         "entry": float(d["price"]),
-                        "target": float(d["price"] + ab),
                         "stop_loss": float(c["price"]),
+                        "target": float(d["price"] + 2 * (d["price"] - c["price"])),  # 1:2 R:R
                         "signal": "SELL CE / BUY PE at D",
                     }
                 )
@@ -119,8 +119,8 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "BC_retrace": round(float(bc_ratio), 3),
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
                         "entry": float(d["price"]),
-                        "target": float(d["price"] - ab),
                         "stop_loss": float(c["price"]),
+                        "target": float(d["price"] - 2 * (c["price"] - d["price"])),  # 1:2 R:R
                         "signal": "BUY CE / SELL PE at D",
                     }
                 )
@@ -305,8 +305,8 @@ def detect_rsi_sma_signals(candles):
             and curr["sma_fast"] > curr["sma_slow"]
             and curr["rsi"] > RSI_OVERSOLD
         ):
-            target = curr["close"] * 1.02
             sl = curr["close"] * 0.98
+            target = curr["close"] * 1.04  # 4% target = 2× the 2% SL (1:2 R:R)
             signals.append(
                 {
                     "type": "Bullish",
@@ -325,8 +325,8 @@ def detect_rsi_sma_signals(candles):
             and curr["sma_fast"] < curr["sma_slow"]
             and curr["rsi"] < RSI_OVERBOUGHT
         ):
-            target = curr["close"] * 0.98
             sl = curr["close"] * 1.02
+            target = curr["close"] * 0.96  # 4% target = 2× the 2% SL (1:2 R:R)
             signals.append(
                 {
                     "type": "Bearish",
@@ -476,9 +476,8 @@ def detect_double_top_signals(candles, price_tolerance=0.01, min_bars_between=5)
             for _, bar in after_p2.iterrows():
                 if float(bar["close"]) < neckline:
                     entry = float(bar["close"])
-                    height = avg_peak - neckline
-                    target = float(neckline - height)
                     sl = float(max(p1["price"], p2["price"]))
+                    target = float(entry - 2 * (sl - entry))  # 1:2 R:R
                     signals.append({
                         "time": bar["timestamp"],
                         "signal": "SELL — Double Top neckline break",
@@ -490,7 +489,6 @@ def detect_double_top_signals(candles, price_tolerance=0.01, min_bars_between=5)
                         "peak2": round(float(p2["price"]), 2),
                         "peak2_time": p2["time"],
                         "neckline": round(neckline, 2),
-                        "height": round(float(height), 2),
                     })
                     break
 
@@ -580,9 +578,8 @@ def detect_double_bottom_signals(candles, price_tolerance=0.01, min_bars_between
             for _, bar in after_t2.iterrows():
                 if float(bar["close"]) > neckline:
                     entry = float(bar["close"])
-                    height = neckline - avg_trough
-                    target = float(neckline + height)
                     sl = float(min(t1["price"], t2["price"]))
+                    target = float(entry + 2 * (entry - sl))  # 1:2 R:R
                     signals.append({
                         "time": bar["timestamp"],
                         "signal": "BUY — Double Bottom neckline break",
@@ -594,7 +591,6 @@ def detect_double_bottom_signals(candles, price_tolerance=0.01, min_bars_between
                         "trough2": round(float(t2["price"]), 2),
                         "trough2_time": t2["time"],
                         "neckline": round(neckline, 2),
-                        "height": round(float(height), 2),
                     })
                     break
 
@@ -726,8 +722,8 @@ def detect_channel_down_signals(candles, order=3, touch_pct=0.006):
                     "time":            bar["timestamp"],
                     "signal":          "SELL — Channel Down trendline rejection",
                     "entry":           round(bar_close, 2),
-                    "target":          round(float(lower_val), 2),
                     "stop_loss":       round(float(upper_val * (1 + CD_SL_BUFFER_PCT)), 2),
+                    "target":          round(float(bar_close - 2 * (upper_val * (1 + CD_SL_BUFFER_PCT) - bar_close)), 2),  # 1:2 R:R
                     "H1":              round(float(H1["price"]), 2),
                     "H1_time":         H1["time"],
                     "H1_idx":          int(H1["index"]),
@@ -802,8 +798,8 @@ def backtest_channel_down(signals, candles):
 # ================= CHANNEL BREAKOUT (DONCHIAN) =================
 
 CB_PERIOD = 20
-CB_TARGET_PCT = 0.015  # 1.5% target
-CB_SL_PCT = 0.01       # 1.0% stop loss
+CB_TARGET_PCT = 0.02  # 2% target (1:2 R:R with 1% SL)
+CB_SL_PCT = 0.01      # 1.0% stop loss
 
 
 def detect_channel_breakout_signals(candles, period=CB_PERIOD):
@@ -997,8 +993,8 @@ def backtest_rsi_only(signals, candles):
 # ================= EMA 10 CROSSOVER =================
 
 EMA10_PERIOD = 10
-EMA10_TARGET_PCT = 0.015  # 1.5% target
-EMA10_SL_PCT = 0.01       # 1.0% stop loss
+EMA10_TARGET_PCT = 0.02  # 2% target (1:2 R:R with 1% SL)
+EMA10_SL_PCT = 0.01      # 1.0% stop loss
 
 
 def compute_ema(series, period):
@@ -1112,8 +1108,8 @@ def backtest_ema10(signals, candles):
 # ================= SMA 50 CROSSOVER =================
 
 SMA50_PERIOD = 50
-SMA50_TARGET_PCT = 0.015  # 1.5% target
-SMA50_SL_PCT = 0.01       # 1.0% stop loss
+SMA50_TARGET_PCT = 0.02  # 2% target (1:2 R:R with 1% SL)
+SMA50_SL_PCT = 0.01      # 1.0% stop loss
 
 
 def detect_sma50_signals(candles):
