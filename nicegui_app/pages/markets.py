@@ -66,7 +66,7 @@ def _render_group(title, indices):
                 "text-xs font-bold text-gray-500 uppercase tracking-widest"
             )
             ui.element("div").classes("flex-1 h-px bg-gray-200")
-        with ui.element("div").classes("markets-grid mb-6"):
+        with ui.element("div").classes("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 mb-6"):
             for entry in sorted_indices:
                 _index_card(entry["name"], entry.get("data"))
 
@@ -74,10 +74,10 @@ def _render_group(title, indices):
 def _index_card(name, d):
     if d is None:
         with ui.card().classes(
-            "border border-gray-100 rounded-xl shadow-sm p-3 bg-white"
+            "border border-gray-100 rounded-lg shadow-sm px-3 py-2 bg-white"
         ).props("flat"):
-            ui.label(name).classes("text-xs font-bold text-gray-500 uppercase tracking-wide")
-            ui.label("No data").classes("text-sm text-gray-300 mt-1")
+            ui.label(name).classes("text-[10px] font-bold text-gray-400 uppercase tracking-wide")
+            ui.label("—").classes("text-sm text-gray-300")
         return
 
     is_green   = d["is_green"]
@@ -86,47 +86,14 @@ def _index_card(name, d):
     price_cls  = "text-green-700 font-bold" if is_green else "text-red-700 font-bold"
     change_cls = "text-green-600" if is_green else "text-red-600"
     dot_cls    = "bg-green-500" if is_green else "bg-red-500"
-    bar_cls    = "bg-green-400" if is_green else "bg-red-400"
-
-    hl_range = d["high"] - d["low"]
-    bar_pct  = int(((d["current"] - d["low"]) / hl_range * 100)) if hl_range > 0 else 50
-    bar_pct  = max(2, min(98, bar_pct))
 
     with ui.card().classes(
-        f"rounded-xl shadow-sm bg-white p-3 {border_cls}"
+        f"rounded-lg shadow-sm bg-white px-3 py-2 {border_cls}"
     ).props("flat"):
-        # Name row
-        with ui.row().classes("items-center gap-1.5 w-full mb-1"):
-            ui.element("div").classes(f"w-2 h-2 rounded-full {dot_cls}")
-            ui.label(name).classes(
-                "text-[10px] font-bold text-gray-500 uppercase tracking-widest"
-            )
+        with ui.row().classes("items-center gap-1.5 w-full mb-0.5"):
+            ui.element("div").classes(f"w-1.5 h-1.5 rounded-full {dot_cls}")
+            ui.label(name).classes("text-[10px] font-bold text-gray-500 uppercase tracking-widest truncate")
 
-        # Price
-        ui.label(f"{d['current']:,.2f}").classes(f"text-xl {price_cls} leading-tight")
+        ui.label(f"{d['current']:,.2f}").classes(f"text-sm {price_cls} leading-tight")
 
-        # Change
-        with ui.row().classes("items-center gap-1 mt-0.5"):
-            ui.label(f"{sign}{d['change']:,.2f}").classes(
-                f"text-xs font-semibold {change_cls}"
-            )
-            ui.label(f"({sign}{d['change_pct']:.2f}%)").classes(
-                f"text-xs {change_cls}"
-            )
-
-        # High / Low bar
-        with ui.element("div").classes("mt-2"):
-            with ui.row().classes("justify-between mb-0.5"):
-                ui.label(f"L {d['low']:,.0f}").classes("text-[9px] text-gray-400")
-                ui.label(f"H {d['high']:,.0f}").classes("text-[9px] text-gray-400")
-            with ui.element("div").classes(
-                "w-full h-1 bg-gray-100 rounded-full overflow-hidden"
-            ):
-                ui.element("div").classes(
-                    f"h-full {bar_cls} rounded-full"
-                ).style(f"width: {bar_pct}%")
-
-        # Prev close
-        ui.label(f"Prev {d['prev_close']:,.2f}").classes(
-            "text-[9px] text-gray-400 mt-1"
-        )
+        ui.label(f"{sign}{d['change_pct']:.2f}%").classes(f"text-[10px] font-semibold {change_cls}")
