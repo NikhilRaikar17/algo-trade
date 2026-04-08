@@ -22,7 +22,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         if on_navigate:
             await on_navigate(page_id)
 
-    def _nav_button(page_id, label, icon, indent=False, color="text-gray-800"):
+    def _nav_button(page_id, label, icon, indent=False, color="text-gray-800", icon_color="icon-gray"):
         cls = "nav-sub-btn" if indent else "nav-btn"
         ml = "ml-6" if indent else ""
         btn = (
@@ -32,7 +32,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                 on_click=lambda e, pid=page_id: set_active_page(pid),
             )
             .props("flat no-caps align=left color=dark")
-            .classes(f"{cls} rounded-lg mx-2 mb-1 {ml}")
+            .classes(f"{cls} {icon_color} rounded-lg mx-2 mb-1 {ml}")
         )
         if page_id == active_page["value"]:
             btn.classes(add="nav-btn-active")
@@ -46,19 +46,19 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
     with drawer:
         # ---- Top-level ----
         ui.element("div").classes("pt-1")
-        _nav_button("dashboard", "Dashboard", "dashboard")
+        _nav_button("dashboard", "Dashboard", "dashboard", icon_color="icon-blue")
 
         # ---- Markets section ----
         _section_label("Markets", "bg-orange-400")
-        _nav_button("markets",      "Overview",     "bar_chart")
-        _nav_button("market_news",  "Market News",  "newspaper")
+        _nav_button("markets",      "Overview",     "bar_chart",  icon_color="icon-orange")
+        _nav_button("market_news",  "Market News",  "newspaper",  icon_color="icon-orange")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Option Chains ----
         _section_label("Options", "bg-blue-400")
-        _nav_button("nifty",     "NIFTY",     "show_chart")
-        _nav_button("banknifty", "BANKNIFTY", "candlestick_chart")
+        _nav_button("nifty",     "NIFTY",     "show_chart",        icon_color="icon-blue")
+        _nav_button("banknifty", "BANKNIFTY", "candlestick_chart", icon_color="icon-blue")
 
         ui.separator().classes("my-2 mx-4")
 
@@ -67,27 +67,27 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         with ui.expansion("Strategies", icon="history_edu").classes(
             "mx-2 rounded-lg text-gray-700"
         ).props("dense"):
-            _nav_button("rsi_only",  "RSI Only",          "speed")
-            _nav_button("abcd_only", "ABCD Harmonic",     "insights")
-            _nav_button("dt_only",   "Double Top",        "moving")
-            _nav_button("db_only",   "Double Bottom",     "moving")
-            _nav_button("cb_only",   "Channel Breakout",  "swap_vert")
-            _nav_button("cd_only",   "Channel Down",      "trending_down")
-            _nav_button("sma50",         "SMA 50 Crossover",  "stacked_line_chart")
-            _nav_button("ema10",         "EMA 10 Crossover",  "show_chart")
+            _nav_button("rsi_only",  "RSI Only",          "speed",               icon_color="icon-purple")
+            _nav_button("abcd_only", "ABCD Harmonic",     "insights",            icon_color="icon-purple")
+            _nav_button("dt_only",   "Double Top",        "moving",              icon_color="icon-purple")
+            _nav_button("db_only",   "Double Bottom",     "moving",              icon_color="icon-purple")
+            _nav_button("cb_only",   "Channel Breakout",  "swap_vert",           icon_color="icon-purple")
+            _nav_button("cd_only",   "Channel Down",      "trending_down",       icon_color="icon-purple")
+            _nav_button("sma50",         "SMA 50 Crossover",  "stacked_line_chart",  icon_color="icon-purple")
+            _nav_button("ema10",         "EMA 10 Crossover",  "show_chart",          icon_color="icon-purple")
             ui.separator().classes("my-1 mx-2")
-            _nav_button("backtest_pnl",  "Backtest P&L",      "analytics", indent=True)
+            _nav_button("backtest_pnl",  "Backtest P&L",      "analytics", indent=True, icon_color="icon-amber")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Live Trading ----
         _section_label("Live Trading", "bg-green-400")
-        _nav_button("algo", "Live Trading", "insights")
+        _nav_button("algo", "Live Trading", "insights", icon_color="icon-green")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- P&L ----
-        _nav_button("pnl", "P&L", "account_balance_wallet")
+        _nav_button("pnl", "P&L", "account_balance_wallet", icon_color="icon-rose")
 
         ui.separator().classes("my-3 mx-4")
 
