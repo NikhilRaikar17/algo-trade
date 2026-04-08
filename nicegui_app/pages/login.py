@@ -16,13 +16,13 @@ def render_login_page():
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
-            background: #0f172a !important;
+            background: #f1f5f9 !important;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
         #q-app, .q-layout, .q-page-container, .q-page {
             padding: 0 !important;
             margin: 0 !important;
-            background: #0f172a !important;
+            background: #f1f5f9 !important;
             min-height: unset !important;
         }
         *, *::before, *::after { box-sizing: border-box; }
@@ -30,7 +30,7 @@ def render_login_page():
         .login-root {
             min-height: 100vh;
             width: 100vw;
-            background: #0f172a;
+            background: linear-gradient(160deg, #eff6ff 0%, #f1f5f9 55%, #f0fdf4 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -44,7 +44,7 @@ def render_login_page():
             position: absolute;
             width: 700px; height: 700px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(59,130,246,0.09) 0%, transparent 65%);
+            background: radial-gradient(circle, rgba(37,99,235,0.07) 0%, transparent 65%);
             top: -200px; right: -150px;
             pointer-events: none;
         }
@@ -53,21 +53,21 @@ def render_login_page():
             position: absolute;
             width: 500px; height: 500px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 65%);
+            background: radial-gradient(circle, rgba(79,70,229,0.06) 0%, transparent 65%);
             bottom: -100px; left: -120px;
             pointer-events: none;
         }
 
         .login-card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: #fff;
+            border: 1px solid #e2e8f0;
             border-radius: 20px;
             padding: 44px 40px 36px;
             width: 100%;
             max-width: 420px;
             position: relative;
             z-index: 1;
-            box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
         }
 
         .login-logo {
@@ -81,14 +81,14 @@ def render_login_page():
         .login-logo-text {
             font-size: 1.5rem;
             font-weight: 800;
-            color: #f8fafc;
+            color: #0f172a;
             letter-spacing: -0.02em;
         }
-        .login-logo-text span { color: #3b82f6; }
+        .login-logo-text span { color: #2563eb; }
 
         .login-tagline {
             text-align: center;
-            color: #475569;
+            color: #64748b;
             font-size: 0.85rem;
             margin-bottom: 36px;
         }
@@ -97,17 +97,17 @@ def render_login_page():
             display: block;
             font-size: 0.78rem;
             font-weight: 600;
-            color: #94a3b8;
+            color: #64748b;
             letter-spacing: 0.05em;
             text-transform: uppercase;
             margin-bottom: 6px;
         }
 
         .login-error {
-            background: rgba(239,68,68,0.1);
-            border: 1px solid rgba(239,68,68,0.3);
+            background: #fef2f2;
+            border: 1px solid #fecaca;
             border-radius: 8px;
-            color: #f87171;
+            color: #dc2626;
             font-size: 0.82rem;
             padding: 10px 14px;
             margin-top: 16px;
@@ -118,36 +118,36 @@ def render_login_page():
         .login-footer {
             text-align: center;
             margin-top: 28px;
-            color: #334155;
+            color: #94a3b8;
             font-size: 0.75rem;
         }
         .login-footer a {
-            color: #3b82f6;
+            color: #2563eb;
             text-decoration: none;
         }
         .login-footer a:hover { text-decoration: underline; }
 
         /* Quasar input overrides */
         .login-card .q-field__control {
-            background: rgba(255,255,255,0.05) !important;
+            background: #f8fafc !important;
             border-radius: 10px !important;
         }
         .login-card .q-field__native,
         .login-card .q-field__input {
-            color: #f8fafc !important;
+            color: #0f172a !important;
         }
         .login-card .q-field--outlined .q-field__control:before {
-            border-color: rgba(255,255,255,0.12) !important;
+            border-color: #cbd5e1 !important;
         }
         .login-card .q-field--outlined:hover .q-field__control:before {
-            border-color: rgba(59,130,246,0.5) !important;
+            border-color: #93c5fd !important;
         }
         .login-card .q-field--focused .q-field__control:before,
         .login-card .q-field--outlined.q-field--focused .q-field__control:after {
-            border-color: #3b82f6 !important;
+            border-color: #2563eb !important;
         }
-        .login-card .q-field__label { color: #64748b !important; }
-        .login-card .q-icon { color: #64748b !important; }
+        .login-card .q-field__label { color: #94a3b8 !important; }
+        .login-card .q-icon { color: #94a3b8 !important; }
     </style>
     """)
 
@@ -195,7 +195,7 @@ def render_login_page():
             ).props("unelevated").classes(
                 "w-full mt-4"
             ).style(
-                "background: linear-gradient(135deg, #3b82f6, #6366f1) !important;"
+                "background: linear-gradient(135deg, #2563eb, #4f46e5) !important;"
                 "color: #fff !important;"
                 "font-weight: 700 !important;"
                 "font-size: 0.95rem !important;"
