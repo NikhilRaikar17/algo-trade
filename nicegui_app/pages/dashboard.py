@@ -106,45 +106,150 @@ def render_dashboard(container):
         # ---- Time Cards ----
         with ui.row().classes("w-full gap-4 sm:gap-6 mb-6 sm:mb-8 flex-wrap"):
             # IST Clock
-            with ui.card().classes(
-                "flex-1 min-w-[140px] clock-card-ist shadow-lg !rounded-xl"
-            ):
-                with ui.column().classes("items-center w-full py-4 sm:py-6"):
-                    ui.icon("schedule", size="28px").classes("text-blue-300 mb-2 hidden sm:block")
-                    ui.label("INDIA (IST)").classes(
-                        "text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]"
-                    )
-                    ist_time_label = ui.label(
-                        now_ist().strftime("%I:%M:%S %p")
-                    ).classes("text-2xl sm:text-4xl font-bold text-white mt-2 tracking-tight")
-                    ist_date_label = ui.label(
-                        now_ist().strftime("%A, %d %B %Y")
-                    ).classes("text-xs sm:text-sm text-slate-400 mt-1")
+            with ui.card().classes("flex-1 min-w-[200px] clock-card-ist !rounded-2xl"):
+                with ui.column().classes("items-center w-full py-5 px-4 gap-0"):
+                    ui.label("🇮🇳  INDIA").classes("clock-country-label")
+                    ui.html('<canvas id="clock-ist" width="160" height="160" style="margin:8px 0 4px 0;display:block;"></canvas>')
+                    ist_time_label = ui.label(now_ist().strftime("%H:%M:%S")).classes("clock-time")
+                    ist_date_label = ui.label(now_ist().strftime("%a, %d %b %Y")).classes("clock-date")
+                    ui.label("IST · UTC+5:30").classes("clock-tz-badge-ist")
 
             # CEST Clock
-            with ui.card().classes(
-                "flex-1 min-w-[140px] clock-card-cest shadow-lg !rounded-xl"
-            ):
-                with ui.column().classes("items-center w-full py-4 sm:py-6"):
-                    ui.icon("public", size="28px").classes("text-sky-300 mb-2 hidden sm:block")
-                    ui.label("EUROPE (CET/CEST)").classes(
-                        "text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]"
-                    )
-                    cest_time_label = ui.label(
-                        now_cest().strftime("%I:%M:%S %p")
-                    ).classes("text-2xl sm:text-4xl font-bold text-white mt-2 tracking-tight")
-                    cest_date_label = ui.label(
-                        now_cest().strftime("%A, %d %B %Y")
-                    ).classes("text-xs sm:text-sm text-slate-400 mt-1")
+            with ui.card().classes("flex-1 min-w-[200px] clock-card-cest !rounded-2xl"):
+                with ui.column().classes("items-center w-full py-5 px-4 gap-0"):
+                    ui.label("🇪🇺  EUROPE").classes("clock-country-label")
+                    ui.html('<canvas id="clock-cest" width="160" height="160" style="margin:8px 0 4px 0;display:block;"></canvas>')
+                    cest_time_label = ui.label(now_cest().strftime("%H:%M:%S")).classes("clock-time")
+                    cest_date_label = ui.label(now_cest().strftime("%a, %d %b %Y")).classes("clock-date")
+                    ui.label("CET/CEST · UTC+1/+2").classes("clock-tz-badge-cest")
 
-        # Update clocks every second
+        # Inject analog clock JS — runs entirely client-side, no server round-trips
+        ui.add_body_html("""
+<script>
+(function() {
+  function drawClock(canvasId, offsetTotalMinutes) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var now = new Date();
+    var utc = now.getTime() + now.getTimezoneOffset() * 60000;
+    var local = new Date(utc + offsetTotalMinutes * 60000);
+    var h = local.getHours() % 12;
+    var m = local.getMinutes();
+    var s = local.getSeconds();
+    var ms = local.getMilliseconds();
+
+    var cx = 80, cy = 80, r = 72;
+    ctx.clearRect(0, 0, 160, 160);
+
+    // Face
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2*Math.PI);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fill();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Hour ticks
+    for (var i = 0; i < 12; i++) {
+      var ang = (i / 12) * 2 * Math.PI - Math.PI/2;
+      var inner = i % 3 === 0 ? r - 14 : r - 9;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
+      ctx.lineTo(cx + Math.cos(ang) * (r - 3), cy + Math.sin(ang) * (r - 3));
+      ctx.strokeStyle = i % 3 === 0 ? '#64748b' : '#cbd5e1';
+      ctx.lineWidth = i % 3 === 0 ? 2.5 : 1.2;
+      ctx.stroke();
+    }
+
+    // Hour hand
+    var hAngle = ((h + m/60 + s/3600) / 12) * 2 * Math.PI - Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(hAngle) * (r * 0.52), cy + Math.sin(hAngle) * (r * 0.52));
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Minute hand
+    var mAngle = ((m + s/60) / 60) * 2 * Math.PI - Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(mAngle) * (r * 0.72), cy + Math.sin(mAngle) * (r * 0.72));
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Second hand
+    var sAngle = ((s + ms/1000) / 60) * 2 * Math.PI - Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(sAngle) * 14, cy - Math.sin(sAngle) * 14);
+    ctx.lineTo(cx + Math.cos(sAngle) * (r * 0.82), cy + Math.sin(sAngle) * (r * 0.82));
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, 2*Math.PI);
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, 2*Math.PI);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
+
+  function getCestOffsetMinutes() {
+    // Determine if currently CEST (+120) or CET (+60) based on UTC date
+    var now = new Date();
+    var jan = new Date(now.getFullYear(), 0, 1);
+    var jul = new Date(now.getFullYear(), 6, 1);
+    // Europe/Berlin: CEST (UTC+2) late-Mar to late-Oct
+    var janOffset = jan.getTimezoneOffset();
+    var julOffset = jul.getTimezoneOffset();
+    var stdOffset = Math.max(janOffset, julOffset); // larger = less positive = winter
+    // Simple DST: if today is between last Sunday Mar and last Sunday Oct → CEST
+    var y = now.getFullYear();
+    function lastSunday(month) {
+      var d = new Date(y, month + 1, 0); // last day of month
+      d.setDate(d.getDate() - d.getDay());
+      return d;
+    }
+    var dstStart = lastSunday(2); dstStart.setHours(1);  // last Sun March 1am UTC
+    var dstEnd   = lastSunday(9); dstEnd.setHours(1);    // last Sun October 1am UTC
+    var utcNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+    return (utcNow >= dstStart && utcNow < dstEnd) ? 120 : 60;
+  }
+
+  function tickClocks() {
+    drawClock('clock-ist',  330);                   // IST = UTC+5:30 = +330 min
+    drawClock('clock-cest', getCestOffsetMinutes()); // CET+1 or CEST+2
+    requestAnimationFrame(tickClocks);
+  }
+
+  // Wait for DOM then start
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tickClocks);
+  } else {
+    tickClocks();
+  }
+})();
+</script>
+""")
+
+        # Update digital time labels every second from server
         def update_clocks():
             ist_now = now_ist()
             cest_now = now_cest()
-            ist_time_label.set_text(ist_now.strftime("%I:%M:%S %p"))
-            ist_date_label.set_text(ist_now.strftime("%A, %d %B %Y"))
-            cest_time_label.set_text(cest_now.strftime("%I:%M:%S %p"))
-            cest_date_label.set_text(cest_now.strftime("%A, %d %B %Y"))
+            ist_time_label.set_text(ist_now.strftime("%H:%M:%S"))
+            ist_date_label.set_text(ist_now.strftime("%a, %d %b %Y"))
+            cest_time_label.set_text(cest_now.strftime("%H:%M:%S"))
+            cest_date_label.set_text(cest_now.strftime("%a, %d %b %Y"))
 
         ui.timer(1, update_clocks)
 
@@ -214,7 +319,7 @@ def render_dashboard(container):
                     spot_change_pct = data.get("spot_change_pct")
 
                     card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
-                    dot_color = "bg-blue-500" if name == "NIFTY" else "bg-indigo-500"
+                    dot_color = "bg-sky-500" if name == "NIFTY" else "bg-violet-500"
 
                     # Spot card
                     with ui.card().classes(
@@ -316,7 +421,7 @@ def render_dashboard(container):
 
                 with ui.card().classes("w-full border border-gray-200 shadow-sm !rounded-xl mb-4 p-4"):
                     with ui.row().classes("items-center gap-3 mb-3"):
-                        dot_color = "bg-blue-500" if name == "NIFTY" else "bg-indigo-500"
+                        dot_color = "bg-sky-500" if name == "NIFTY" else "bg-violet-500"
                         ui.element("div").classes(f"w-3 h-3 rounded-full {dot_color}")
                         ui.label(f"{name} — ATM {int(atm)} ({exp_tag})").classes(
                             "text-base font-bold text-gray-800"

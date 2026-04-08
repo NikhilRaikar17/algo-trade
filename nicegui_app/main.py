@@ -136,27 +136,79 @@ async def index():
 
         /* ---- Dashboard clock cards ---- */
         .clock-card-ist {
-            background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-            border: none !important;
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         .clock-card-cest {
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%) !important;
-            border: none !important;
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+        }
+        .clock-country-label {
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #475569;
+            margin-bottom: 0;
+        }
+        .clock-time {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #0f172a;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
+            margin-top: 2px;
+        }
+        .clock-date {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .clock-tz-badge-ist {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 1px 7px;
+            letter-spacing: 0.08em;
+            margin-top: 6px;
+        }
+        .clock-tz-badge-cest {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 1px 7px;
+            letter-spacing: 0.08em;
+            margin-top: 6px;
         }
 
         /* ---- Dashboard price cards ---- */
         .price-card-nifty {
-            background: #fafbff !important;
-            border-left: 4px solid #3b82f6 !important;
+            background: #ffffff !important;
+            border-left: 3px solid #0ea5e9 !important;
+            border-top: 1px solid #e2e8f0 !important;
+            border-right: 1px solid #e2e8f0 !important;
+            border-bottom: 1px solid #e2e8f0 !important;
             transition: box-shadow 0.2s, transform 0.2s;
         }
-        .price-card-nifty:hover { box-shadow: 0 4px 20px rgba(59,130,246,0.12) !important; transform: translateY(-2px); }
+        .price-card-nifty:hover { box-shadow: 0 6px 24px rgba(14,165,233,0.1) !important; transform: translateY(-2px); }
         .price-card-bnf {
-            background: #fafafa !important;
-            border-left: 4px solid #6366f1 !important;
+            background: #ffffff !important;
+            border-left: 3px solid #8b5cf6 !important;
+            border-top: 1px solid #e2e8f0 !important;
+            border-right: 1px solid #e2e8f0 !important;
+            border-bottom: 1px solid #e2e8f0 !important;
             transition: box-shadow 0.2s, transform 0.2s;
         }
-        .price-card-bnf:hover { box-shadow: 0 4px 20px rgba(99,102,241,0.12) !important; transform: translateY(-2px); }
+        .price-card-bnf:hover { box-shadow: 0 6px 24px rgba(139,92,246,0.1) !important; transform: translateY(-2px); }
 
         /* ---- Responsive grid for price cards ---- */
         .responsive-price-grid {
