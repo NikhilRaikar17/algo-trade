@@ -11,7 +11,7 @@ from pnl import collect_all_trades
 from state import load_trade_history
 from ui_components import build_trade_table
 
-_ALL_STRATEGIES = ["ABCD", "Double Top", "Double Bottom", "Channel Down", "Channel Breakout", "EMA10", "SMA50"]
+_ALL_STRATEGIES = ["ABCD", "Double Top", "Double Bottom", "EMA10", "SMA50"]
 
 
 def render_pnl_tab(container):

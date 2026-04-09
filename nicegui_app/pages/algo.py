@@ -20,12 +20,6 @@ from algo_strategies import (
     classify_double_top_trades,
     detect_double_bottom_signals,
     classify_double_bottom_trades,
-    # Channel Down
-    detect_channel_down_signals,
-    classify_channel_down_trades,
-    # Channel Breakout
-    detect_channel_breakout_signals,
-    classify_channel_breakout_trades,
     # EMA10 / SMA50
     detect_ema10_signals,
     classify_ema10_trades,
@@ -36,8 +30,6 @@ from tv_charts import (
     render_tv_abcd_chart,
     render_tv_double_top_chart,
     render_tv_double_bottom_chart,
-    render_tv_channel_down_chart,
-    render_tv_channel_breakout_chart,
     render_tv_ema10_chart,
     render_tv_sma50_chart,
     flush_pending_js,
@@ -49,8 +41,6 @@ _STRATEGIES = [
     ("ABCD Harmonic",    "abcd"),
     ("Double Top",       "dt"),
     ("Double Bottom",    "db"),
-    ("Channel Down",     "cd"),
-    ("Channel Breakout", "cb"),
     ("EMA 10",           "ema10"),
     ("SMA 50",           "sma50"),
 ]
@@ -239,26 +229,6 @@ def _run_strategy(algo_type, candles, current_price, contract_name, candles_by_t
         active, completed = classify_double_bottom_trades(signals, current_price, contract_name)
         _trade_store[f"db_trades_{contract_name}"] = {"active": active, "completed": completed}
         _render_trade_tabs(active, completed, current_price, "db")
-
-    elif algo_type == "cd":
-        signals = detect_channel_down_signals(candles)
-        ui.label(header).classes("text-md font-semibold")
-        render_tv_channel_down_chart(candles, signals)
-        if not signals:
-            ui.label("No Channel Down signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_channel_down_trades(signals, current_price, contract_name)
-        _trade_store[f"cd_trades_{contract_name}"] = {"active": active, "completed": completed}
-        _render_trade_tabs(active, completed, current_price, "cd")
-
-    elif algo_type == "cb":
-        signals, df_ind = detect_channel_breakout_signals(candles)
-        ui.label(header).classes("text-md font-semibold")
-        render_tv_channel_breakout_chart(candles, df_ind, signals)
-        if not signals:
-            ui.label("No Channel Breakout signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_channel_breakout_trades(signals, current_price, contract_name)
-        _trade_store[f"cb_trades_{contract_name}"] = {"active": active, "completed": completed}
-        _render_trade_tabs(active, completed, current_price, "cb")
 
     elif algo_type == "ema10":
         signals, df_ind = detect_ema10_signals(candles)

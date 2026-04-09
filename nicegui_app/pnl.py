@@ -70,8 +70,6 @@ _STORE_STRATEGY_MAP = [
     ("abcd_",  "ABCD"),
     ("dt_",    "Double Top"),
     ("db_",    "Double Bottom"),
-    ("cd_",    "Channel Down"),
-    ("cb_",    "Channel Breakout"),
     ("ema10_", "EMA10"),
     ("sma50_", "SMA50"),
 ]
@@ -167,8 +165,7 @@ def send_morning_message():
     day_name = now.strftime("%A, %d %b %Y")
     _send_telegram(
         f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
-        f"Strategies: ABCD Harmonic | Double Top | Double Bottom\n"
-        f"            Channel Down | Channel Breakout | EMA10 | SMA50\n"
+        f"Strategies: ABCD Harmonic | Double Top | Double Bottom | EMA10 | SMA50\n"
         f"Monitoring: NIFTY / BANKNIFTY ATM options (5-min candles)\n"
         f"Refresh interval: {REFRESH_SECONDS}s\n"
         f"Market opens at 9:15 AM IST. Let's go!"

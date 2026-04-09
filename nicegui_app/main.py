@@ -27,8 +27,6 @@ from pages import (
     render_abcd_only_tab,
     render_double_top_tab,
     render_double_bottom_tab,
-    render_channel_breakout_tab,
-    render_channel_down_tab,
     render_sma50_tab,
     render_ema10_tab,
     render_pnl_tab,
@@ -51,8 +49,6 @@ ALL_PAGE_IDS = [
     "abcd_only",
     "dt_only",
     "db_only",
-    "cb_only",
-    "cd_only",
     "sma50",
     "ema10",
     "backtest_pnl",
@@ -442,8 +438,6 @@ async def index():
         refresh_fns["abcd_only"] = render_abcd_only_tab(page_containers["abcd_only"])
         refresh_fns["dt_only"]   = render_double_top_tab(page_containers["dt_only"])
         refresh_fns["db_only"]   = render_double_bottom_tab(page_containers["db_only"])
-        refresh_fns["cb_only"]   = render_channel_breakout_tab(page_containers["cb_only"])
-        refresh_fns["cd_only"]   = render_channel_down_tab(page_containers["cd_only"])
         refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
         refresh_fns["ema10"]         = render_ema10_tab(page_containers["ema10"])
         refresh_fns["backtest_pnl"]  = render_backtest_pnl_tab(page_containers["backtest_pnl"])

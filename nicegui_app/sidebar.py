@@ -71,8 +71,6 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             _nav_button("abcd_only", "ABCD Harmonic",     "insights",            icon_color="icon-purple")
             _nav_button("dt_only",   "Double Top",        "moving",              icon_color="icon-purple")
             _nav_button("db_only",   "Double Bottom",     "moving",              icon_color="icon-purple")
-            _nav_button("cb_only",   "Channel Breakout",  "swap_vert",           icon_color="icon-purple")
-            _nav_button("cd_only",   "Channel Down",      "trending_down",       icon_color="icon-purple")
             _nav_button("sma50",         "SMA 50 Crossover",  "stacked_line_chart",  icon_color="icon-purple")
             _nav_button("ema10",         "EMA 10 Crossover",  "show_chart",          icon_color="icon-purple")
             ui.separator().classes("my-1 mx-2")

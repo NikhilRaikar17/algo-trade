@@ -45,7 +45,7 @@ _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 
 _ALL_STRATEGIES = [
     "ABCD", "RSI Only", "Double Top", "Double Bottom",
-    "Channel Breakout", "Channel Down", "SMA 50", "EMA 10",
+    "SMA 50", "EMA 10",
 ]
 
 

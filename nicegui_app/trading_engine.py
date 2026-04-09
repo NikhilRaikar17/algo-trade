@@ -21,10 +21,6 @@ from algo_strategies import (
     classify_double_top_trades,
     detect_double_bottom_signals,
     classify_double_bottom_trades,
-    detect_channel_down_signals,
-    classify_channel_down_trades,
-    detect_channel_breakout_signals,
-    classify_channel_breakout_trades,
     detect_ema10_signals,
     classify_ema10_trades,
     detect_sma50_signals,
@@ -59,22 +55,6 @@ def _run_strategies_for_contract(candles, current_price, contract_name):
         _trade_store[f"db_trades_{contract_name}"] = {"active": active, "completed": completed}
     except Exception:
         print(f"  [engine:db:{contract_name}] {traceback.format_exc()}")
-
-    # Channel Down
-    try:
-        signals = detect_channel_down_signals(candles)
-        active, completed = classify_channel_down_trades(signals, current_price, contract_name)
-        _trade_store[f"cd_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:cd:{contract_name}] {traceback.format_exc()}")
-
-    # Channel Breakout
-    try:
-        signals, _ = detect_channel_breakout_signals(candles)
-        active, completed = classify_channel_breakout_trades(signals, current_price, contract_name)
-        _trade_store[f"cb_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:cb:{contract_name}] {traceback.format_exc()}")
 
     # EMA10
     try:

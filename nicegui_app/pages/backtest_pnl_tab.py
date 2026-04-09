@@ -15,8 +15,6 @@ from algo_strategies import (
     detect_rsi_only_signals, backtest_rsi_only,
     detect_double_top_signals, backtest_double_top,
     detect_double_bottom_signals, backtest_double_bottom,
-    detect_channel_down_signals, backtest_channel_down,
-    detect_channel_breakout_signals, backtest_channel_breakout, CB_PERIOD,
     detect_sma50_signals, backtest_sma50,
     detect_ema10_signals, backtest_ema10,
 )
@@ -64,8 +62,6 @@ _ALL_STRATEGIES = [
     "RSI Only",
     "Double Top",
     "Double Bottom",
-    "Channel Breakout",
-    "Channel Down",
     "SMA 50",
     "EMA 10",
 ]
@@ -102,8 +98,6 @@ def _run_all_backtests(candles):
         ("RSI Only",         _run_rsi_only),
         ("Double Top",       _run_double_top),
         ("Double Bottom",    _run_double_bottom),
-        ("Channel Breakout", _run_channel_breakout),
-        ("Channel Down",     _run_channel_down),
         ("SMA 50",           _run_sma50),
         ("EMA 10",           _run_ema10),
     ]
@@ -133,14 +127,6 @@ def _run_double_top(candles):
 def _run_double_bottom(candles):
     signals = detect_double_bottom_signals(candles)
     return backtest_double_bottom(signals, candles)
-
-def _run_channel_breakout(candles):
-    signals, _ = detect_channel_breakout_signals(candles)
-    return backtest_channel_breakout(signals, candles)
-
-def _run_channel_down(candles):
-    signals = detect_channel_down_signals(candles)
-    return backtest_channel_down(signals, candles)
 
 def _run_sma50(candles):
     signals, _ = detect_sma50_signals(candles)
