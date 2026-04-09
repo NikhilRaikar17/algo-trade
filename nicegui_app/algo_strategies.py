@@ -477,7 +477,8 @@ def detect_double_top_signals(candles, price_tolerance=0.01, min_bars_between=5)
                 if float(bar["close"]) < neckline:
                     entry = float(bar["close"])
                     sl = float(max(p1["price"], p2["price"]))
-                    target = float(entry - 2 * (sl - entry))  # 1:2 R:R
+                    height = sl - neckline
+                    target = float(neckline - height)  # project pattern height down from neckline
                     signals.append({
                         "time": bar["timestamp"],
                         "signal": "SELL — Double Top neckline break",
