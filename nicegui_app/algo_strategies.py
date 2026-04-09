@@ -89,7 +89,7 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
                         "entry": float(d["price"]),
                         "stop_loss": float(c["price"]),
-                        "target": float(d["price"] + 2 * (d["price"] - c["price"])),  # 1:2 R:R
+                        "target": float(d["price"] - 2 * (d["price"] - c["price"])),  # price falls from D; target below D
                         "signal": "SELL CE / BUY PE at D",
                     }
                 )
@@ -120,7 +120,7 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
                         "entry": float(d["price"]),
                         "stop_loss": float(c["price"]),
-                        "target": float(d["price"] - 2 * (c["price"] - d["price"])),  # 1:2 R:R
+                        "target": float(d["price"] + 2 * (c["price"] - d["price"])),  # price rises from D; target above D
                         "signal": "BUY CE / SELL PE at D",
                     }
                 )
@@ -580,7 +580,8 @@ def detect_double_bottom_signals(candles, price_tolerance=0.01, min_bars_between
                 if float(bar["close"]) > neckline:
                     entry = float(bar["close"])
                     sl = float(min(t1["price"], t2["price"]))
-                    target = float(entry + 2 * (entry - sl))  # 1:2 R:R
+                    height = neckline - sl
+                    target = float(neckline + height)  # project pattern height up from neckline
                     signals.append({
                         "time": bar["timestamp"],
                         "signal": "BUY — Double Bottom neckline break",
