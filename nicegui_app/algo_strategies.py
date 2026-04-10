@@ -443,7 +443,7 @@ def detect_rsi_only_signals(candles):
 # ================= DOUBLE TOP =================
 
 
-def detect_double_top_signals(candles, price_tolerance=0.007, min_bars_between=5):
+def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
     """
     Detect double top bearish reversal patterns in OHLC candle data.
 
@@ -452,6 +452,7 @@ def detect_double_top_signals(candles, price_tolerance=0.007, min_bars_between=5
     Signal: SELL | Target: neckline − height | SL: above second peak
 
     Strictly intraday: P1 and P2 must be on the same calendar date.
+    max_peak_diff_pts: maximum absolute point difference between P1 and P2 (default 5 pts).
     """
     all_signals = []
 
@@ -471,8 +472,7 @@ def detect_double_top_signals(candles, price_tolerance=0.007, min_bars_between=5
                 if p2["index"] - p1["index"] < min_bars_between:
                     continue
 
-                avg_peak = (p1["price"] + p2["price"]) / 2
-                if abs(p1["price"] - p2["price"]) / avg_peak > price_tolerance:
+                if abs(p1["price"] - p2["price"]) > max_peak_diff_pts:
                     continue
 
                 # Neckline = lowest low between the two peaks
@@ -554,60 +554,68 @@ def backtest_double_top(signals, candles):
     return trades
 
 
-def detect_double_bottom_signals(candles, price_tolerance=0.01, min_bars_between=5):
+def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_between=5):
     """
     Detect double bottom bullish reversal patterns in OHLC candle data.
 
     Two swing lows at ~same price level, with a peak (neckline) between them.
     Entry confirmed when price closes above the neckline after the second trough.
     Signal: BUY | Target: neckline + height | SL: below second trough
+
+    Strictly intraday: T1 and T2 must be on the same calendar date.
+    max_trough_diff_pts: maximum absolute point difference between T1 and T2 (default 5 pts).
     """
-    swings = find_swing_points(candles, order=3)
-    swing_lows = [s for s in swings if s["type"] == "low"]
+    all_signals = []
 
-    signals = []
-    for i in range(len(swing_lows) - 1):
-        for j in range(i + 1, len(swing_lows)):
-            t1 = swing_lows[i]
-            t2 = swing_lows[j]
+    # Group candles by trading date and process each day independently
+    candles = candles.copy()
+    candles["_date"] = candles["timestamp"].dt.date
+    for date, day_candles in candles.groupby("_date"):
+        day_candles = day_candles.reset_index(drop=True)
+        swings = find_swing_points(day_candles, order=3)
+        swing_lows = [s for s in swings if s["type"] == "low"]
 
-            if t2["index"] - t1["index"] < min_bars_between:
-                continue
+        for i in range(len(swing_lows) - 1):
+            for j in range(i + 1, len(swing_lows)):
+                t1 = swing_lows[i]
+                t2 = swing_lows[j]
 
-            avg_trough = (t1["price"] + t2["price"]) / 2
-            if abs(t1["price"] - t2["price"]) / avg_trough > price_tolerance:
-                continue
+                if t2["index"] - t1["index"] < min_bars_between:
+                    continue
 
-            # Neckline = highest high between the two troughs
-            between = candles.iloc[t1["index"]: t2["index"] + 1]
-            neckline = float(between["high"].max())
+                if abs(t1["price"] - t2["price"]) > max_trough_diff_pts:
+                    continue
 
-            # Signal confirmed on first close above neckline after trough2
-            after_t2 = candles.iloc[t2["index"] + 1:]
-            for _, bar in after_t2.iterrows():
-                if float(bar["close"]) > neckline:
-                    entry = float(bar["close"])
-                    sl = float(min(t1["price"], t2["price"]))
-                    height = neckline - sl
-                    target = float(neckline + height)  # project pattern height up from neckline
-                    signals.append({
-                        "time": bar["timestamp"],
-                        "signal": "BUY — Double Bottom neckline break",
-                        "entry": round(entry, 2),
-                        "target": round(target, 2),
-                        "stop_loss": round(sl, 2),
-                        "trough1": round(float(t1["price"]), 2),
-                        "trough1_time": t1["time"],
-                        "trough2": round(float(t2["price"]), 2),
-                        "trough2_time": t2["time"],
-                        "neckline": round(neckline, 2),
-                    })
-                    break
+                # Neckline = highest high between the two troughs
+                between = day_candles.iloc[t1["index"]: t2["index"] + 1]
+                neckline = float(between["high"].max())
+
+                # Signal confirmed on first close above neckline after trough2
+                after_t2 = day_candles.iloc[t2["index"] + 1:]
+                for _, bar in after_t2.iterrows():
+                    if float(bar["close"]) > neckline:
+                        entry = float(bar["close"])
+                        sl = float(min(t1["price"], t2["price"]))
+                        height = neckline - sl
+                        target = float(neckline + height)
+                        all_signals.append({
+                            "time": bar["timestamp"],
+                            "signal": "BUY — Double Bottom neckline break",
+                            "entry": round(entry, 2),
+                            "target": round(target, 2),
+                            "stop_loss": round(sl, 2),
+                            "trough1": round(float(t1["price"]), 2),
+                            "trough1_time": t1["time"],
+                            "trough2": round(float(t2["price"]), 2),
+                            "trough2_time": t2["time"],
+                            "neckline": round(neckline, 2),
+                        })
+                        break
 
     # De-duplicate by entry bar time — keep first occurrence per timestamp
     seen = set()
     unique = []
-    for s in signals:
+    for s in all_signals:
         key = str(s["time"])
         if key not in seen:
             seen.add(key)

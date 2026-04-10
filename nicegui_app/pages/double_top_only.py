@@ -1,6 +1,6 @@
 """
 Double Top historical backtest tab page.
-Fetches 15-min candles for any NSE index or stock, detects double top patterns, backtests.
+Fetches 5-min candles for any NSE index or stock, detects double top patterns, backtests.
 """
 
 import asyncio
@@ -66,7 +66,7 @@ def render_double_top_tab(container):
         ):
             ui.label(
                 "Strategy: Double Top bearish reversal | "
-                "Entry: Neckline break close | Target: Neckline − Height | SL: Above 2nd Peak | 15-min candles | 5 days"
+                "Entry: Neckline break close | Target: Neckline − Height | SL: Above 2nd Peak | 5-min candles | 5 days"
             ).classes("text-sm text-red-700")
 
         # ---- Instrument selector ----
@@ -111,9 +111,9 @@ def render_double_top_tab(container):
                     None, lambda i=index_name, e=int(expiry_idx_str), o=opt_type: fetch_atm_option_15min_candles(i, e, o)
                 )
             elif is_equity:
-                candles = await loop.run_in_executor(None, lambda: _fetch_any_stock_candles(sec_id))
+                candles = await loop.run_in_executor(None, lambda: _fetch_any_stock_candles(sec_id, interval=5))
             else:
-                candles = await loop.run_in_executor(None, lambda: _fetch_any_index_candles(sec_id))
+                candles = await loop.run_in_executor(None, lambda: _fetch_any_index_candles(sec_id, interval=5))
             if content_container.client._deleted:
                 return
             try:
@@ -155,7 +155,7 @@ def _build_double_top_content(container, label, candles):
         # --- Chart ---
         ui.label(
             f"{label} — Last: {candles['close'].iloc[-1]:,.2f} | "
-            f"{len(candles)} candles (15-min, 5 days) | "
+            f"{len(candles)} candles (5-min, 5 days) | "
             f"{len(signals)} double top pattern{'s' if len(signals) != 1 else ''}"
         ).classes("text-md font-semibold mb-2")
         render_tv_double_top_chart(candles, signals)
