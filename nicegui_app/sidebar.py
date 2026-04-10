@@ -50,8 +50,9 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
         # ---- Markets section ----
         _section_label("Markets", "bg-orange-400")
-        _nav_button("markets",      "Overview",     "bar_chart",  icon_color="icon-orange")
-        _nav_button("market_news",  "Market News",  "newspaper",  icon_color="icon-orange")
+        _nav_button("markets",      "Overview",     "bar_chart",    icon_color="icon-orange")
+        _nav_button("market_news",  "Market News",  "newspaper",    icon_color="icon-orange")
+        _nav_button("top_stocks",   "Top Stocks",   "rocket_launch", icon_color="icon-amber")
 
         ui.separator().classes("my-2 mx-4")
 
