@@ -102,15 +102,19 @@ ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
 dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 
 BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
+TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "True").strip().lower() not in ("false", "0", "no")
+MAIL_ENABLED = os.getenv("MAIL_ENABLED", "True").strip().lower() not in ("false", "0", "no")
 
 
 def reinit_dhan():
     """Re-read .env and reinitialise the dhan client. Called by the file-watcher or UI button."""
-    global dhan, CLIENT_ID, ACCESS_TOKEN, BOT_TOKEN
+    global dhan, CLIENT_ID, ACCESS_TOKEN, BOT_TOKEN, TELEGRAM_ENABLED, MAIL_ENABLED
     load_dotenv(dotenv_path=ENV_FILE, override=True)
     CLIENT_ID = os.getenv("DHAN_CLIENT_CODE")
     ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
     BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
+    TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "True").strip().lower() not in ("false", "0", "no")
+    MAIL_ENABLED = os.getenv("MAIL_ENABLED", "True").strip().lower() not in ("false", "0", "no")
     dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 
 

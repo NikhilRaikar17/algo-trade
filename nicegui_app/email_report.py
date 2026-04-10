@@ -504,6 +504,11 @@ def build_weekly_excel(all_trades, week_label):
 # ── Email sender ───────────────────────────────────────────────────────────────
 
 def _send_email(subject, body, attachment_bytes, filename):
+    mail_enabled = os.getenv("MAIL_ENABLED", "True").strip().lower() not in ("false", "0", "no")
+    if not mail_enabled:
+        print(f"  [email_report] disabled — skipping: {subject}")
+        return
+
     gmail_user   = os.getenv("GMAIL_USERNAME", "")
     app_password = os.getenv("GMAIL_APP_PASSWORD", "")
     receiver_raw = os.getenv("RECEIVER_EMAIL", "")

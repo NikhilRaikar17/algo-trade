@@ -17,6 +17,7 @@ from config import (
     MARKET_CLOSE_HOUR,
     MARKET_CLOSE_MIN,
     BOT_TOKEN,
+    TELEGRAM_ENABLED,
     RECEIVER_CHAT_IDS,
     send_alert_to_all,
 )
@@ -97,6 +98,9 @@ def save_completed_trade(key, trade):
 
 
 def _send_telegram(message):
+    if not TELEGRAM_ENABLED:
+        print(f"  [telegram] disabled — skipping: {message[:80]}")
+        return
     try:
         if BOT_TOKEN and RECEIVER_CHAT_IDS:
             send_alert_to_all(message, RECEIVER_CHAT_IDS, BOT_TOKEN)
