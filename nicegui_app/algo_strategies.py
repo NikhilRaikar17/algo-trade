@@ -443,60 +443,68 @@ def detect_rsi_only_signals(candles):
 # ================= DOUBLE TOP =================
 
 
-def detect_double_top_signals(candles, price_tolerance=0.01, min_bars_between=5):
+def detect_double_top_signals(candles, price_tolerance=0.007, min_bars_between=5):
     """
     Detect double top bearish reversal patterns in OHLC candle data.
 
     Two swing highs at ~same price level, with a trough (neckline) between them.
     Entry confirmed when price closes below the neckline after the second peak.
     Signal: SELL | Target: neckline − height | SL: above second peak
+
+    Strictly intraday: P1 and P2 must be on the same calendar date.
     """
-    swings = find_swing_points(candles, order=3)
-    swing_highs = [s for s in swings if s["type"] == "high"]
+    all_signals = []
 
-    signals = []
-    for i in range(len(swing_highs) - 1):
-        for j in range(i + 1, len(swing_highs)):
-            p1 = swing_highs[i]
-            p2 = swing_highs[j]
+    # Group candles by trading date and process each day independently
+    candles = candles.copy()
+    candles["_date"] = candles["timestamp"].dt.date
+    for date, day_candles in candles.groupby("_date"):
+        day_candles = day_candles.reset_index(drop=True)
+        swings = find_swing_points(day_candles, order=3)
+        swing_highs = [s for s in swings if s["type"] == "high"]
 
-            if p2["index"] - p1["index"] < min_bars_between:
-                continue
+        for i in range(len(swing_highs) - 1):
+            for j in range(i + 1, len(swing_highs)):
+                p1 = swing_highs[i]
+                p2 = swing_highs[j]
 
-            avg_peak = (p1["price"] + p2["price"]) / 2
-            if abs(p1["price"] - p2["price"]) / avg_peak > price_tolerance:
-                continue
+                if p2["index"] - p1["index"] < min_bars_between:
+                    continue
 
-            # Neckline = lowest low between the two peaks
-            between = candles.iloc[p1["index"]: p2["index"] + 1]
-            neckline = float(between["low"].min())
+                avg_peak = (p1["price"] + p2["price"]) / 2
+                if abs(p1["price"] - p2["price"]) / avg_peak > price_tolerance:
+                    continue
 
-            # Signal confirmed on first close below neckline after peak2
-            after_p2 = candles.iloc[p2["index"] + 1:]
-            for _, bar in after_p2.iterrows():
-                if float(bar["close"]) < neckline:
-                    entry = float(bar["close"])
-                    sl = float(max(p1["price"], p2["price"]))
-                    height = sl - neckline
-                    target = float(neckline - height)  # project pattern height down from neckline
-                    signals.append({
-                        "time": bar["timestamp"],
-                        "signal": "SELL — Double Top neckline break",
-                        "entry": round(entry, 2),
-                        "target": round(target, 2),
-                        "stop_loss": round(sl, 2),
-                        "peak1": round(float(p1["price"]), 2),
-                        "peak1_time": p1["time"],
-                        "peak2": round(float(p2["price"]), 2),
-                        "peak2_time": p2["time"],
-                        "neckline": round(neckline, 2),
-                    })
-                    break
+                # Neckline = lowest low between the two peaks
+                between = day_candles.iloc[p1["index"]: p2["index"] + 1]
+                neckline = float(between["low"].min())
+
+                # Signal confirmed on first close below neckline after peak2
+                after_p2 = day_candles.iloc[p2["index"] + 1:]
+                for _, bar in after_p2.iterrows():
+                    if float(bar["close"]) < neckline:
+                        entry = float(bar["close"])
+                        sl = float(max(p1["price"], p2["price"]))
+                        height = sl - neckline
+                        target = float(neckline - height)
+                        all_signals.append({
+                            "time": bar["timestamp"],
+                            "signal": "SELL — Double Top neckline break",
+                            "entry": round(entry, 2),
+                            "target": round(target, 2),
+                            "stop_loss": round(sl, 2),
+                            "peak1": round(float(p1["price"]), 2),
+                            "peak1_time": p1["time"],
+                            "peak2": round(float(p2["price"]), 2),
+                            "peak2_time": p2["time"],
+                            "neckline": round(neckline, 2),
+                        })
+                        break
 
     # De-duplicate by entry bar time — keep first occurrence per timestamp
     seen = set()
     unique = []
-    for s in signals:
+    for s in all_signals:
         key = str(s["time"])
         if key not in seen:
             seen.add(key)
