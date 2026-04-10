@@ -321,10 +321,17 @@ def render_dashboard(container):
                     card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
                     dot_color = "bg-sky-500" if name == "NIFTY" else "bg-violet-500"
 
+                    if spot_change is None:
+                        side_border_color = "#d1d5db"  # gray-300
+                    elif spot_change >= 0:
+                        side_border_color = "#4ade80"  # green-400
+                    else:
+                        side_border_color = "#f87171"  # red-400
+
                     # Spot card
                     with ui.card().classes(
-                        f"{card_cls} border border-gray-200 shadow-sm !rounded-xl"
-                    ).style("min-height: 120px"):
+                        f"{card_cls} shadow-sm !rounded-xl"
+                    ).style(f"min-height: 120px; border: 2px solid {side_border_color} !important;"):
                         with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
                             with ui.row().classes("items-center gap-2"):
                                 ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
@@ -353,8 +360,8 @@ def render_dashboard(container):
 
                     # Futures card
                     with ui.card().classes(
-                        f"{card_cls} border border-gray-200 shadow-sm !rounded-xl"
-                    ).style("min-height: 120px"):
+                        f"{card_cls} shadow-sm !rounded-xl"
+                    ).style(f"min-height: 120px; border: 2px solid {side_border_color} !important;"):
                         with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
                             with ui.row().classes("items-center gap-2"):
                                 ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")

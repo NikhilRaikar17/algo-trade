@@ -382,6 +382,36 @@ def _fetch_any_index_candles(security_id: str, interval: int = 15) -> pd.DataFra
     return df
 
 
+def fetch_daily_candles_for_index(security_id: str, days: int = 365) -> pd.DataFrame:
+    """Fetch daily OHLC candles for an NSE index by security_id."""
+    today     = now_ist().strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+    cache_key = f"daily_candles_{security_id}:{from_date}:{today}"
+    cached    = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    r = api_call(
+        dhan.historical_daily_data,
+        security_id, "IDX_I", "INDEX",
+        from_date, today,
+        retries=1,
+    )
+    if r.get("status") != "success":
+        return pd.DataFrame()
+    d  = r["data"]
+    df = pd.DataFrame({
+        "timestamp": d.get("timestamp", []),
+        "open":      d.get("open", []),
+        "high":      d.get("high", []),
+        "low":       d.get("low", []),
+        "close":     d.get("close", []),
+    })
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+    _cache_set(cache_key, df)
+    return df
+
+
 def fetch_market_overview():
     """Return grouped index data for the Markets page."""
     cache_key = f"market_overview:{now_ist().strftime('%Y-%m-%d %H')}"
@@ -406,7 +436,7 @@ def fetch_market_overview():
                 data = _candles_to_daily_change(df)
             except Exception as e:
                 print(f"  [market_overview] {idx['name']} error: {e}")
-            entries.append({"name": idx["name"], "data": data})
+            entries.append({"name": idx["name"], "security_id": sid, "data": data})
         result.append({"group": group["group"], "indices": entries})
 
     _cache_set(cache_key, result)
