@@ -480,11 +480,18 @@ def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
                 neckline = float(between["low"].min())
 
                 # Signal confirmed on first close below neckline after peak2
+                # Any candle exceeding the resistance level (max of P1/P2) before
+                # the neckline break voids the pattern entirely.
+                resistance = float(max(p1["price"], p2["price"]))
                 after_p2 = day_candles.iloc[p2["index"] + 1:]
+                pattern_valid = True
                 for _, bar in after_p2.iterrows():
+                    if float(bar["high"]) > resistance:
+                        pattern_valid = False
+                        break
                     if float(bar["close"]) < neckline:
                         entry = neckline  # limit entry at neckline, not the breakdown candle close
-                        sl = float(max(p1["price"], p2["price"]))
+                        sl = resistance
                         height = sl - neckline
                         target = float(neckline - height)
                         all_signals.append({
@@ -591,11 +598,16 @@ def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_betwee
                 neckline = float(between["high"].max())
 
                 # Signal confirmed on first close above neckline after trough2
+                # Any candle breaching the support level (min of T1/T2) before
+                # the neckline break voids the pattern entirely.
+                support = float(min(t1["price"], t2["price"]))
                 after_t2 = day_candles.iloc[t2["index"] + 1:]
                 for _, bar in after_t2.iterrows():
+                    if float(bar["low"]) < support:
+                        break  # pattern voided
                     if float(bar["close"]) > neckline:
                         entry = neckline  # limit entry at neckline, not the breakout candle close
-                        sl = float(min(t1["price"], t2["price"]))
+                        sl = support
                         height = neckline - sl
                         target = float(neckline + height)
                         all_signals.append({
