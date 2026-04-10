@@ -193,6 +193,18 @@ _data_cache = {}  # key -> {"data": ..., "time": float}
 _cache_lock = threading.Lock()
 CACHE_TTL = 90  # seconds before cache is considered stale
 
+# Per-key fetch locks: prevents concurrent threads from making duplicate API calls
+# for the same key. Second caller waits for the first to finish, then hits cache.
+_fetch_locks: dict[str, threading.Lock] = {}
+_fetch_locks_lock = threading.Lock()
+
+
+def _get_fetch_lock(key: str) -> threading.Lock:
+    with _fetch_locks_lock:
+        if key not in _fetch_locks:
+            _fetch_locks[key] = threading.Lock()
+        return _fetch_locks[key]
+
 
 def _cache_get(key):
     with _cache_lock:
