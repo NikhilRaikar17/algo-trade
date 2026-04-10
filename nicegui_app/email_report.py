@@ -44,7 +44,7 @@ _THIN   = Side(style="thin", color="FFB2BABB")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 
 _ALL_STRATEGIES = [
-    "ABCD", "RSI Only", "Double Top", "Double Bottom",
+    "ABCD", "Double Top", "Double Bottom",
     "SMA 50", "EMA 10",
 ]
 

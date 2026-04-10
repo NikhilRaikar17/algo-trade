@@ -67,8 +67,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         with ui.expansion("Strategies", icon="history_edu").classes(
             "mx-2 rounded-lg text-gray-700"
         ).props("dense"):
-            _nav_button("rsi_only",  "RSI Only",          "speed",               icon_color="icon-purple")
-            _nav_button("abcd_only", "ABCD Harmonic",     "insights",            icon_color="icon-purple")
+            _nav_button("abcd_only", "ABCD",              "insights",            icon_color="icon-purple")
             _nav_button("dt_only",   "Double Top",        "moving",              icon_color="icon-purple")
             _nav_button("db_only",   "Double Bottom",     "moving",              icon_color="icon-purple")
             _nav_button("sma50",         "SMA 50 Crossover",  "stacked_line_chart",  icon_color="icon-purple")

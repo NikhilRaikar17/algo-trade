@@ -23,7 +23,6 @@ from pages import (
     render_markets_tab,
     render_index_tab,
     render_algo_tab,
-    render_rsi_only_tab,
     render_abcd_only_tab,
     render_double_top_tab,
     render_double_bottom_tab,
@@ -45,7 +44,6 @@ ALL_PAGE_IDS = [
     "nifty",
     "banknifty",
     "algo",
-    "rsi_only",
     "abcd_only",
     "dt_only",
     "db_only",
@@ -434,7 +432,6 @@ async def index():
         refresh_fns["nifty"]     = render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
         refresh_fns["banknifty"] = render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"])
         refresh_fns["pnl"]       = render_pnl_tab(page_containers["pnl"])
-        refresh_fns["rsi_only"]  = render_rsi_only_tab(page_containers["rsi_only"])
         refresh_fns["abcd_only"] = render_abcd_only_tab(page_containers["abcd_only"])
         refresh_fns["dt_only"]   = render_double_top_tab(page_containers["dt_only"])
         refresh_fns["db_only"]   = render_double_bottom_tab(page_containers["db_only"])

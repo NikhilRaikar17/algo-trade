@@ -12,7 +12,6 @@ from nicegui import ui
 from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles, resolve_option_label
 from algo_strategies import (
     find_swing_points, detect_abcd_patterns, backtest_abcd,
-    detect_rsi_only_signals, backtest_rsi_only,
     detect_double_top_signals, backtest_double_top,
     detect_double_bottom_signals, backtest_double_bottom,
     detect_sma50_signals, backtest_sma50,
@@ -59,7 +58,6 @@ _DEFAULT_LABEL = _ALL_OPTIONS[_DEFAULT_SEC_ID]
 
 _ALL_STRATEGIES = [
     "ABCD",
-    "RSI Only",
     "Double Top",
     "Double Bottom",
     "SMA 50",
@@ -95,7 +93,6 @@ def _run_all_backtests(candles):
 
     runners = [
         ("ABCD",             _run_abcd),
-        ("RSI Only",         _run_rsi_only),
         ("Double Top",       _run_double_top),
         ("Double Bottom",    _run_double_bottom),
         ("SMA 50",           _run_sma50),
@@ -115,10 +112,6 @@ def _run_abcd(candles):
     swings = find_swing_points(candles, order=2)
     patterns = detect_abcd_patterns(swings)
     return backtest_abcd(patterns, candles)
-
-def _run_rsi_only(candles):
-    signals, _ = detect_rsi_only_signals(candles)
-    return backtest_rsi_only(signals, candles)
 
 def _run_double_top(candles):
     signals = detect_double_top_signals(candles)
