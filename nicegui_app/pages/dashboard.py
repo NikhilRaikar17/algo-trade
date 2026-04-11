@@ -261,7 +261,7 @@ def render_dashboard(container):
         # ---- Section Header ----
         with ui.row().classes("w-full items-center mb-4"):
             with ui.row().classes("items-center gap-2"):
-                ui.icon("monitoring", size="22px").classes("text-blue-500")
+                ui.icon("monitoring", size="22px").classes("text-emerald-500")
                 ui.label("Market Overview").classes(
                     "text-lg font-semibold text-gray-800"
                 )
@@ -319,7 +319,7 @@ def render_dashboard(container):
                     spot_change_pct = data.get("spot_change_pct")
 
                     card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
-                    dot_color = "bg-sky-500" if name == "NIFTY" else "bg-violet-500"
+                    dot_color = "bg-emerald-500" if name == "NIFTY" else "bg-teal-600"
 
                     if spot_change is None:
                         side_border_color = "#d1d5db"  # gray-300
@@ -410,7 +410,7 @@ def render_dashboard(container):
         charts_container.clear()
         with charts_container:
             with ui.row().classes("items-center gap-2 mb-4"):
-                ui.icon("candlestick_chart", size="22px").classes("text-blue-500")
+                ui.icon("candlestick_chart", size="22px").classes("text-emerald-500")
                 ui.label("ATM Option Charts (5-min)").classes("text-lg font-semibold text-gray-800")
 
             for name in ["NIFTY", "BANKNIFTY"]:
@@ -428,7 +428,7 @@ def render_dashboard(container):
 
                 with ui.card().classes("w-full border border-gray-200 shadow-sm !rounded-xl mb-4 p-4"):
                     with ui.row().classes("items-center gap-3 mb-3"):
-                        dot_color = "bg-sky-500" if name == "NIFTY" else "bg-violet-500"
+                        dot_color = "bg-emerald-500" if name == "NIFTY" else "bg-teal-600"
                         ui.element("div").classes(f"w-3 h-3 rounded-full {dot_color}")
                         ui.label(f"{name} — ATM {int(atm)} ({exp_tag})").classes(
                             "text-base font-bold text-gray-800"

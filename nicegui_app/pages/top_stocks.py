@@ -70,7 +70,7 @@ def _show_stock_chart_modal(name: str, security_id: str):
             with ui.row().classes(
                 "items-center gap-2 px-5 py-3 border-b border-gray-200"
             ):
-                ui.icon("candlestick_chart", size="20px").classes("text-blue-500")
+                ui.icon("candlestick_chart", size="20px").classes("text-emerald-500")
                 ui.label(f"{name} — Intraday 15-min").classes(
                     "text-sm font-bold text-gray-800 flex-1"
                 )

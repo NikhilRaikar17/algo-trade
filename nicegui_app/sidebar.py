@@ -57,7 +57,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         ui.separator().classes("my-2 mx-4")
 
         # ---- Option Chains ----
-        _section_label("Options", "bg-blue-400")
+        _section_label("Options", "bg-emerald-400")
         _nav_button("nifty",     "NIFTY",     "show_chart",        icon_color="icon-blue")
         _nav_button("banknifty", "BANKNIFTY", "candlestick_chart", icon_color="icon-blue")
 

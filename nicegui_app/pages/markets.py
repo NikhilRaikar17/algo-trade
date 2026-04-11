@@ -21,7 +21,7 @@ def _show_chart_modal(name, security_id):
         with ui.card().classes("w-full !rounded-xl").style("min-width:min(900px,95vw);padding:0;"):
             # Header
             with ui.row().classes("items-center gap-2 px-5 py-3 border-b border-gray-200"):
-                ui.icon("candlestick_chart", size="20px").classes("text-blue-500")
+                ui.icon("candlestick_chart", size="20px").classes("text-emerald-500")
                 ui.label(f"{name} — Daily Chart").classes("text-sm font-bold text-gray-800 flex-1")
                 ui.button(icon="close", on_click=dlg.close).props("flat round dense")
 
@@ -71,7 +71,7 @@ def _show_chart_modal(name, security_id):
 def render_markets_tab(container):
     with container:
         with ui.row().classes("items-center gap-2 mb-1"):
-            ui.icon("bar_chart", size="24px").classes("text-blue-500")
+            ui.icon("bar_chart", size="24px").classes("text-emerald-500")
             ui.label("Markets Overview").classes("text-xl font-bold text-gray-800")
         ui.label("NSE indices — today vs previous close").classes(
             "text-xs text-gray-400 mb-4"

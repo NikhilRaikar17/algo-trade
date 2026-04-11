@@ -77,7 +77,7 @@ def _build_live_ticker(container, atm, iv_map, candles_by_type, active_timers):
                                 ui.label(f"{int(atm)} {opt_type}").classes(f"text-xs {lbl_cls}")
                             for field, cls in [
                                 ("ltp",    "font-semibold"),
-                                ("bid",    "text-blue-600"),
+                                ("bid",    "text-emerald-600"),
                                 ("ask",    "text-orange-600"),
                                 ("spread", "text-gray-600"),
                                 ("oi",     ""),

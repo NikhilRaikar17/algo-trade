@@ -143,12 +143,12 @@ def render_backtest_pnl_tab(container):
     with container:
         ui.label("Backtest P&L — All Strategies").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 mb-3"
+            "bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3"
         ):
             ui.label(
                 "Consolidated backtest P&L · All strategies · "
                 "15-min candles · 5 days · Completed trades only"
-            ).classes("text-sm text-indigo-700")
+            ).classes("text-sm text-emerald-700")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
@@ -209,7 +209,7 @@ def render_backtest_pnl_tab(container):
                     ui.label(str(total_trades)).classes("text-2xl font-bold")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("Win Rate").classes("text-sm text-gray-500")
-                    ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-blue-600")
+                    ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-emerald-600")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("W / L").classes("text-sm text-gray-500")
                     ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")
@@ -230,7 +230,7 @@ def render_backtest_pnl_tab(container):
                     sl_c = sum(1 for t in strat_trades if t["pnl"] < 0)
                     swr = f"{sw / len(strat_trades) * 100:.0f}%" if strat_trades else "—"
                     scolor = "text-green-600" if spnl >= 0 else "text-red-600"
-                    border = "border-2 border-blue-400" if _state["strategy"] == strat else ""
+                    border = "border-2 border-emerald-500" if _state["strategy"] == strat else ""
                     with ui.card().classes(f"p-3 min-w-[130px] flex-1 {border}"):
                         ui.label(strat).classes("text-sm font-bold text-gray-600 mb-1")
                         ui.label(f"{spnl:+.2f}").classes(f"text-xl font-bold {scolor}")

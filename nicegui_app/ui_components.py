@@ -189,7 +189,7 @@ def render_backtest_pnl_section(completed):
             ui.label(str(total_trades)).classes("text-2xl font-bold")
         with ui.card().classes("p-3 min-w-[120px] flex-1"):
             ui.label("Win Rate").classes("text-sm text-gray-500")
-            ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-blue-600")
+            ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-emerald-600")
         with ui.card().classes("p-3 min-w-[120px] flex-1"):
             ui.label("W / L").classes("text-sm text-gray-500")
             ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")

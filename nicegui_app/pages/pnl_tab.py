@@ -90,7 +90,7 @@ def render_pnl_tab(container):
                     ui.label(str(total_trades)).classes("text-2xl font-bold")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("Win Rate").classes("text-sm text-gray-500")
-                    ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-blue-600")
+                    ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-emerald-600")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("W / L").classes("text-sm text-gray-500")
                     ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")
@@ -109,7 +109,7 @@ def render_pnl_tab(container):
                     swr = f"{sw / len(strat_trades) * 100:.0f}%" if strat_trades else "—"
                     scolor = "text-green-600" if spnl >= 0 else "text-red-600"
                     is_active_filter = _state["strategy"] == strat
-                    card_border = "border-2 border-blue-400" if is_active_filter else ""
+                    card_border = "border-2 border-emerald-500" if is_active_filter else ""
                     with ui.card().classes(f"p-3 w-[180px] {card_border}"):
                         ui.label(strat).classes("text-sm font-bold text-gray-600 mb-1")
                         ui.label(f"{spnl:+.2f}").classes(f"text-xl font-bold {scolor}")

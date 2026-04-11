@@ -794,7 +794,7 @@ def render_tv_ema10_chart(candles, df_ind, signals, height: int = 500) -> None:
         var ema10Data = {json.dumps(ema10_data)};
         if (ema10Data.length) {{
             chart.addLineSeries({{
-                color: '#8b5cf6', lineWidth: 2, lineStyle: {_LS_SOLID},
+                color: '#10b981', lineWidth: 2, lineStyle: {_LS_SOLID},
                 crosshairMarkerVisible: false, lastValueVisible: true,
                 priceLineVisible: false, title: 'EMA 10',
             }}).setData(ema10Data);

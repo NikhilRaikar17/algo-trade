@@ -28,13 +28,13 @@ def render_ema10_tab(container):
     with container:
         ui.label("EMA 10 Crossover Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-violet-50 border border-violet-200 rounded-lg px-4 py-2 mb-3"
+            "bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3"
         ):
             ui.label(
                 "Strategy: BUY when price crosses above EMA(10) | "
                 "SELL when price crosses below EMA(10) | "
                 "Target: 1.5% | SL: 1% | 15-min candles | 5 days"
-            ).classes("text-sm text-violet-700")
+            ).classes("text-sm text-emerald-700")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")

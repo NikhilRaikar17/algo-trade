@@ -127,7 +127,7 @@ async def index():
                    min-height: 36px !important; padding: 4px 12px !important; font-size: 0.85rem !important; }
         .nav-btn .q-btn__content { justify-content: flex-start !important; gap: 10px; flex-wrap: nowrap !important; overflow: hidden !important; }
         .nav-btn .q-icon { color: #6b7280 !important; }
-        .nav-btn-active { background: rgba(59, 130, 246, 0.12) !important; color: #3b82f6 !important; font-weight: 600 !important; }
+        .nav-btn-active { background: rgba(16, 185, 129, 0.12) !important; color: #059669 !important; font-weight: 600 !important; }
         .nav-sub-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important;
                        white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
                        min-height: 32px !important; padding: 2px 8px !important; font-size: 0.8rem !important; }
@@ -140,13 +140,13 @@ async def index():
             padding: 6px 16px 2px 16px;
         }
         .q-expansion-item { font-size: 0.82rem !important; color: #111827 !important; }
-        .q-expansion-item .q-icon { color: #8b5cf6 !important; }
+        .q-expansion-item .q-icon { color: #10b981 !important; }
         /* Per-section icon colors */
         .icon-gray .q-icon    { color: #6b7280 !important; }
         .icon-orange .q-icon  { color: #f97316 !important; }
-        .icon-blue .q-icon    { color: #3b82f6 !important; }
-        .icon-purple .q-icon  { color: #8b5cf6 !important; }
-        .icon-green .q-icon   { color: #22c55e !important; }
+        .icon-blue .q-icon    { color: #10b981 !important; }
+        .icon-purple .q-icon  { color: #059669 !important; }
+        .icon-green .q-icon   { color: #10b981 !important; }
         .icon-amber .q-icon   { color: #f59e0b !important; }
         .icon-rose .q-icon    { color: #f43f5e !important; }
         .q-expansion-item .q-item__label { white-space: nowrap !important; }
@@ -196,9 +196,9 @@ async def index():
             margin-top: 6px;
         }
         .clock-tz-badge-cest {
-            background: #eff6ff;
-            color: #1d4ed8;
-            border: 1px solid #bfdbfe;
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
             border-radius: 6px;
             font-size: 0.6rem;
             font-weight: 700;
@@ -210,22 +210,22 @@ async def index():
         /* ---- Dashboard price cards ---- */
         .price-card-nifty {
             background: #ffffff !important;
-            border-left: 3px solid #0ea5e9 !important;
+            border-left: 3px solid #10b981 !important;
             border-top: 1px solid #e2e8f0 !important;
             border-right: 1px solid #e2e8f0 !important;
             border-bottom: 1px solid #e2e8f0 !important;
             transition: box-shadow 0.2s, transform 0.2s;
         }
-        .price-card-nifty:hover { box-shadow: 0 6px 24px rgba(14,165,233,0.1) !important; transform: translateY(-2px); }
+        .price-card-nifty:hover { box-shadow: 0 6px 24px rgba(16,185,129,0.15) !important; transform: translateY(-2px); }
         .price-card-bnf {
             background: #ffffff !important;
-            border-left: 3px solid #8b5cf6 !important;
+            border-left: 3px solid #059669 !important;
             border-top: 1px solid #e2e8f0 !important;
             border-right: 1px solid #e2e8f0 !important;
             border-bottom: 1px solid #e2e8f0 !important;
             transition: box-shadow 0.2s, transform 0.2s;
         }
-        .price-card-bnf:hover { box-shadow: 0 6px 24px rgba(139,92,246,0.1) !important; transform: translateY(-2px); }
+        .price-card-bnf:hover { box-shadow: 0 6px 24px rgba(5,150,105,0.15) !important; transform: translateY(-2px); }
 
         /* ---- Responsive grid for price cards ---- */
         .responsive-price-grid {
@@ -349,7 +349,7 @@ async def index():
                 .classes("text-gray-600")
             )
 
-            ui.icon("trending_up", size="28px").classes("text-blue-600")
+            ui.icon("trending_up", size="28px").classes("text-emerald-600")
             ui.label("Algo Trade").classes(
                 "text-xl font-bold text-gray-800 tracking-tight"
             )
@@ -394,7 +394,7 @@ async def index():
             )
 
             with ui.button(_initials).props("round flat").style(
-                "background: linear-gradient(135deg, #2563eb, #4f46e5) !important;"
+                "background: linear-gradient(135deg, #10b981, #059669) !important;"
                 "color: #fff !important;"
                 "font-weight: 700 !important;"
                 "font-size: 0.75rem !important;"

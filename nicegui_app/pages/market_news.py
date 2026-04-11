@@ -130,7 +130,7 @@ def _time_ago(pub_dt) -> str:
 def render_market_news_tab(container):
     with container:
         with ui.row().classes("items-center gap-2 mb-1"):
-            ui.icon("newspaper", size="24px").classes("text-blue-500")
+            ui.icon("newspaper", size="24px").classes("text-emerald-500")
             ui.label("Market News").classes("text-xl font-bold text-gray-800")
         ui.label("Latest Indian market headlines — updated on each refresh").classes(
             "text-xs text-gray-400 mb-4"
@@ -192,9 +192,9 @@ def _news_card(art: dict):
     ).props("flat"):
         # Source + time row
         with ui.row().classes("items-center gap-2 mb-2"):
-            ui.element("div").classes("w-1.5 h-1.5 rounded-full bg-blue-500")
+            ui.element("div").classes("w-1.5 h-1.5 rounded-full bg-emerald-500")
             ui.label(source).classes(
-                "text-[10px] font-bold text-blue-600 uppercase tracking-widest"
+                "text-[10px] font-bold text-emerald-700 uppercase tracking-widest"
             )
             ui.space()
             ui.label(ago).classes("text-[10px] text-gray-400")
@@ -202,7 +202,7 @@ def _news_card(art: dict):
         # Title — clickable link
         if link:
             ui.link(title, target=link, new_tab=True).classes(
-                "text-sm font-semibold text-gray-800 leading-snug hover:text-blue-600 no-underline"
+                "text-sm font-semibold text-gray-800 leading-snug hover:text-emerald-600 no-underline"
             )
         else:
             ui.label(title).classes(

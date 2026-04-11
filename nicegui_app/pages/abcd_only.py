@@ -28,12 +28,12 @@ def render_abcd_only_tab(container):
     with container:
         ui.label("ABCD Harmonic Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 mb-3"
+            "bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3"
         ):
             ui.label(
                 "Strategy: ABCD harmonic pattern detection | "
                 "Target: D + AB | SL: Point C | 15-min candles | 5 days"
-            ).classes("text-sm text-blue-700")
+            ).classes("text-sm text-emerald-700")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")
