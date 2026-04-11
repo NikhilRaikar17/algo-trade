@@ -12,6 +12,7 @@ from nicegui import ui, context
 
 from config import now_ist
 from data import STOCK_WATCH_GROUPS, _fetch_any_stock_candles, _candles_to_daily_change
+from db import sync_top_stocks
 from tv_charts import _BASE_OPTS, _CANDLE_OPTS, _schedule_js, _candles_to_tv, _resize_listener, _ohlc_tooltip_js
 
 
@@ -57,7 +58,19 @@ def _fetch_top_stocks(top_n: int = 5) -> tuple[list[dict], list[dict]]:
         key=lambda x: x["data"]["change_pct"],
     )
 
-    return gainers[:top_n], losers[:top_n]
+    top_gainers = gainers[:top_n]
+    top_losers  = losers[:top_n]
+
+    # Persist to DB — updates the rolling 20-stock list
+    try:
+        sync_top_stocks(
+            gainers=[{"name": r["name"], "security_id": r["security_id"]} for r in top_gainers],
+            losers =[{"name": r["name"], "security_id": r["security_id"]} for r in top_losers],
+        )
+    except Exception as e:
+        print(f"  [top_stocks] DB sync error: {e}")
+
+    return top_gainers, top_losers
 
 
 def _show_stock_chart_modal(name: str, security_id: str):

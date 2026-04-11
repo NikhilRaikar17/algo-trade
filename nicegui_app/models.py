@@ -4,7 +4,7 @@ models.py — SQLAlchemy ORM models and Pydantic validation schemas.
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from pydantic import BaseModel, field_validator
 
 from db import Base
@@ -41,6 +41,25 @@ class UserSession(Base):
     username    = Column(String, ForeignKey("users.username"), nullable=False)
     created_at  = Column(DateTime, nullable=False, default=datetime.utcnow)
     expires_at  = Column(DateTime, nullable=False)
+
+
+class TopStock(Base):
+    """
+    Persistent rolling list of top NIFTY 50 movers (capped at 20 active rows).
+
+    - On add   : insert new row with deleted=False, added_at=now
+    - On remove: set deleted=True, deleted_at=now  (row is kept)
+    - On re-add: insert a NEW row with deleted=False, added_at=now
+    """
+    __tablename__ = "top_stocks"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    name        = Column(String, nullable=False)        # e.g. "RELIANCE"
+    security_id = Column(String, nullable=False)        # e.g. "2885"
+    side        = Column(String, nullable=False)        # "gainer" | "loser"
+    added_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
+    deleted     = Column(Boolean, nullable=False, default=False)
+    deleted_at  = Column(DateTime, nullable=True)
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────

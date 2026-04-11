@@ -8,7 +8,7 @@ import traceback
 from nicegui import ui
 
 from data import _fetch_any_stock_candles
-from pages.top_stocks import _fetch_top_stocks
+from db import get_active_top_stocks
 from algo_strategies import find_swing_points, detect_abcd_patterns, backtest_abcd
 from tv_charts import render_tv_abcd_chart
 
@@ -90,9 +90,8 @@ def render_abcd_only_tab(container):
             print(f"  [abcd_hist:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
-        top_stocks = gainers + losers
-        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        top_stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks)
+        options = _build_stock_options(top_stocks)
         if not select_widget.client._deleted:
             select_widget.options = options
             select_widget.update()

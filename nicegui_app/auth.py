@@ -19,7 +19,7 @@ from passlib.context import CryptContext
 from sqlalchemy import text
 
 from db import Base, SessionLocal, engine
-from models import User, UserSession, Strategy
+from models import User, UserSession, Strategy, TopStock  # noqa: F401 — ensures TopStock table is created
 
 # ── Password context ──────────────────────────────────────────────────────────
 # sha256_crypt avoids bcrypt/passlib version incompatibilities on Windows

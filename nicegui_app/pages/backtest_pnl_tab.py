@@ -10,7 +10,7 @@ from collections import defaultdict
 from nicegui import ui
 
 from data import _fetch_any_stock_candles
-from pages.top_stocks import _fetch_top_stocks
+from db import get_active_top_stocks
 from algo_strategies import (
     find_swing_points, detect_abcd_patterns, backtest_abcd,
     detect_double_top_signals, backtest_double_top,
@@ -20,29 +20,32 @@ from algo_strategies import (
 )
 from ui_components import build_trade_table
 from strategy_registry import get_strategy_short_names
-from brokerage import charges_for_trades, LOT_SIZES, DEFAULT_LOT_SIZE
+from brokerage import charges_for_trades
 
 
 _ALL_STRATEGIES = get_strategy_short_names()
 
+_ALL_KEY = "ALL:ALL:ALL"
+
 
 def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
-    return {
-        f"EQ:{s['security_id']}:{s['name']}": s["name"]
-        for s in stocks
-    }
-
+    options = {"ALL:ALL:ALL": "ALL (All Stocks)"}
+    for s in stocks:
+        options[f"EQ:{s['security_id']}:{s['name']}"] = s["name"]
+    return options
 
 
 # ── Backtest runner ───────────────────────────────────────────────────────────
 
-def _run_all_backtests(candles):
+def _run_all_backtests(candles, stock_name: str = ""):
     """Run every strategy on candles. Returns completed trades tagged with strategy."""
     all_trades = []
 
     def _tag(trades, strategy):
         for t in trades:
             t["strategy"] = strategy
+            if stock_name:
+                t["stock"] = stock_name
             entry_time = t.get("time")
             t["trade_date"] = (
                 entry_time.strftime("%Y-%m-%d")
@@ -90,14 +93,27 @@ def _run_ema10(candles):
     return backtest_ema10(signals, candles)
 
 
+def _fetch_all_stocks_trades(stocks: list[dict]) -> list[dict]:
+    """Fetch candles for every stock and run all backtests. Returns merged trade list."""
+    all_trades = []
+    for stock in stocks:
+        try:
+            candles = _fetch_any_stock_candles(stock["security_id"])
+            trades = _run_all_backtests(candles, stock_name=stock["name"])
+            all_trades.extend(trades)
+        except Exception as e:
+            print(f"  [backtest_pnl ALL] {stock['name']} error: {e}")
+    return all_trades
+
+
 # ── Page renderer ─────────────────────────────────────────────────────────────
 
 def render_backtest_pnl_tab(container):
     """Build the Backtest P&L tab. Returns an async refresh() closure."""
 
-    selected = {"security_id": None, "label": None}
-    _state = {"strategy": "All", "date": "All", "lot_size": DEFAULT_LOT_SIZE, "quantity": 1}
-    _data = {"trades": []}
+    selected = {"key": None, "label": None}
+    _state = {"strategy": "All", "date": "All", "stock": "All", "quantity": 1}
+    _data = {"trades": [], "stocks": []}
 
     with container:
         ui.label("Backtest P&L — All Strategies").classes("text-xl font-bold mb-2")
@@ -116,7 +132,7 @@ def render_backtest_pnl_tab(container):
                 value=None,
                 label="",
                 on_change=lambda e: asyncio.ensure_future(
-                    _load(e.value, e.value.split(":", 2)[2] if e.value else "")
+                    _load(e.value, (e.sender.options or {}).get(e.value, "") if e.value else "")
                 ) if e.value else None,
             ).props("outlined dense use-input input-debounce=0").classes("w-64")
 
@@ -137,11 +153,15 @@ def render_backtest_pnl_tab(container):
             out = [t for t in out if t.get("strategy") == _state["strategy"]]
         if _state["date"] != "All":
             out = [t for t in out if t.get("trade_date") == _state["date"]]
+        if _state["stock"] != "All":
+            out = [t for t in out if t.get("stock") == _state["stock"]]
         return out
 
     def _render():
         trades = _data["trades"]
         filtered = _apply_filters(trades)
+        quantity = _state["quantity"]
+        is_all_mode = selected["key"] == _ALL_KEY
 
         content_container.clear()
         with content_container:
@@ -155,16 +175,21 @@ def render_backtest_pnl_tab(container):
             total_pnl = sum(t["pnl"] for t in filtered)
             total_trades = len(filtered)
             winners = sum(1 for t in filtered if t["pnl"] > 0)
-            losers = sum(1 for t in filtered if t["pnl"] < 0)
+            losers_count = sum(1 for t in filtered if t["pnl"] < 0)
             win_rate = (winners / total_trades * 100) if total_trades else 0
 
-            # Brokerage calculation
-            lot_size = _state["lot_size"]
-            quantity = _state["quantity"]
-            charges = charges_for_trades(filtered, lot_size=lot_size, quantity=quantity)
+            # Brokerage: lot_size=1 since we trade shares, not F&O lots
+            charges = charges_for_trades(filtered, lot_size=1, quantity=quantity)
             gross_pnl = charges["gross_pnl"]
             total_charges = charges["total_charges"]
             net_pnl = charges["net_pnl"]
+
+            # Capital invested = sum of (entry_price × quantity) per trade
+            capital_invested = sum(
+                float(t.get("entry", 0) or 0) * quantity
+                for t in filtered
+                if t.get("entry")
+            )
 
             with ui.row().classes("gap-4 flex-wrap mb-4"):
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
@@ -183,6 +208,10 @@ def render_backtest_pnl_tab(container):
                     net_color = "text-green-600" if net_pnl >= 0 else "text-red-600"
                     ui.label(f"₹{net_pnl:+,.2f}").classes(f"text-2xl font-bold {net_color}")
                     ui.label("After all charges").classes("text-xs text-gray-400")
+                with ui.card().classes("p-3 min-w-[120px] flex-1 border border-purple-200"):
+                    ui.label("Capital Invested").classes("text-sm text-gray-500")
+                    ui.label(f"₹{capital_invested:,.2f}").classes("text-2xl font-bold text-purple-600")
+                    ui.label(f"{quantity} share(s) × entry price").classes("text-xs text-gray-400")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("Trades").classes("text-sm text-gray-500")
                     ui.label(str(total_trades)).classes("text-2xl font-bold")
@@ -191,7 +220,7 @@ def render_backtest_pnl_tab(container):
                     ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-emerald-600")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("W / L").classes("text-sm text-gray-500")
-                    ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")
+                    ui.label(f"{winners} / {losers_count}").classes("text-2xl font-bold")
 
             # ── Brokerage breakdown (collapsible) ─────────────────────────
             with ui.expansion("Charges Breakdown", icon="receipt_long").classes(
@@ -213,14 +242,14 @@ def render_backtest_pnl_tab(container):
             # ── Strategy breakdown cards ───────────────────────────────────
             ui.label("Strategy Breakdown").classes("text-base font-semibold mb-1")
             date_filter_active = _state["date"] != "All"
+            stock_filter_active = _state["stock"] != "All"
             with ui.row().classes("gap-3 flex-wrap mb-4"):
                 for strat in _ALL_STRATEGIES:
                     strat_trades = [t for t in trades if t.get("strategy") == strat]
                     if date_filter_active:
-                        strat_trades = [
-                            t for t in strat_trades
-                            if t.get("trade_date") == _state["date"]
-                        ]
+                        strat_trades = [t for t in strat_trades if t.get("trade_date") == _state["date"]]
+                    if stock_filter_active:
+                        strat_trades = [t for t in strat_trades if t.get("stock") == _state["stock"]]
                     spnl = sum(t["pnl"] for t in strat_trades)
                     sw = sum(1 for t in strat_trades if t["pnl"] > 0)
                     sl_c = sum(1 for t in strat_trades if t["pnl"] < 0)
@@ -241,6 +270,8 @@ def render_backtest_pnl_tab(container):
             day_trades = trades
             if _state["strategy"] != "All":
                 day_trades = [t for t in day_trades if t.get("strategy") == _state["strategy"]]
+            if stock_filter_active:
+                day_trades = [t for t in day_trades if t.get("stock") == _state["stock"]]
 
             date_groups: dict = defaultdict(list)
             for t in day_trades:
@@ -273,14 +304,16 @@ def render_backtest_pnl_tab(container):
                 _state["strategy"] if _state["strategy"] != "All" else "All Strategies"
             )
             date_label = f" · {_state['date']}" if _state["date"] != "All" else ""
-            ui.label(f"Trade Details ({filter_label}{date_label})").classes(
+            stock_label = f" · {_state['stock']}" if _state["stock"] != "All" else ""
+            ui.label(f"Trade Details ({filter_label}{date_label}{stock_label})").classes(
                 "text-base font-semibold mb-2"
             )
             if not filtered:
                 ui.label("No trades match this filter.").classes("text-gray-500 italic")
             else:
-                rows = [
-                    {
+                rows = []
+                for t in filtered:
+                    row = {
                         "Date": t.get("trade_date", ""),
                         "Strategy": t.get("strategy", ""),
                         "Signal": t.get("signal", ""),
@@ -290,14 +323,16 @@ def render_backtest_pnl_tab(container):
                         "P&L": t.get("pnl", 0),
                         "Status": t.get("status", ""),
                     }
-                    for t in filtered
-                ]
+                    if is_all_mode:
+                        row["Stock"] = t.get("stock", "")
+                    rows.append(row)
                 build_trade_table(ui.element("div").classes("w-full"), rows, "P&L")
 
     # ── filter row ────────────────────────────────────────────────────────────
 
-    def _build_filter_row(strategies, dates):
+    def _build_filter_row(strategies, dates, stock_names):
         filter_row.clear()
+        is_all_mode = selected["key"] == _ALL_KEY
         with filter_row:
             with ui.row().classes("gap-4 items-center flex-wrap"):
                 ui.label("Strategy:").classes("text-sm font-medium")
@@ -306,6 +341,7 @@ def render_backtest_pnl_tab(container):
                     value=_state["strategy"],
                     label="Strategy",
                 ).classes("w-40")
+
                 ui.label("Date:").classes("text-sm font-medium")
                 date_select = ui.select(
                     ["All"] + dates,
@@ -313,21 +349,22 @@ def render_backtest_pnl_tab(container):
                     label="Date",
                 ).classes("w-36")
 
+                if is_all_mode and stock_names:
+                    ui.label("Stock:").classes("text-sm font-medium")
+                    stock_select = ui.select(
+                        ["All"] + stock_names,
+                        value=_state["stock"],
+                        label="Stock",
+                    ).classes("w-40")
+                    stock_select.on_value_change(lambda e: (_state.update({"stock": e.value}), _render()))
+                else:
+                    _state["stock"] = "All"
+
                 ui.separator().props("vertical").classes("mx-1 h-8")
 
-                ui.label("Lot Size:").classes("text-sm font-medium text-orange-600")
-                lot_select = ui.select(
-                    {name: f"{name} ({size})" for name, size in LOT_SIZES.items()},
-                    value=next(
-                        (n for n, s in LOT_SIZES.items() if s == _state["lot_size"]),
-                        list(LOT_SIZES.keys())[0],
-                    ),
-                    label="Index",
-                ).classes("w-40")
-
                 qty_input = ui.number(
-                    label="Lots", value=_state["quantity"], min=1, max=100, step=1
-                ).classes("w-20").props("dense outlined")
+                    label="Quantity (shares)", value=_state["quantity"], min=1, max=10000, step=1
+                ).classes("w-36").props("dense outlined")
 
         def on_strat(e):
             _state["strategy"] = e.value
@@ -335,10 +372,6 @@ def render_backtest_pnl_tab(container):
 
         def on_date(e):
             _state["date"] = e.value
-            _render()
-
-        def on_lot(e):
-            _state["lot_size"] = LOT_SIZES.get(e.value, DEFAULT_LOT_SIZE)
             _render()
 
         def on_qty(e):
@@ -350,13 +383,12 @@ def render_backtest_pnl_tab(container):
 
         strat_select.on_value_change(on_strat)
         date_select.on_value_change(on_date)
-        lot_select.on_value_change(on_lot)
         qty_input.on_value_change(on_qty)
 
     # ── data loader ───────────────────────────────────────────────────────────
 
-    async def _load(security_id: str, label: str):
-        selected["security_id"] = security_id
+    async def _load(key: str, label: str):
+        selected["key"] = key
         selected["label"] = label
 
         if content_container.client._deleted:
@@ -370,15 +402,21 @@ def render_backtest_pnl_tab(container):
             )
 
         try:
-            _, sec_id, _ = security_id.split(":", 2)
             loop = asyncio.get_event_loop()
-            candles = await loop.run_in_executor(None, lambda: _fetch_any_stock_candles(sec_id))
-            if content_container.client._deleted:
-                return
 
-            all_trades = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: _run_all_backtests(candles)
-            )
+            if key == _ALL_KEY:
+                stocks = _data["stocks"]
+                all_trades = await loop.run_in_executor(
+                    None, lambda: _fetch_all_stocks_trades(stocks)
+                )
+            else:
+                _, sec_id, _ = key.split(":", 2)
+                candles = await loop.run_in_executor(
+                    None, lambda: _fetch_any_stock_candles(sec_id)
+                )
+                all_trades = await loop.run_in_executor(
+                    None, lambda: _run_all_backtests(candles)
+                )
 
             if content_container.client._deleted:
                 return
@@ -390,17 +428,20 @@ def render_backtest_pnl_tab(container):
                 set(t.get("trade_date", "") for t in all_trades if t.get("trade_date")),
                 reverse=True,
             )
+            stock_names = sorted(set(t.get("stock", "") for t in all_trades if t.get("stock")))
 
             if _state["strategy"] not in (["All"] + strategies):
                 _state["strategy"] = "All"
             if _state["date"] not in (["All"] + dates):
                 _state["date"] = "All"
+            if _state["stock"] not in (["All"] + stock_names):
+                _state["stock"] = "All"
 
             try:
-                _build_filter_row(strategies, dates)
+                _build_filter_row(strategies, dates, stock_names)
                 _render()
             except RuntimeError:
-                return  # container was cleared by a concurrent build_ui()
+                return
 
         except Exception as e:
             if content_container.client._deleted:
@@ -410,24 +451,29 @@ def render_backtest_pnl_tab(container):
                 with content_container:
                     ui.label(f"Error: {e}").classes("text-red-500")
             except RuntimeError:
-                return  # container was cleared by a concurrent build_ui()
+                return
             print(f"  [backtest_pnl:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
-        top_stocks = gainers + losers
-        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        top_stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks)
+        _data["stocks"] = top_stocks
+        options = _build_stock_options(top_stocks)
         if not select_widget.client._deleted:
             select_widget.options = options
             select_widget.update()
 
-        if selected["security_id"] not in options and options:
+        if selected["key"] is None and options:
+            # Default to ALL on first load
+            select_widget.value = _ALL_KEY
+            select_widget.update()
+            await _load(_ALL_KEY, "ALL (All Stocks)")
+        elif selected["key"] not in options and options:
             first_key = next(iter(options))
             first_label = options[first_key]
             select_widget.value = first_key
             select_widget.update()
             await _load(first_key, first_label)
-        elif selected["security_id"] in options:
-            await _load(selected["security_id"], selected["label"])
+        elif selected["key"] in options:
+            await _load(selected["key"], selected["label"])
 
     return refresh
