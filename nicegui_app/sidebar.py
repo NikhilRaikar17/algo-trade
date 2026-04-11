@@ -65,7 +65,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
         # ---- Strategies ----
         _section_label("Strategies", "bg-purple-400")
-        with ui.expansion("Strategies", icon="history_edu").classes(
+        with ui.expansion("Backtest Algos", icon="history_edu").classes(
             "mx-2 rounded-lg text-gray-700"
         ).props("dense"):
             _nav_button("abcd_only", "ABCD",              "insights",            icon_color="icon-purple")
@@ -73,19 +73,14 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             _nav_button("db_only",   "Double Bottom",     "moving",              icon_color="icon-purple")
             _nav_button("sma50",         "SMA 50 Crossover",  "stacked_line_chart",  icon_color="icon-purple")
             _nav_button("ema10",         "EMA 10 Crossover",  "show_chart",          icon_color="icon-purple")
-            ui.separator().classes("my-1 mx-2")
-            _nav_button("backtest_pnl",  "Backtest P&L",      "analytics", indent=True, icon_color="icon-amber")
+        _nav_button("backtest_pnl", "Backtest P&L", "analytics", icon_color="icon-amber")
 
         ui.separator().classes("my-2 mx-4")
 
         # ---- Live Trading ----
         _section_label("Live Trading", "bg-green-400")
-        _nav_button("algo", "Live Trading", "insights", icon_color="icon-green")
-
-        ui.separator().classes("my-2 mx-4")
-
-        # ---- P&L ----
-        _nav_button("pnl", "P&L", "account_balance_wallet", icon_color="icon-rose")
+        _nav_button("algo", "Live Algos", "insights", icon_color="icon-green")
+        _nav_button("pnl", "Live P&L", "account_balance_wallet", icon_color="icon-rose")
 
         ui.separator().classes("my-3 mx-4")
 
