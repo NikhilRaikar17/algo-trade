@@ -12,7 +12,7 @@ from config import (
     SMA_PERIOD,
     INDICES,
 )
-from state import api_call, _cache_get, _cache_set, _ltp_history
+from state import api_call, _cache_get, _cache_set, _ltp_history, _get_fetch_lock
 
 
 def check_dhan_api():
@@ -75,16 +75,35 @@ def get_expiries(scrip, segment, count=3, for_algo=False):
     return expiries[:count]
 
 
+def fetch_option_chain_raw(scrip, segment, expiry):
+    cache_key = f"oc_raw:{scrip}:{segment}:{expiry}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    # Serialize concurrent callers for the same key — second caller waits,
+    # then returns from cache instead of making a duplicate API call.
+    with _get_fetch_lock(cache_key):
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        r = api_call(dhan.option_chain, scrip, segment, expiry)
+        if r.get("status") != "success":
+            raise RuntimeError(f"option_chain failed: {r}")
+        result = r["data"]["data"]
+        _cache_set(cache_key, result)
+        return result
+
+
 def fetch_option_chain(scrip, segment, expiry):
     cache_key = f"oc:{scrip}:{segment}:{expiry}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
-    r = api_call(dhan.option_chain, scrip, segment, expiry)
-    if r.get("status") != "success":
-        raise RuntimeError(f"option_chain failed: {r}")
-    inner = r["data"]["data"]
+    # Delegate to fetch_option_chain_raw so both share a single API call + cache entry
+    inner = fetch_option_chain_raw(scrip, segment, expiry)
     spot = round(float(inner["last_price"]), 2)
     oc = inner["oc"]
 
@@ -109,20 +128,6 @@ def fetch_option_chain(scrip, segment, expiry):
                 }
             )
     result = (spot, pd.DataFrame(rows))
-    _cache_set(cache_key, result)
-    return result
-
-
-def fetch_option_chain_raw(scrip, segment, expiry):
-    cache_key = f"oc_raw:{scrip}:{segment}:{expiry}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
-
-    r = api_call(dhan.option_chain, scrip, segment, expiry)
-    if r.get("status") != "success":
-        raise RuntimeError(f"option_chain failed: {r}")
-    result = r["data"]["data"]
     _cache_set(cache_key, result)
     return result
 

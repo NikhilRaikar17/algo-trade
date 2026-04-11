@@ -1,71 +1,29 @@
 """
 ABCD Harmonic historical backtest tab page.
-Fetches 15-min candles for any NSE index or stock, detects ABCD patterns, backtests.
+Fetches 15-min candles for top stocks, detects ABCD patterns, backtests.
 """
 
 import asyncio
 import traceback
 from nicegui import ui
 
-from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles
-from ui_components import build_grouped_options_dict, resolve_option_labels_in_dropdown
+from data import _fetch_any_stock_candles
+from pages.top_stocks import _fetch_top_stocks
 from algo_strategies import find_swing_points, detect_abcd_patterns, backtest_abcd
 from tv_charts import render_tv_abcd_chart
 
 
-# Build option groups: {group_label: {value: display_name}}
-_OPTION_GROUPS: dict[str, dict[str, str]] = {}
-for _g in MARKET_WATCH_GROUPS:
-    _OPTION_GROUPS[_g["group"]] = {
-        idx["security_id"]: idx["name"]
-        for idx in _g["indices"]
-    }
-for _g in STOCK_WATCH_GROUPS:
-    key = f"Stocks – {_g['group']}"
-    _OPTION_GROUPS[key] = {
+def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
+    return {
         f"EQ:{s['security_id']}:{s['name']}": s["name"]
-        for s in _g["stocks"]
+        for s in stocks
     }
-
-_OPTION_GROUPS["NIFTY Weekly Options"] = {
-    f"OPT:NIFTY:{i}:CE": f"NIFTY Weekly +{i} CE (ATM)"
-    for i in range(3)
-} | {
-    f"OPT:NIFTY:{i}:PE": f"NIFTY Weekly +{i} PE (ATM)"
-    for i in range(3)
-}
-_OPTION_GROUPS["BANKNIFTY Monthly Options"] = {
-    f"OPT:BANKNIFTY:{i}:CE": f"BANKNIFTY Monthly +{i} CE (ATM)"
-    for i in range(3)
-} | {
-    f"OPT:BANKNIFTY:{i}:PE": f"BANKNIFTY Monthly +{i} PE (ATM)"
-    for i in range(3)
-}
-
-_ALL_OPTIONS: dict[str, str] = {
-    k: v
-    for group_opts in _OPTION_GROUPS.values()
-    for k, v in group_opts.items()
-}
-
-_DEFAULT_SEC_ID = "13"   # NIFTY 50
-_DEFAULT_LABEL  = _ALL_OPTIONS[_DEFAULT_SEC_ID]
-
-
-def _parse_option_value(value: str):
-    """Return (security_id, is_equity, is_option) from the dropdown value key."""
-    if value.startswith("EQ:"):
-        _, sec_id, _ = value.split(":", 2)
-        return sec_id, True, False
-    if value.startswith("OPT:"):
-        return value, False, True
-    return value, False, False
 
 
 def render_abcd_only_tab(container):
     """Build the ABCD historical backtester tab. Returns an async refresh() closure."""
 
-    selected = {"security_id": _DEFAULT_SEC_ID, "label": _DEFAULT_LABEL}
+    selected: dict = {"security_id": None, "label": None}
 
     with container:
         ui.label("ABCD Harmonic Scanner").classes("text-xl font-bold mb-2")
@@ -77,25 +35,21 @@ def render_abcd_only_tab(container):
                 "Target: D + AB | SL: Point C | 15-min candles | 5 days"
             ).classes("text-sm text-blue-700")
 
-        # ---- Instrument selector ----
-        # Start with static names; real option labels resolved async below
-        live_options = dict(_ALL_OPTIONS)
-        grouped_options = build_grouped_options_dict(_OPTION_GROUPS)
         with ui.row().classes("items-center gap-3 mb-4"):
-            ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
+            ui.label("Stock:").classes("text-sm font-medium text-gray-700")
             select_widget = ui.select(
-                options=grouped_options,
-                value=_DEFAULT_SEC_ID,
+                options={},
+                value=None,
                 label="",
                 on_change=lambda e: asyncio.ensure_future(
-                    _load(e.value, live_options.get(e.value, e.value))
-                ) if not str(e.value).startswith("__hdr_") else None,
+                    _load(e.value, e.value.split(":", 2)[2] if e.value else "")
+                ) if e.value else None,
             ).props("outlined dense use-input input-debounce=0").classes("w-64")
 
         content_container = ui.element("div").classes("w-full")
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            ui.label(f"Loading {_DEFAULT_LABEL} ABCD data...").classes(
+            ui.label("Loading top stocks...").classes(
                 "text-gray-500 text-center w-full"
             )
 
@@ -106,36 +60,22 @@ def render_abcd_only_tab(container):
         if content_container.client._deleted:
             return
 
-        sec_id, is_equity, is_option = _parse_option_value(security_id)
-        if is_option:
-            _, index_name, expiry_idx_str, opt_type = sec_id.split(":")
-            loading_label = f"Resolving {index_name} expiry +{expiry_idx_str} {opt_type} contract..."
-        else:
-            loading_label = f"Loading {label} ABCD data..."
-
         content_container.clear()
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            ui.label(loading_label).classes("text-gray-500 text-center w-full")
+            ui.label(f"Loading {label} ABCD data...").classes(
+                "text-gray-500 text-center w-full"
+            )
 
         try:
-            if is_option:
-                _, index_name, expiry_idx_str, opt_type = sec_id.split(":")
-                expiry_idx = int(expiry_idx_str)
-                resolved_label, candles = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: fetch_atm_option_15min_candles(index_name, expiry_idx, opt_type)
-                )
-                selected["label"] = resolved_label
-            else:
-                fetch_fn = _fetch_any_stock_candles if is_equity else _fetch_any_index_candles
-                candles = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: fetch_fn(sec_id)
-                )
-                resolved_label = label
+            _, sec_id, _ = security_id.split(":", 2)
+            candles = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: _fetch_any_stock_candles(sec_id)
+            )
             if content_container.client._deleted:
                 return
             try:
-                _build_abcd_content(content_container, resolved_label, candles)
+                _build_abcd_content(content_container, label, candles)
             except RuntimeError:
                 return
         except Exception as e:
@@ -150,8 +90,21 @@ def render_abcd_only_tab(container):
             print(f"  [abcd_hist:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        await _load(selected["security_id"], selected["label"])
-        await resolve_option_labels_in_dropdown(select_widget, _OPTION_GROUPS, live_options)
+        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
+        top_stocks = gainers + losers
+        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        if not select_widget.client._deleted:
+            select_widget.options = options
+            select_widget.update()
+
+        if selected["security_id"] not in options and options:
+            first_key = next(iter(options))
+            first_label = options[first_key]
+            select_widget.value = first_key
+            select_widget.update()
+            await _load(first_key, first_label)
+        elif selected["security_id"] in options:
+            await _load(selected["security_id"], selected["label"])
 
     return refresh
 

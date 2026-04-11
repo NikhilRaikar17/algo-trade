@@ -19,11 +19,20 @@ from tv_charts import _BASE_OPTS, _CANDLE_OPTS, _schedule_js, _candles_to_tv, _r
 _NIFTY50_STOCKS = STOCK_WATCH_GROUPS[0]["stocks"]
 
 
-def _fetch_top_stocks(top_n: int = 10) -> list[dict]:
+def _fetch_top_stocks(top_n: int = 5) -> tuple[list[dict], list[dict]]:
     """
-    Fetch 15-min candles for all large-cap stocks, compute today's % change,
-    return top_n sorted by absolute change (gainers first, then losers).
+    Fetch 15-min candles for all large-cap stocks, compute today's % change.
+    Returns (top_gainers, top_losers) each of length up to top_n.
     """
+    # Probe one stock to diagnose API response
+    import pandas as _pd
+    from config import dhan as _dhan
+    _probe = _NIFTY50_STOCKS[0]
+    _today = now_ist().strftime("%Y-%m-%d")
+    _from  = (_pd.Timestamp(now_ist().date()) - _pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+    _r = _dhan.intraday_minute_data(_probe["security_id"], "NSE_EQ", "EQUITY", _from, _today, interval=15)
+    print(f"  [top_stocks PROBE] raw API response for {_probe['name']}: {_r}")
+
     results = []
     for stock in _NIFTY50_STOCKS:
         try:
@@ -38,7 +47,6 @@ def _fetch_top_stocks(top_n: int = 10) -> list[dict]:
         except Exception as e:
             print(f"  [top_stocks] {stock['name']} error: {e}")
 
-    # Sort: gainers descending first, then losers ascending (by pct change)
     gainers = sorted(
         [r for r in results if r["data"]["change_pct"] >= 0],
         key=lambda x: x["data"]["change_pct"],
@@ -49,12 +57,7 @@ def _fetch_top_stocks(top_n: int = 10) -> list[dict]:
         key=lambda x: x["data"]["change_pct"],
     )
 
-    # Top N: best gainers + worst losers filling the rest
-    top_gainers = gainers[: min(top_n, len(gainers))]
-    remaining   = top_n - len(top_gainers)
-    top_losers  = losers[: remaining] if remaining > 0 else []
-
-    return top_gainers + top_losers
+    return gainers[:top_n], losers[:top_n]
 
 
 def _show_stock_chart_modal(name: str, security_id: str):
@@ -185,7 +188,7 @@ def render_top_stocks_tab(container):
             ui.icon("rocket_launch", size="24px").classes("text-amber-500")
             ui.label("Top NIFTY 50 Stocks").classes("text-xl font-bold text-gray-800")
         ui.label(
-            "Today's top 10 movers — ranked by % change vs previous close · click a card for 15-min intraday chart"
+            "Top 5 gainers & top 5 losers — ranked by % change vs previous close · click a card for 15-min intraday chart"
         ).classes("text-xs text-gray-400 mb-4")
 
         content = ui.element("div").classes("w-full")
@@ -198,48 +201,48 @@ def render_top_stocks_tab(container):
         if page_client._deleted:
             return
         try:
-            stocks = await asyncio.get_event_loop().run_in_executor(
+            gainers, losers = await asyncio.get_event_loop().run_in_executor(
                 None, _fetch_top_stocks
             )
             if page_client._deleted:
                 return
             content.clear()
             with content:
-                if not stocks:
+                if not gainers and not losers:
                     ui.label("No data available.").classes(
                         "text-gray-400 italic text-sm"
                     )
                     return
 
-                # Separate gainers and losers
-                gainers = [s for s in stocks if s["data"]["change_pct"] >= 0]
-                losers  = [s for s in stocks if s["data"]["change_pct"] < 0]
+                with ui.row().classes("items-center gap-3 mb-3"):
+                    ui.label("Top Gainers").classes(
+                        "text-xs font-bold text-green-600 uppercase tracking-widest"
+                    )
+                    ui.element("div").classes("flex-1 h-px bg-green-100")
 
                 if gainers:
-                    with ui.row().classes("items-center gap-3 mb-3"):
-                        ui.label("Top Gainers").classes(
-                            "text-xs font-bold text-green-600 uppercase tracking-widest"
-                        )
-                        ui.element("div").classes("flex-1 h-px bg-green-100")
-
                     with ui.element("div").classes(
                         "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6"
                     ):
                         for entry in gainers:
                             _stock_card(entry)
+                else:
+                    ui.label("No gainers today.").classes("text-gray-400 italic text-sm mb-6")
+
+                with ui.row().classes("items-center gap-3 mb-3"):
+                    ui.label("Top Losers").classes(
+                        "text-xs font-bold text-red-600 uppercase tracking-widest"
+                    )
+                    ui.element("div").classes("flex-1 h-px bg-red-100")
 
                 if losers:
-                    with ui.row().classes("items-center gap-3 mb-3"):
-                        ui.label("Top Losers").classes(
-                            "text-xs font-bold text-red-600 uppercase tracking-widest"
-                        )
-                        ui.element("div").classes("flex-1 h-px bg-red-100")
-
                     with ui.element("div").classes(
                         "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6"
                     ):
                         for entry in losers:
                             _stock_card(entry)
+                else:
+                    ui.label("No losers today.").classes("text-gray-400 italic text-sm mb-6")
 
                 ui.label(
                     f"Last updated: {now_ist().strftime('%H:%M:%S')} IST"
