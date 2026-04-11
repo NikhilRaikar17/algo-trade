@@ -6,6 +6,8 @@ Mon–Thu  →  Today's trades only.
 
 Friday   →  Full week (up to 5 trading days).
            Excel: Weekly Summary sheet + one sheet per trading day (all strategies).
+
+Instruments: Top active stocks from DB (up to 20), not NIFTY index.
 """
 
 import io
@@ -40,6 +42,7 @@ _WIN_FILL     = PatternFill("solid", fgColor="FFD5F5E3")
 _LOSS_FILL    = PatternFill("solid", fgColor="FFFDEDEC")
 _SUMMARY_FILL = PatternFill("solid", fgColor="FF1B2631")
 _WHITE_FILL   = PatternFill("solid", fgColor="FFFFFFFF")
+_PURPLE_FILL  = PatternFill("solid", fgColor="FFE8DAEF")
 
 _THIN   = Side(style="thin", color="FFB2BABB")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
@@ -49,14 +52,14 @@ _ALL_STRATEGIES = get_strategy_short_names()
 
 # ── Data fetching ──────────────────────────────────────────────────────────────
 
-def _fetch_candles_for_report():
-    from data import _fetch_any_index_candles  # noqa: PLC0415
-    return _fetch_any_index_candles("13")       # NIFTY
-
-
-def _run_all_backtests(candles):
-    from pages.backtest_pnl_tab import _run_all_backtests as _runner  # noqa: PLC0415
-    return _runner(candles)
+def _fetch_all_stocks_for_report():
+    """Fetch candles for all active top stocks and run all backtests. Returns merged trades."""
+    from db import get_active_top_stocks                               # noqa: PLC0415
+    from pages.backtest_pnl_tab import _fetch_all_stocks_trades       # noqa: PLC0415
+    stocks = get_active_top_stocks()
+    if not stocks:
+        return []
+    return _fetch_all_stocks_trades(stocks)
 
 
 # ── Cell / sheet helpers ───────────────────────────────────────────────────────
@@ -105,18 +108,22 @@ def _kpi_row(ws, row, kpi_list):
     for c, (lbl, val) in enumerate(kpi_list, start=1):
         _set_cell(ws, row, c, lbl, bold=True, fill=_SUB_FILL, color=_WHITE)
         is_pnl = "P&L" in lbl or "pnl" in lbl.lower()
-        f   = _pnl_fill(val) if is_pnl and isinstance(val, (int, float)) else _ALT_FILL
-        col = _pnl_color(val) if is_pnl and isinstance(val, (int, float)) else _DARK
-        _set_cell(ws, row + 1, c, val, bold=is_pnl, fill=f, color=col)
+        is_cap = "Capital" in lbl
+        if is_cap:
+            f   = _PURPLE_FILL
+            col = "FF6C3483"
+        elif is_pnl and isinstance(val, (int, float)):
+            f   = _pnl_fill(val)
+            col = _pnl_color(val)
+        else:
+            f   = _ALT_FILL
+            col = _DARK
+        _set_cell(ws, row + 1, c, val, bold=(is_pnl or is_cap), fill=f, color=col)
 
 
-# ── Strategy-breakdown table (shared by summary sheets) ───────────────────────
+# ── Strategy-breakdown table ───────────────────────────────────────────────────
 
 def _write_strategy_table(ws, start_row, trades):
-    """
-    Write per-strategy stats table. Returns the row after the last data row,
-    and a dict {strategy: pnl} for charting.
-    """
     headers = [
         "Strategy", "Trades", "Winners", "Losers",
         "Win Rate %", "Total P&L", "Avg Win", "Avg Loss", "Best Trade",
@@ -172,7 +179,40 @@ def _add_strategy_bar_chart(ws, data_start_row, anchor_cell):
     ws.add_chart(chart, anchor_cell)
 
 
-# ── Trade-detail table (shared by per-strategy and per-day sheets) ─────────────
+# ── Stock-breakdown table ──────────────────────────────────────────────────────
+
+def _write_stock_table(ws, start_row, trades):
+    """Per-stock P&L summary. Returns the row after the last data row."""
+    stock_names = sorted(set(t.get("stock", "") for t in trades if t.get("stock")))
+    if not stock_names:
+        return start_row
+
+    headers = ["Stock", "Trades", "Winners", "Losers", "Win Rate %", "Total P&L", "Capital Invested"]
+    _style_header_row(ws, start_row, len(headers))
+    for c, h in enumerate(headers, start=1):
+        ws.cell(row=start_row, column=c, value=h)
+
+    for i, stock in enumerate(stock_names):
+        r = start_row + 1 + i
+        ws.row_dimensions[r].height = 16
+        st = [t for t in trades if t.get("stock") == stock]
+        spnl = round(sum(t["pnl"] for t in st), 2)
+        sw   = sum(1 for t in st if t["pnl"] > 0)
+        sl   = sum(1 for t in st if t["pnl"] < 0)
+        swr  = round(sw / len(st) * 100, 1) if st else 0
+        cap  = round(sum(float(t.get("entry", 0) or 0) for t in st), 2)
+        rf   = _ALT_FILL if i % 2 == 0 else _WHITE_FILL
+
+        for c, v in enumerate([stock, len(st), sw, sl, swr, spnl, cap], start=1):
+            f   = _pnl_fill(spnl) if c == 6 else (_PURPLE_FILL if c == 7 else rf)
+            col = _pnl_color(spnl) if c == 6 else ("FF6C3483" if c == 7 else _DARK)
+            _set_cell(ws, r, c, v, bold=(c in (6, 7)), fill=f, color=col,
+                      align="left" if c == 1 else "center")
+
+    return start_row + 1 + len(stock_names)
+
+
+# ── Trade-detail table ─────────────────────────────────────────────────────────
 
 def _write_trade_table(ws, start_row, trades):
     """
@@ -180,7 +220,7 @@ def _write_trade_table(ws, start_row, trades):
     Returns the row after the last data row.
     """
     headers = [
-        "Date", "Time", "Strategy", "Signal", "Type",
+        "Date", "Time", "Stock", "Strategy", "Signal", "Type",
         "Entry", "Target", "Stop Loss", "Exit", "Status", "P&L", "Cumulative P&L",
     ]
     ws.row_dimensions[start_row].height = 16
@@ -209,15 +249,16 @@ def _write_trade_table(ws, start_row, trades):
         row_fill = _ALT_FILL if i % 2 == 0 else _WHITE_FILL
         vals = [
             date_str, time_str,
-            trade.get("strategy", ""), trade.get("signal", ""), trade.get("type", ""),
+            trade.get("stock", ""), trade.get("strategy", ""),
+            trade.get("signal", ""), trade.get("type", ""),
             trade.get("entry"), trade.get("target"), trade.get("stop_loss"),
             trade.get("exit_price"), trade.get("status", ""),
             round(pnl, 2), cumulative,
         ]
-        fills  = [row_fill] * 10 + [_pnl_fill(pnl), _pnl_fill(cumulative)]
-        colors = [_DARK] * 10 + [_pnl_color(pnl), _pnl_color(cumulative)]
-        bolds  = [False] * 10 + [True, True]
-        aligns = ["left"] * 4 + ["center"] * 8
+        fills  = [row_fill] * 11 + [_pnl_fill(pnl), _pnl_fill(cumulative)]
+        colors = [_DARK] * 11 + [_pnl_color(pnl), _pnl_color(cumulative)]
+        bolds  = [False] * 11 + [True, True]
+        aligns = ["left"] * 6 + ["center"] * 7
 
         for c, (v, f, col, b, a) in enumerate(
             zip(vals, fills, colors, bolds, aligns), start=1
@@ -226,7 +267,7 @@ def _write_trade_table(ws, start_row, trades):
 
     last_data_row = start_row + len(trades)
 
-    # Equity curve
+    # Equity curve (column 13 = Cumulative P&L)
     if equity_rows:
         chart = LineChart()
         chart.title = "Equity Curve"
@@ -235,12 +276,12 @@ def _write_trade_table(ws, start_row, trades):
         chart.width = 22
         chart.height = 12
         chart.add_data(
-            Reference(ws, min_col=12, max_col=12,
+            Reference(ws, min_col=13, max_col=13,
                       min_row=equity_rows[0], max_row=equity_rows[-1]),
             titles_from_data=False,
         )
         chart.series[0].title = SeriesLabel(v="Equity")
-        ws.add_chart(chart, f"N{start_row}")
+        ws.add_chart(chart, f"O{start_row}")
 
     return last_data_row + 1
 
@@ -284,6 +325,15 @@ def _title_banner(ws, merge_range, text):
     ws.row_dimensions[int("".join(filter(str.isdigit, first_col)))].height = 30
 
 
+def _section_header(ws, row, merge_to_col, text):
+    ws.merge_cells(f"A{row}:{get_column_letter(merge_to_col)}{row}")
+    cell = ws.cell(row=row, column=1, value=text)
+    cell.font  = Font(bold=True, size=11, color=_WHITE)
+    cell.fill  = _SUB_FILL
+    cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[row].height = 18
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # DAILY REPORT (Mon–Thu):  Summary sheet + one sheet per strategy
 # ══════════════════════════════════════════════════════════════════════════════
@@ -293,7 +343,9 @@ def _build_daily_summary_sheet(wb, today_trades, report_date):
     ws.title = "Summary"
     ws.sheet_view.showGridLines = False
 
-    _title_banner(ws, "A1:I1", f"Daily Backtest P&L — NIFTY  |  {report_date}")
+    stock_list = sorted(set(t.get("stock", "") for t in today_trades if t.get("stock")))
+    stocks_label = ", ".join(stock_list[:5]) + ("…" if len(stock_list) > 5 else "")
+    _title_banner(ws, "A1:J1", f"Daily Backtest P&L — Top Stocks  |  {report_date}")
 
     total_pnl    = round(sum(t["pnl"] for t in today_trades), 2)
     total_trades = len(today_trades)
@@ -302,24 +354,23 @@ def _build_daily_summary_sheet(wb, today_trades, report_date):
     win_rate     = round(winners / total_trades * 100, 1) if total_trades else 0
     avg_win      = round(sum(t["pnl"] for t in today_trades if t["pnl"] > 0) / winners, 2) if winners else 0
     avg_loss     = round(sum(t["pnl"] for t in today_trades if t["pnl"] < 0) / losers, 2) if losers else 0
+    capital      = round(sum(float(t.get("entry", 0) or 0) for t in today_trades), 2)
 
     _kpi_row(ws, 3, [
         ("Total P&L", total_pnl), ("Trades", total_trades),
         ("Winners", winners), ("Losers", losers),
-        ("Win Rate %", win_rate), ("Avg Win", avg_win), ("Avg Loss", avg_loss),
+        ("Win Rate %", win_rate), ("Avg Win", avg_win),
+        ("Avg Loss", avg_loss), ("Capital Invested", capital),
     ])
 
-    # Strategy breakdown
-    ws.merge_cells("A6:I6")
-    sec = ws["A6"]
-    sec.value = "Strategy Analysis"
-    sec.font  = Font(bold=True, size=11, color=_WHITE)
-    sec.fill  = _SUB_FILL
-    sec.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[6].height = 18
+    # Stock breakdown section
+    _section_header(ws, 6, 7, f"Stock Breakdown  ({len(stock_list)} active stocks)")
+    after_stock = _write_stock_table(ws, 7, today_trades)
 
-    _, strat_pnl_map = _write_strategy_table(ws, 7, today_trades)
-    _add_strategy_bar_chart(ws, 8, "K3")
+    # Strategy breakdown section
+    _section_header(ws, after_stock + 1, 9, "Strategy Analysis")
+    _, strat_pnl_map = _write_strategy_table(ws, after_stock + 2, today_trades)
+    _add_strategy_bar_chart(ws, after_stock + 3, "K3")
 
     _autofit(ws)
 
@@ -329,16 +380,18 @@ def _build_daily_strategy_sheet(wb, strat_name, trades):
     ws = wb.create_sheet(title=strat_name.replace("/", "-")[:31])
     ws.sheet_view.showGridLines = False
 
-    _title_banner(ws, "A1:L1", f"{strat_name} — Today's Trades")
+    _title_banner(ws, "A1:M1", f"{strat_name} — Today's Trades")
 
     pnl_total = round(sum(t["pnl"] for t in trades), 2)
     winners   = sum(1 for t in trades if t["pnl"] > 0)
     losers    = sum(1 for t in trades if t["pnl"] < 0)
     win_rate  = round(winners / len(trades) * 100, 1) if trades else 0
+    capital   = round(sum(float(t.get("entry", 0) or 0) for t in trades), 2)
 
     _kpi_row(ws, 2, [
         ("Trades", len(trades)), ("Winners", winners),
-        ("Losers", losers), ("Win Rate %", win_rate), ("Total P&L", pnl_total),
+        ("Losers", losers), ("Win Rate %", win_rate),
+        ("Total P&L", pnl_total), ("Capital Invested", capital),
     ])
 
     if trades:
@@ -372,7 +425,7 @@ def _build_weekly_summary_sheet(wb, all_trades, week_label):
     ws.title = "Weekly Summary"
     ws.sheet_view.showGridLines = False
 
-    _title_banner(ws, "A1:I1", f"Weekly Backtest P&L — NIFTY  |  {week_label}")
+    _title_banner(ws, "A1:J1", f"Weekly Backtest P&L — Top Stocks  |  {week_label}")
 
     total_pnl    = round(sum(t["pnl"] for t in all_trades), 2)
     total_trades = len(all_trades)
@@ -381,37 +434,29 @@ def _build_weekly_summary_sheet(wb, all_trades, week_label):
     win_rate     = round(winners / total_trades * 100, 1) if total_trades else 0
     avg_win      = round(sum(t["pnl"] for t in all_trades if t["pnl"] > 0) / winners, 2) if winners else 0
     avg_loss     = round(sum(t["pnl"] for t in all_trades if t["pnl"] < 0) / losers, 2) if losers else 0
+    capital      = round(sum(float(t.get("entry", 0) or 0) for t in all_trades), 2)
 
     _kpi_row(ws, 3, [
         ("Total P&L", total_pnl), ("Trades", total_trades),
         ("Winners", winners), ("Losers", losers),
-        ("Win Rate %", win_rate), ("Avg Win", avg_win), ("Avg Loss", avg_loss),
+        ("Win Rate %", win_rate), ("Avg Win", avg_win),
+        ("Avg Loss", avg_loss), ("Capital Invested", capital),
     ])
 
-    # Day-wise breakdown
-    ws.merge_cells("A6:I6")
-    sec = ws["A6"]
-    sec.value = "Day-wise P&L"
-    sec.font  = Font(bold=True, size=11, color=_WHITE)
-    sec.fill  = _SUB_FILL
-    sec.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[6].height = 18
+    # Stock breakdown
+    _section_header(ws, 6, 7, "Stock Breakdown")
+    after_stock = _write_stock_table(ws, 7, all_trades)
 
+    # Day-wise breakdown
+    _section_header(ws, after_stock + 1, 6, "Day-wise P&L")
     trades_by_date = defaultdict(list)
     for t in all_trades:
         trades_by_date[t.get("trade_date", "Unknown")].append(t)
-
-    after_day_table = _write_day_summary_table(ws, 7, trades_by_date)
+    after_day_table = _write_day_summary_table(ws, after_stock + 2, trades_by_date)
 
     # Strategy breakdown
     strat_section_row = after_day_table + 2
-    ws.merge_cells(f"A{strat_section_row}:I{strat_section_row}")
-    sec2 = ws.cell(row=strat_section_row, column=1, value="Strategy Analysis (Full Week)")
-    sec2.font  = Font(bold=True, size=11, color=_WHITE)
-    sec2.fill  = _SUB_FILL
-    sec2.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[strat_section_row].height = 18
-
+    _section_header(ws, strat_section_row, 9, "Strategy Analysis (Full Week)")
     strat_data_start = strat_section_row + 1
     _write_strategy_table(ws, strat_data_start, all_trades)
     _add_strategy_bar_chart(ws, strat_data_start + 1, "K3")
@@ -424,34 +469,33 @@ def _build_day_sheet(wb, date_str, day_trades):
     ws = wb.create_sheet(title=date_str)
     ws.sheet_view.showGridLines = False
 
-    _title_banner(ws, "A1:L1", f"Trades — {date_str}")
+    _title_banner(ws, "A1:M1", f"Trades — {date_str}")
 
     pnl_total = round(sum(t["pnl"] for t in day_trades), 2)
     winners   = sum(1 for t in day_trades if t["pnl"] > 0)
     losers    = sum(1 for t in day_trades if t["pnl"] < 0)
     win_rate  = round(winners / len(day_trades) * 100, 1) if day_trades else 0
+    capital   = round(sum(float(t.get("entry", 0) or 0) for t in day_trades), 2)
 
     _kpi_row(ws, 2, [
         ("Trades", len(day_trades)), ("Winners", winners),
-        ("Losers", losers), ("Win Rate %", win_rate), ("Total P&L", pnl_total),
+        ("Losers", losers), ("Win Rate %", win_rate),
+        ("Total P&L", pnl_total), ("Capital Invested", capital),
     ])
 
-    # Per-strategy mini-summary
-    ws.merge_cells("A5:L5")
-    sec = ws["A5"]
-    sec.value = "Strategy Breakdown"
-    sec.font  = Font(bold=True, size=11, color=_WHITE)
-    sec.fill  = _SUB_FILL
-    sec.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[5].height = 18
+    # Stock breakdown
+    _section_header(ws, 5, 7, "Stock Breakdown")
+    after_stock = _write_stock_table(ws, 6, day_trades)
 
+    # Per-strategy mini-summary
+    _section_header(ws, after_stock + 1, 6, "Strategy Breakdown")
     strat_headers = ["Strategy", "Trades", "Winners", "Losers", "Win Rate %", "P&L"]
-    _style_header_row(ws, 6, len(strat_headers))
+    _style_header_row(ws, after_stock + 2, len(strat_headers))
     for c, h in enumerate(strat_headers, start=1):
-        ws.cell(row=6, column=c, value=h)
+        ws.cell(row=after_stock + 2, column=c, value=h)
 
     for i, strat in enumerate(_ALL_STRATEGIES):
-        r = 7 + i
+        r = after_stock + 3 + i
         ws.row_dimensions[r].height = 15
         st = [t for t in day_trades if t.get("strategy") == strat]
         spnl = round(sum(t["pnl"] for t in st), 2)
@@ -466,13 +510,8 @@ def _build_day_sheet(wb, date_str, day_trades):
                       align="left" if c == 1 else "center")
 
     # Full trade table
-    trade_header_row = 7 + len(_ALL_STRATEGIES) + 2
-    ws.merge_cells(f"A{trade_header_row}:L{trade_header_row}")
-    tl = ws.cell(row=trade_header_row, column=1, value="All Trades")
-    tl.font  = Font(bold=True, size=11, color=_WHITE)
-    tl.fill  = _SUB_FILL
-    tl.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[trade_header_row].height = 18
+    trade_header_row = after_stock + 3 + len(_ALL_STRATEGIES) + 2
+    _section_header(ws, trade_header_row, 13, "All Trades")
 
     if day_trades:
         _write_trade_table(ws, trade_header_row + 1, day_trades)
@@ -559,42 +598,60 @@ def send_backtest_email_report():
     print(f"  [email_report] Building {'weekly' if is_friday else 'daily'} report for {today_str}…")
 
     try:
-        candles    = _fetch_candles_for_report()
-        all_trades = _run_all_backtests(candles)
+        all_trades = _fetch_all_stocks_for_report()
+
+        # Collect stock names for the email body
+        stock_names = sorted(set(t.get("stock", "") for t in all_trades if t.get("stock")))
+        stocks_html = ", ".join(f"<strong>{s}</strong>" for s in stock_names[:10])
+        if len(stock_names) > 10:
+            stocks_html += f" + {len(stock_names) - 10} more"
+
+        capital = round(sum(float(t.get("entry", 0) or 0) for t in all_trades), 2)
 
         if is_friday:
-            week_label = f"Week ending {now.strftime('%d %b %Y')}"
+            week_label  = f"Week ending {now.strftime('%d %b %Y')}"
             excel_bytes = build_weekly_excel(all_trades, week_label)
             filename    = f"backtest_weekly_{today_str}.xlsx"
             total_pnl   = round(sum(t.get("pnl", 0) for t in all_trades), 2)
             sign        = "+" if total_pnl >= 0 else ""
             report_type = "Weekly"
-            extra_note  = "Each sheet covers one trading day (all strategies)."
+            extra_note  = "Each sheet covers one trading day (all strategies &amp; stocks)."
         else:
             report_date  = now.strftime("%A, %d %b %Y")
-            excel_bytes, today_trades = build_daily_excel(all_trades, today_str, report_date)
-            filename     = f"backtest_daily_{today_str}.xlsx"
-            total_pnl    = round(sum(t.get("pnl", 0) for t in today_trades), 2)
-            sign         = "+" if total_pnl >= 0 else ""
-            report_type  = "Daily"
-            extra_note   = "Each sheet covers one strategy (today's trades only)."
+            today_trades_list = [t for t in all_trades if t.get("trade_date") == today_str]
+            excel_bytes, today_trades_list = build_daily_excel(all_trades, today_str, report_date)
+            filename    = f"backtest_daily_{today_str}.xlsx"
+            total_pnl   = round(sum(t.get("pnl", 0) for t in today_trades_list), 2)
+            sign        = "+" if total_pnl >= 0 else ""
+            report_type = "Daily"
+            extra_note  = "Each sheet covers one strategy (today's trades across all stocks)."
+            capital     = round(sum(float(t.get("entry", 0) or 0) for t in today_trades_list), 2)
 
         report_date_label = (
             f"Week ending {now.strftime('%d %b %Y')}" if is_friday
             else now.strftime("%A, %d %b %Y")
         )
-        color = "#1e8449" if total_pnl >= 0 else "#c0392b"
+        pnl_color = "#1e8449" if total_pnl >= 0 else "#c0392b"
+
         body = f"""
 <html><body style="font-family:Arial,sans-serif;color:#2c3e50;">
-<h2 style="color:#1a5276;">{report_type} Backtest P&amp;L Report — NIFTY</h2>
+<h2 style="color:#1a5276;">{report_type} Backtest P&amp;L Report — Top Stocks</h2>
 <p><strong>Period:</strong> {report_date_label}</p>
-<p><strong>Overall P&amp;L:</strong>
-   <span style="color:{color};font-size:18px;font-weight:bold;">{sign}{total_pnl:.2f}</span>
-</p>
+<p><strong>Stocks covered:</strong> {stocks_html}</p>
+<table style="border-collapse:collapse;margin:12px 0;">
+  <tr>
+    <td style="padding:6px 16px 6px 0;color:#555;">Overall P&amp;L</td>
+    <td style="color:{pnl_color};font-size:20px;font-weight:bold;">{sign}{total_pnl:.2f}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 16px 6px 0;color:#555;">Capital Invested</td>
+    <td style="color:#6c3483;font-size:18px;font-weight:bold;">₹{capital:,.2f}</td>
+  </tr>
+</table>
 <p>Please find the detailed Excel report attached. It contains:</p>
 <ul>
   <li><strong>{'Weekly Summary' if is_friday else 'Summary'}</strong> sheet — overall KPIs,
-      {'day-wise breakdown, ' if is_friday else ''}strategy comparison table &amp; bar chart</li>
+      stock breakdown, {'day-wise breakdown, ' if is_friday else ''}strategy comparison &amp; bar chart</li>
   <li>{extra_note}</li>
 </ul>
 <hr/>
