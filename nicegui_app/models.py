@@ -4,7 +4,7 @@ models.py — SQLAlchemy ORM models and Pydantic validation schemas.
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from pydantic import BaseModel, field_validator
 
 from db import Base
@@ -15,16 +15,29 @@ from db import Base
 class User(Base):
     __tablename__ = "users"
 
-    username        = Column(String, primary_key=True, nullable=False)
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    username        = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     last_login      = Column(DateTime, nullable=True)
+
+
+class Strategy(Base):
+    """Trading strategy registry. One row per strategy."""
+    __tablename__ = "strategies"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    key          = Column(String, unique=True, nullable=False)   # e.g. "abcd"
+    display_name = Column(String, nullable=False)                # e.g. "ABCD Harmonic"
+    short_name   = Column(String, nullable=False)                # e.g. "ABCD" (used in trade records)
+    sort_order   = Column(Integer, nullable=False, default=0)
 
 
 class UserSession(Base):
     """Server-side session record. One row per active login."""
     __tablename__ = "sessions"
 
-    session_key = Column(String, primary_key=True, nullable=False)   # secrets.token_hex(32)
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    session_key = Column(String, unique=True, nullable=False)   # secrets.token_hex(32)
     username    = Column(String, ForeignKey("users.username"), nullable=False)
     created_at  = Column(DateTime, nullable=False, default=datetime.utcnow)
     expires_at  = Column(DateTime, nullable=False)

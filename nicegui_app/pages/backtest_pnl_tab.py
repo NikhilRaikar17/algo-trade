@@ -18,6 +18,7 @@ from algo_strategies import (
     detect_ema10_signals, backtest_ema10,
 )
 from ui_components import build_trade_table, build_grouped_options_dict, resolve_option_labels_in_dropdown
+from strategy_registry import get_strategy_short_names
 
 
 # ── Instrument options (same as other strategy pages) ────────────────────────
@@ -56,13 +57,7 @@ _ALL_OPTIONS: dict[str, str] = {
 _DEFAULT_SEC_ID = "13"   # NIFTY 50
 _DEFAULT_LABEL = _ALL_OPTIONS[_DEFAULT_SEC_ID]
 
-_ALL_STRATEGIES = [
-    "ABCD",
-    "Double Top",
-    "Double Bottom",
-    "SMA 50",
-    "EMA 10",
-]
+_ALL_STRATEGIES = get_strategy_short_names()
 
 
 def _parse_option_value(value: str):

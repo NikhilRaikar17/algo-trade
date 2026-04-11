@@ -35,15 +35,10 @@ from tv_charts import (
     flush_pending_js,
 )
 from ui_components import build_trade_table
+from strategy_registry import get_strategies
 import ws_feed
 
-_STRATEGIES = [
-    ("ABCD Harmonic",    "abcd"),
-    ("Double Top",       "dt"),
-    ("Double Bottom",    "db"),
-    ("EMA 10",           "ema10"),
-    ("SMA 50",           "sma50"),
-]
+_STRATEGIES = get_strategies()
 
 _INDEX_OPTIONS = {"NIFTY": "NIFTY 50", "BANKNIFTY": "BANKNIFTY"}
 

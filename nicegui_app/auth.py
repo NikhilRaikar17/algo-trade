@@ -4,6 +4,7 @@ auth.py — Password hashing, session creation/validation/invalidation.
 On first import:
   • Creates algo.db tables (users + sessions) via db.py / models.py
   • Seeds nikhil, bharath, indresh with username == password (hashed)
+  • Seeds strategies table (ABCD, Double Top, Double Bottom, EMA 10, SMA 50)
 
 Session flow:
   login  → create_session()   → returns a session_key (stored in cookie)
@@ -18,7 +19,7 @@ from passlib.context import CryptContext
 from sqlalchemy import text
 
 from db import Base, SessionLocal, engine
-from models import User, UserSession
+from models import User, UserSession, Strategy
 
 # ── Password context ──────────────────────────────────────────────────────────
 # sha256_crypt avoids bcrypt/passlib version incompatibilities on Windows
@@ -27,16 +28,24 @@ pwd_ctx = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 # Session lifetime
 SESSION_TTL_HOURS = 12
 
+# ── Schema migration: recreate tables if they lack an id column ───────────────
+# Needed when upgrading from the original schema (username/key/session_key as PK)
+# to the new schema (integer id as PK). All data is reseedable so we drop+recreate.
+def _needs_id_column(conn, table: str) -> bool:
+    rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+    return not any(r[1] == "id" for r in rows)
+
+with engine.connect() as _conn:
+    for _tbl in ("users", "strategies", "sessions"):
+        try:
+            if _needs_id_column(_conn, _tbl):
+                _conn.execute(text(f"DROP TABLE IF EXISTS {_tbl}"))
+        except Exception:
+            pass
+    _conn.commit()
+
 # ── Schema creation ───────────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
-
-# Add last_login column to existing databases that pre-date this column
-with engine.connect() as _conn:
-    try:
-        _conn.execute(text("ALTER TABLE users ADD COLUMN last_login DATETIME"))
-        _conn.commit()
-    except Exception:
-        pass  # Column already exists
 
 # ── Seed users (idempotent) ───────────────────────────────────────────────────
 _SEED: list[tuple[str, str]] = [
@@ -47,9 +56,34 @@ _SEED: list[tuple[str, str]] = [
 
 with SessionLocal() as _s:
     for _uname, _pw in _SEED:
-        if _s.get(User, _uname) is None:
+        exists = _s.query(User).filter(User.username == _uname).first()
+        if exists is None:
             _s.add(User(username=_uname, hashed_password=pwd_ctx.hash(_pw)))
             _s.flush()
+    _s.commit()
+
+# ── Seed strategies (idempotent) ──────────────────────────────────────────────
+# key: short code used in trade records and dispatch
+# display_name: shown in dropdowns
+# short_name: used in trade["strategy"] field and P&L grouping
+_SEED_STRATEGIES: list[tuple[str, str, str, int]] = [
+    ("abcd",  "ABCD Harmonic", "ABCD",         1),
+    ("dt",    "Double Top",    "Double Top",    2),
+    ("db",    "Double Bottom", "Double Bottom", 3),
+    ("ema10", "EMA 10",        "EMA 10",        4),
+    ("sma50", "SMA 50",        "SMA 50",        5),
+]
+
+with SessionLocal() as _s:
+    for _key, _display, _short, _order in _SEED_STRATEGIES:
+        exists = _s.query(Strategy).filter(Strategy.key == _key).first()
+        if exists is None:
+            _s.add(Strategy(
+                key=_key,
+                display_name=_display,
+                short_name=_short,
+                sort_order=_order,
+            ))
     _s.commit()
 
 
@@ -58,7 +92,7 @@ with SessionLocal() as _s:
 def verify_user(username: str, password: str) -> bool:
     """Return True if credentials are valid."""
     with SessionLocal() as s:
-        user = s.get(User, username.strip().lower())
+        user = s.query(User).filter(User.username == username.strip().lower()).first()
         if user is None:
             return False
         return pwd_ctx.verify(password, user.hashed_password)
@@ -91,7 +125,7 @@ def create_session(username: str) -> str:
         ))
 
         # Record last login timestamp
-        user = s.get(User, username)
+        user = s.query(User).filter(User.username == username).first()
         if user:
             user.last_login = now
 
@@ -110,7 +144,7 @@ def validate_session(session_key: str) -> str | None:
         return None
 
     with SessionLocal() as s:
-        row: UserSession | None = s.get(UserSession, session_key)
+        row: UserSession | None = s.query(UserSession).filter(UserSession.session_key == session_key).first()
         if row is None:
             return None
         if datetime.utcnow() > row.expires_at:
@@ -125,7 +159,7 @@ def invalidate_session(session_key: str) -> None:
     if not session_key:
         return
     with SessionLocal() as s:
-        row = s.get(UserSession, session_key)
+        row = s.query(UserSession).filter(UserSession.session_key == session_key).first()
         if row:
             s.delete(row)
             s.commit()

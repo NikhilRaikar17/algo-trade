@@ -26,6 +26,7 @@ from openpyxl.utils import get_column_letter
 
 from config import now_ist, _is_trading_day
 from state import _is_already_sent, _mark_sent
+from strategy_registry import get_strategy_short_names
 
 # ── Colour palette ─────────────────────────────────────────────────────────────
 _GREEN  = "FF1E8449"
@@ -43,10 +44,7 @@ _WHITE_FILL   = PatternFill("solid", fgColor="FFFFFFFF")
 _THIN   = Side(style="thin", color="FFB2BABB")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 
-_ALL_STRATEGIES = [
-    "ABCD", "Double Top", "Double Bottom",
-    "SMA 50", "EMA 10",
-]
+_ALL_STRATEGIES = get_strategy_short_names()
 
 
 # ── Data fetching ──────────────────────────────────────────────────────────────
