@@ -396,7 +396,7 @@ def render_homepage():
           <span style="font-size:1.5rem;">📈</span>
           <span class="hp-logo-text">Algo<span>Trade</span></span>
         </a>
-        <a href="/login" class="hp-nav-btn">⚡ Launch App</a>
+        <a href="/login" class="hp-nav-btn">Launch App</a>
       </nav>
 
       <!-- Hero -->
@@ -411,7 +411,7 @@ def render_homepage():
           live option chains with Greeks — all in one intelligent dashboard.
         </p>
         <div class="hp-cta-row">
-          <a href="/login" class="hp-btn-primary">🚀 Open Dashboard</a>
+          <a href="/login" class="hp-btn-primary">Open Dashboard</a>
           <a href="#features" class="hp-btn-ghost">Learn more &nbsp;↓</a>
         </div>
         <div class="hp-stats">
@@ -479,7 +479,7 @@ def render_homepage():
         <h2>Ready to trade algorithmically?</h2>
         <p>The market opens at 9:15 AM IST. Be ready with live signals.</p>
         <a href="/login" class="hp-btn-primary" style="font-size:1.05rem; padding:16px 40px;">
-          🚀 &nbsp;Open Trading Dashboard
+          Open Trading Dashboard
         </a>
       </div>
 
