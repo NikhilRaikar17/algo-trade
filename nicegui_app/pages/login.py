@@ -316,15 +316,16 @@ def render_login_page():
             .card-left { padding: 36px 32px 32px; }
             .hero-headline { font-size: 1.6rem; }
             .stats-row { gap: 20px; }
-            .card-right { width: 100%; padding: 36px 32px 40px; }
+            .card-right { width: 100% !important; min-width: 0 !important; padding: 36px 32px 40px; }
         }
 
         @media (max-width: 440px) {
             .login-root { padding: 0; align-items: stretch; }
             .login-card { border-radius: 0; max-width: 100%; box-shadow: none; }
             .card-left { padding: 32px 24px 28px; }
-            .card-right { padding: 32px 24px 36px; }
+            .card-right { width: 100% !important; min-width: 0 !important; padding: 32px 16px 36px; }
             .hero-headline { font-size: 1.45rem; }
+            .card-right .q-field { width: 100% !important; }
         }
     </style>
     """)

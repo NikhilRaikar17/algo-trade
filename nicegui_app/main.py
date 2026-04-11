@@ -91,7 +91,9 @@ async def homepage():
 
 @ui.page("/login")
 async def login_page():
-    if app.storage.user.get("authenticated"):
+    from auth import validate_session
+    session_key = app.storage.user.get("session_key", "")
+    if app.storage.user.get("authenticated") and validate_session(session_key):
         ui.navigate.to("/app")
         return
     render_login_page()
@@ -109,7 +111,7 @@ async def index():
         app.storage.user["authenticated"] = False
         app.storage.user["session_key"] = ""
         app.storage.user["username"] = ""
-        ui.navigate.to("/login")
+        ui.navigate.to("/")
         return
     ui.page_title("Algo Trading")
 
@@ -266,6 +268,14 @@ async def index():
         @media (max-width: 599px) {
             .header-tickers { display: none !important; }
         }
+        /* Profile avatar — always visible, never pushed off-screen */
+        .profile-avatar-btn {
+            flex-shrink: 0 !important;
+            margin-left: auto;
+        }
+        @media (max-width: 599px) {
+            .header-status-label { display: none !important; }
+        }
 
         /* ---- Responsive tabs & header ---- */
         .q-drawer { background: #fff !important; overflow-y: auto !important; }
@@ -400,8 +410,9 @@ async def index():
                 "font-size: 0.75rem !important;"
                 "width: 34px !important; height: 34px !important;"
                 "min-width: 34px !important; border-radius: 50% !important;"
+                "flex-shrink: 0 !important;"
             ):
-                with ui.menu().props("anchor='bottom right' self='top right'").style(
+                with ui.menu().props("anchor='bottom end' self='top end'").style(
                     "border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);"
                     "border: 1px solid #e2e8f0; overflow: hidden;"
                 ):
@@ -421,7 +432,7 @@ async def index():
                         app.storage.user["authenticated"] = False
                         app.storage.user["session_key"] = ""
                         app.storage.user["username"] = ""
-                        ui.navigate.to("/login")
+                        ui.navigate.to("/")
 
                     ui.separator()
                     ui.menu_item(
