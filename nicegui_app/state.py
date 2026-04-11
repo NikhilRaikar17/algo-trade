@@ -217,3 +217,12 @@ def _cache_get(key):
 def _cache_set(key, data):
     with _cache_lock:
         _data_cache[key] = {"data": data, "time": time.time()}
+
+
+def _cache_get_stable(key):
+    """Return cached data regardless of TTL — for data that should not change within a trading day."""
+    with _cache_lock:
+        entry = _data_cache.get(key)
+        if entry:
+            return entry["data"]
+    return None

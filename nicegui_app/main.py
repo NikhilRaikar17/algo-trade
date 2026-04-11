@@ -78,19 +78,33 @@ async def _start_scheduler():
                 print(f"  [scheduler error] {e}")
 
     async def _top_stocks_loop():
-        """Fetch & cache top stocks every 5 minutes, regardless of which page is open."""
+        """Fetch & cache top stocks every 5 minutes during market hours.
+        Once market closes and data is cached, the loop exits — prices don't
+        change after 3:30 PM IST so there's nothing to refresh."""
         from pages.top_stocks import _fetch_top_stocks
-        from state import _cache_set
+        from state import _cache_set, _cache_get_stable, is_market_open
         while True:
             try:
-                gainers, losers = await asyncio.get_event_loop().run_in_executor(
-                    None, _fetch_top_stocks
-                )
-                _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
-                print(f"  [top_stocks_bg] cached {len(gainers)} gainers, {len(losers)} losers")
+                if is_market_open():
+                    gainers, losers = await asyncio.get_event_loop().run_in_executor(
+                        None, _fetch_top_stocks
+                    )
+                    _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
+                    print(f"  [top_stocks_bg] cached {len(gainers)} gainers, {len(losers)} losers")
+                else:
+                    if _cache_get_stable("top_stocks_data") is None:
+                        # App started outside market hours — do one fetch so the page has data
+                        gainers, losers = await asyncio.get_event_loop().run_in_executor(
+                            None, _fetch_top_stocks
+                        )
+                        _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
+                        print(f"  [top_stocks_bg] one-time fetch (market closed): {len(gainers)} gainers, {len(losers)} losers")
+                    else:
+                        print("  [top_stocks_bg] market closed & data cached — loop exiting")
+                        return  # prices won't change, no point looping further
             except Exception as e:
                 print(f"  [top_stocks_bg error] {e}")
-            await asyncio.sleep(300)  # refresh every 5 minutes
+            await asyncio.sleep(300)  # check every 5 minutes
 
     asyncio.create_task(_loop())
     asyncio.create_task(run_trading_engine())

@@ -214,15 +214,19 @@ def render_top_stocks_tab(container):
         if page_client._deleted:
             return
         try:
-            from state import _cache_get
-            cached = _cache_get("top_stocks_data")
+            from state import _cache_get, _cache_get_stable, _cache_set, is_market_open
+            # Outside market hours, use whatever is in cache (ignore TTL) so the
+            # list never changes between refreshes.
+            if not is_market_open():
+                cached = _cache_get_stable("top_stocks_data")
+            else:
+                cached = _cache_get("top_stocks_data")
             if cached:
                 gainers, losers = cached["gainers"], cached["losers"]
             else:
                 gainers, losers = await asyncio.get_event_loop().run_in_executor(
                     None, _fetch_top_stocks
                 )
-                from state import _cache_set
                 _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
             if page_client._deleted:
                 return
