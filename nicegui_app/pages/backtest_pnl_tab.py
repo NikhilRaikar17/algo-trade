@@ -9,7 +9,8 @@ from collections import defaultdict
 
 from nicegui import ui
 
-from data import MARKET_WATCH_GROUPS, STOCK_WATCH_GROUPS, _fetch_any_index_candles, _fetch_any_stock_candles, fetch_atm_option_15min_candles, resolve_option_label
+from data import _fetch_any_stock_candles
+from pages.top_stocks import _fetch_top_stocks
 from algo_strategies import (
     find_swing_points, detect_abcd_patterns, backtest_abcd,
     detect_double_top_signals, backtest_double_top,
@@ -17,56 +18,20 @@ from algo_strategies import (
     detect_sma50_signals, backtest_sma50,
     detect_ema10_signals, backtest_ema10,
 )
-from ui_components import build_trade_table, build_grouped_options_dict, resolve_option_labels_in_dropdown
+from ui_components import build_trade_table
 from strategy_registry import get_strategy_short_names
+from brokerage import charges_for_trades, LOT_SIZES, DEFAULT_LOT_SIZE
 
-
-# ── Instrument options (same as other strategy pages) ────────────────────────
-
-_OPTION_GROUPS: dict[str, dict[str, str]] = {}
-for _g in MARKET_WATCH_GROUPS:
-    _OPTION_GROUPS[_g["group"]] = {
-        idx["security_id"]: idx["name"]
-        for idx in _g["indices"]
-    }
-for _g in STOCK_WATCH_GROUPS:
-    _key = f"Stocks – {_g['group']}"
-    _OPTION_GROUPS[_key] = {
-        f"EQ:{s['security_id']}:{s['name']}": s["name"]
-        for s in _g["stocks"]
-    }
-
-_OPTION_GROUPS["NIFTY Weekly Options"] = {
-    f"OPT:NIFTY:{i}:CE": f"NIFTY Weekly +{i} CE (ATM)"
-    for i in range(3)
-} | {
-    f"OPT:NIFTY:{i}:PE": f"NIFTY Weekly +{i} PE (ATM)"
-    for i in range(3)
-}
-_OPTION_GROUPS["BANKNIFTY Monthly Options"] = {
-    f"OPT:BANKNIFTY:{i}:CE": f"BANKNIFTY Monthly +{i} CE (ATM)"
-    for i in range(3)
-} | {
-    f"OPT:BANKNIFTY:{i}:PE": f"BANKNIFTY Monthly +{i} PE (ATM)"
-    for i in range(3)
-}
-
-_ALL_OPTIONS: dict[str, str] = {
-    k: v for group_opts in _OPTION_GROUPS.values() for k, v in group_opts.items()
-}
-_DEFAULT_SEC_ID = "13"   # NIFTY 50
-_DEFAULT_LABEL = _ALL_OPTIONS[_DEFAULT_SEC_ID]
 
 _ALL_STRATEGIES = get_strategy_short_names()
 
 
-def _parse_option_value(value: str):
-    if value.startswith("EQ:"):
-        _, sec_id, _ = value.split(":", 2)
-        return sec_id, True, False
-    if value.startswith("OPT:"):
-        return value, False, True
-    return value, False, False
+def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
+    return {
+        f"EQ:{s['security_id']}:{s['name']}": s["name"]
+        for s in stocks
+    }
+
 
 
 # ── Backtest runner ───────────────────────────────────────────────────────────
@@ -130,10 +95,9 @@ def _run_ema10(candles):
 def render_backtest_pnl_tab(container):
     """Build the Backtest P&L tab. Returns an async refresh() closure."""
 
-    selected = {"security_id": _DEFAULT_SEC_ID, "label": _DEFAULT_LABEL}
-    _state = {"strategy": "All", "date": "All"}
+    selected = {"security_id": None, "label": None}
+    _state = {"strategy": "All", "date": "All", "lot_size": DEFAULT_LOT_SIZE, "quantity": 1}
     _data = {"trades": []}
-    live_options = dict(_ALL_OPTIONS)
 
     with container:
         ui.label("Backtest P&L — All Strategies").classes("text-xl font-bold mb-2")
@@ -146,14 +110,14 @@ def render_backtest_pnl_tab(container):
             ).classes("text-sm text-emerald-700")
 
         with ui.row().classes("items-center gap-3 mb-4"):
-            ui.label("Index / Stock:").classes("text-sm font-medium text-gray-700")
+            ui.label("Stock:").classes("text-sm font-medium text-gray-700")
             select_widget = ui.select(
-                options=build_grouped_options_dict(_OPTION_GROUPS),
-                value=_DEFAULT_SEC_ID,
+                options={},
+                value=None,
                 label="",
                 on_change=lambda e: asyncio.ensure_future(
-                    _load(e.value, live_options.get(e.value, e.value))
-                ) if not str(e.value).startswith("__hdr_") else None,
+                    _load(e.value, e.value.split(":", 2)[2] if e.value else "")
+                ) if e.value else None,
             ).props("outlined dense use-input input-debounce=0").classes("w-64")
 
         filter_row = ui.element("div").classes("w-full mb-2")
@@ -161,7 +125,7 @@ def render_backtest_pnl_tab(container):
 
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            ui.label(f"Loading {_DEFAULT_LABEL} backtest data...").classes(
+            ui.label("Loading top stocks...").classes(
                 "text-gray-500 text-center w-full"
             )
 
@@ -194,11 +158,31 @@ def render_backtest_pnl_tab(container):
             losers = sum(1 for t in filtered if t["pnl"] < 0)
             win_rate = (winners / total_trades * 100) if total_trades else 0
 
+            # Brokerage calculation
+            lot_size = _state["lot_size"]
+            quantity = _state["quantity"]
+            charges = charges_for_trades(filtered, lot_size=lot_size, quantity=quantity)
+            gross_pnl = charges["gross_pnl"]
+            total_charges = charges["total_charges"]
+            net_pnl = charges["net_pnl"]
+
             with ui.row().classes("gap-4 flex-wrap mb-4"):
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
-                    ui.label("Total P&L").classes("text-sm text-gray-500")
-                    color = "text-green-600" if total_pnl >= 0 else "text-red-600"
-                    ui.label(f"{total_pnl:+.2f}").classes(f"text-2xl font-bold {color}")
+                    ui.label("Gross P&L").classes("text-sm text-gray-500")
+                    color = "text-green-600" if gross_pnl >= 0 else "text-red-600"
+                    ui.label(f"₹{gross_pnl:+,.2f}").classes(f"text-2xl font-bold {color}")
+                    ui.label(f"Raw: {total_pnl:+.2f} pts").classes("text-xs text-gray-400")
+                with ui.card().classes("p-3 min-w-[120px] flex-1 border border-orange-200"):
+                    ui.label("Brokerage & Taxes").classes("text-sm text-gray-500")
+                    ui.label(f"₹{total_charges:,.2f}").classes("text-2xl font-bold text-orange-500")
+                    ui.label(
+                        f"Avg ₹{charges['per_trade_avg_charges']:.0f}/trade"
+                    ).classes("text-xs text-gray-400")
+                with ui.card().classes("p-3 min-w-[120px] flex-1 border border-blue-200"):
+                    ui.label("Net P&L").classes("text-sm text-gray-500")
+                    net_color = "text-green-600" if net_pnl >= 0 else "text-red-600"
+                    ui.label(f"₹{net_pnl:+,.2f}").classes(f"text-2xl font-bold {net_color}")
+                    ui.label("After all charges").classes("text-xs text-gray-400")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("Trades").classes("text-sm text-gray-500")
                     ui.label(str(total_trades)).classes("text-2xl font-bold")
@@ -208,6 +192,23 @@ def render_backtest_pnl_tab(container):
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("W / L").classes("text-sm text-gray-500")
                     ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")
+
+            # ── Brokerage breakdown (collapsible) ─────────────────────────
+            with ui.expansion("Charges Breakdown", icon="receipt_long").classes(
+                "w-full bg-gray-50 rounded mb-3 text-sm"
+            ):
+                with ui.row().classes("gap-6 flex-wrap px-4 py-2"):
+                    for label, key in [
+                        ("Brokerage", "brokerage"),
+                        ("STT", "stt"),
+                        ("Exchange", "exchange"),
+                        ("GST", "gst"),
+                        ("SEBI", "sebi"),
+                        ("Stamp", "stamp"),
+                    ]:
+                        with ui.element("div").classes("flex flex-col"):
+                            ui.label(label).classes("text-xs text-gray-500")
+                            ui.label(f"₹{charges[key]:.2f}").classes("text-sm font-semibold")
 
             # ── Strategy breakdown cards ───────────────────────────────────
             ui.label("Strategy Breakdown").classes("text-base font-semibold mb-1")
@@ -312,6 +313,22 @@ def render_backtest_pnl_tab(container):
                     label="Date",
                 ).classes("w-36")
 
+                ui.separator().props("vertical").classes("mx-1 h-8")
+
+                ui.label("Lot Size:").classes("text-sm font-medium text-orange-600")
+                lot_select = ui.select(
+                    {name: f"{name} ({size})" for name, size in LOT_SIZES.items()},
+                    value=next(
+                        (n for n, s in LOT_SIZES.items() if s == _state["lot_size"]),
+                        list(LOT_SIZES.keys())[0],
+                    ),
+                    label="Index",
+                ).classes("w-40")
+
+                qty_input = ui.number(
+                    label="Lots", value=_state["quantity"], min=1, max=100, step=1
+                ).classes("w-20").props("dense outlined")
+
         def on_strat(e):
             _state["strategy"] = e.value
             _render()
@@ -320,8 +337,21 @@ def render_backtest_pnl_tab(container):
             _state["date"] = e.value
             _render()
 
+        def on_lot(e):
+            _state["lot_size"] = LOT_SIZES.get(e.value, DEFAULT_LOT_SIZE)
+            _render()
+
+        def on_qty(e):
+            try:
+                _state["quantity"] = max(1, int(e.value or 1))
+            except (TypeError, ValueError):
+                _state["quantity"] = 1
+            _render()
+
         strat_select.on_value_change(on_strat)
         date_select.on_value_change(on_date)
+        lot_select.on_value_change(on_lot)
+        qty_input.on_value_change(on_qty)
 
     # ── data loader ───────────────────────────────────────────────────────────
 
@@ -340,17 +370,9 @@ def render_backtest_pnl_tab(container):
             )
 
         try:
-            sec_id, is_equity, is_option = _parse_option_value(security_id)
+            _, sec_id, _ = security_id.split(":", 2)
             loop = asyncio.get_event_loop()
-            if is_option:
-                _, index_name, expiry_idx_str, opt_type = sec_id.split(":")
-                _contract_label, candles = await loop.run_in_executor(
-                    None, lambda i=index_name, e=int(expiry_idx_str), o=opt_type: fetch_atm_option_15min_candles(i, e, o)
-                )
-            elif is_equity:
-                candles = await loop.run_in_executor(None, lambda: _fetch_any_stock_candles(sec_id))
-            else:
-                candles = await loop.run_in_executor(None, lambda: _fetch_any_index_candles(sec_id))
+            candles = await loop.run_in_executor(None, lambda: _fetch_any_stock_candles(sec_id))
             if content_container.client._deleted:
                 return
 
@@ -392,7 +414,20 @@ def render_backtest_pnl_tab(container):
             print(f"  [backtest_pnl:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        await _load(selected["security_id"], selected["label"])
-        await resolve_option_labels_in_dropdown(select_widget, _OPTION_GROUPS, live_options)
+        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
+        top_stocks = gainers + losers
+        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        if not select_widget.client._deleted:
+            select_widget.options = options
+            select_widget.update()
+
+        if selected["security_id"] not in options and options:
+            first_key = next(iter(options))
+            first_label = options[first_key]
+            select_widget.value = first_key
+            select_widget.update()
+            await _load(first_key, first_label)
+        elif selected["security_id"] in options:
+            await _load(selected["security_id"], selected["label"])
 
     return refresh
