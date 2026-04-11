@@ -352,96 +352,94 @@ async def index():
         .classes("header-bar bg-white shadow-sm border-b items-center px-6 py-0")
         .style("height: 56px")
     ):
-        with ui.row().classes("items-center gap-3 w-full"):
+        with ui.row().classes("items-center w-full").style("gap: 8px; flex-wrap: nowrap;"):
             menu_btn = (
                 ui.button(icon="menu", on_click=lambda: drawer.toggle())
                 .props("flat dense round")
                 .classes("text-gray-600")
             )
 
-            ui.icon("trending_up", size="28px").classes("text-emerald-600")
+            ui.icon("trending_up", size="28px").classes("text-emerald-600 flex-shrink-0")
             ui.label("Algo Trade").classes(
-                "text-xl font-bold text-gray-800 tracking-tight"
+                "text-xl font-bold text-gray-800 tracking-tight flex-shrink-0"
             )
 
-            ui.space()
-
-            # ---- Live spot price tickers ----
+            # ---- Live spot price tickers (hidden on mobile) ----
             _header_tickers = {}
-            with ui.element("div").classes("header-tickers flex items-center gap-2"):
+            with ui.element("div").classes("header-tickers flex items-center gap-2").style("flex: 1; justify-content: center;"):
                 for _idx in ["NIFTY", "BANKNIFTY"]:
                     _badge = ui.element("div").classes("ticker-badge flat")
                     with _badge:
                         _lbl = ui.label(f"{_idx}  --").classes("font-bold text-sm")
                     _header_tickers[_idx] = {"badge": _badge, "label": _lbl, "prev": None}
 
-            ui.space()
+            # Right-side cluster — always pinned to the right
+            with ui.element("div").style("margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0;"):
+                # Refresh status (hidden on mobile)
+                status_label = ui.label("").classes("text-xs text-gray-400 hidden sm:block")
 
-            # Market status badge
-            market_open = is_market_open()
-            if market_open:
-                with ui.element("div").classes(
-                    "flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1"
-                ):
-                    ui.element("div").classes("w-2 h-2 rounded-full bg-green-500")
-                    market_badge_label = ui.label("Market Open").classes(
-                        "text-sm font-semibold text-green-700"
-                    )
-            else:
-                with ui.element("div").classes(
-                    "flex items-center gap-2 bg-red-50 border border-red-200 rounded-full px-3 py-1"
-                ):
-                    ui.element("div").classes("w-2 h-2 rounded-full bg-red-500")
-                    market_badge_label = ui.label("Market Closed").classes(
-                        "text-sm font-semibold text-red-700"
-                    )
-
-            # Refresh status
-            status_label = ui.label("").classes("text-xs text-gray-400 hidden sm:block")
-
-            # ---- Profile avatar with logout dropdown ----
-            _username = app.storage.user.get("username", "")
-            _initials = (
-                "".join(w[0].upper() for w in _username.split()[:2])
-                if _username else "?"
-            )
-
-            with ui.button(_initials).props("round flat").style(
-                "background: linear-gradient(135deg, #10b981, #059669) !important;"
-                "color: #fff !important;"
-                "font-weight: 700 !important;"
-                "font-size: 0.75rem !important;"
-                "width: 34px !important; height: 34px !important;"
-                "min-width: 34px !important; border-radius: 50% !important;"
-                "flex-shrink: 0 !important;"
-            ):
-                with ui.menu().props("anchor='bottom end' self='top end'").style(
-                    "border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);"
-                    "border: 1px solid #e2e8f0; overflow: hidden;"
-                ):
-                    with ui.element("div").style(
-                        "min-width: 180px; padding: 10px 16px 8px; border-bottom: 1px solid #f1f5f9;"
+                # Market status badge
+                market_open = is_market_open()
+                if market_open:
+                    with ui.element("div").classes(
+                        "flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1"
                     ):
-                        ui.label(_username.capitalize() if _username else "User").style(
-                            "font-weight: 700; font-size: 0.9rem; color: #0f172a;"
+                        ui.element("div").classes("w-2 h-2 rounded-full bg-green-500")
+                        market_badge_label = ui.label("Market Open").classes(
+                            "text-sm font-semibold text-green-700 header-status-label"
                         )
-                        ui.label("Logged in").style(
-                            "font-size: 0.75rem; color: #94a3b8;"
+                else:
+                    with ui.element("div").classes(
+                        "flex items-center gap-2 bg-red-50 border border-red-200 rounded-full px-3 py-1"
+                    ):
+                        ui.element("div").classes("w-2 h-2 rounded-full bg-red-500")
+                        market_badge_label = ui.label("Market Closed").classes(
+                            "text-sm font-semibold text-red-700 header-status-label"
                         )
 
-                    def _do_logout():
-                        from auth import invalidate_session
-                        invalidate_session(app.storage.user.get("session_key", ""))
-                        app.storage.user["authenticated"] = False
-                        app.storage.user["session_key"] = ""
-                        app.storage.user["username"] = ""
-                        ui.navigate.to("/")
+                # ---- Profile avatar with logout dropdown ----
+                _username = app.storage.user.get("username", "")
+                _initials = (
+                    "".join(w[0].upper() for w in _username.split()[:2])
+                    if _username else "?"
+                )
 
-                    ui.separator()
-                    ui.menu_item(
-                        "Logout",
-                        on_click=_do_logout,
-                    ).style("color: #ef4444; font-size: 0.85rem;")
+                with ui.button(_initials).props("round flat").style(
+                    "background: linear-gradient(135deg, #10b981, #059669) !important;"
+                    "color: #fff !important;"
+                    "font-weight: 700 !important;"
+                    "font-size: 0.75rem !important;"
+                    "width: 34px !important; height: 34px !important;"
+                    "min-width: 34px !important; border-radius: 50% !important;"
+                    "flex-shrink: 0 !important;"
+                ):
+                    with ui.menu().props("anchor='bottom end' self='top end'").style(
+                        "border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);"
+                        "border: 1px solid #e2e8f0; overflow: hidden;"
+                    ):
+                        with ui.element("div").style(
+                            "min-width: 180px; padding: 10px 16px 8px; border-bottom: 1px solid #f1f5f9;"
+                        ):
+                            ui.label(_username.capitalize() if _username else "User").style(
+                                "font-weight: 700; font-size: 0.9rem; color: #0f172a;"
+                            )
+                            ui.label("Logged in").style(
+                                "font-size: 0.75rem; color: #94a3b8;"
+                            )
+
+                        def _do_logout():
+                            from auth import invalidate_session
+                            invalidate_session(app.storage.user.get("session_key", ""))
+                            app.storage.user["authenticated"] = False
+                            app.storage.user["session_key"] = ""
+                            app.storage.user["username"] = ""
+                            ui.navigate.to("/")
+
+                        ui.separator()
+                        ui.menu_item(
+                            "Logout",
+                            on_click=_do_logout,
+                        ).style("color: #ef4444; font-size: 0.85rem;")
 
     # ---- Sidebar ----
     with (
