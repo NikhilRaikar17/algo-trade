@@ -10,6 +10,10 @@ from nicegui import ui, context, app
 
 app.storage.SECRET = "algotrade-secret-key"
 
+# Mount FastAPI auth routes before NiceGUI takes over routing
+from routes.auth_routes import router as _auth_router
+app.include_router(_auth_router)
+
 from config import now_ist, REFRESH_SECONDS, INDICES
 from state import is_market_open, get_next_market_open
 from sidebar import build_sidebar
@@ -95,7 +99,16 @@ async def login_page():
 
 @ui.page("/app")
 async def index():
-    if not app.storage.user.get("authenticated"):
+    from auth import validate_session, invalidate_session as _invalidate
+
+    session_key = app.storage.user.get("session_key", "")
+    username_from_session = validate_session(session_key)
+
+    if not username_from_session:
+        # Session missing, expired, or tampered — clear cookie and redirect
+        app.storage.user["authenticated"] = False
+        app.storage.user["session_key"] = ""
+        app.storage.user["username"] = ""
         ui.navigate.to("/login")
         return
     ui.page_title("Algo Trading")
@@ -372,6 +385,49 @@ async def index():
                     market_badge_label = ui.label("Market Closed").classes(
                         "text-sm font-semibold text-red-700"
                     )
+
+            # ---- Profile avatar with logout dropdown ----
+            _username = app.storage.user.get("username", "")
+            _initials = (
+                "".join(w[0].upper() for w in _username.split()[:2])
+                if _username else "?"
+            )
+
+            with ui.button(_initials).props("round flat").style(
+                "background: linear-gradient(135deg, #2563eb, #4f46e5) !important;"
+                "color: #fff !important;"
+                "font-weight: 700 !important;"
+                "font-size: 0.75rem !important;"
+                "width: 34px !important; height: 34px !important;"
+                "min-width: 34px !important; border-radius: 50% !important;"
+            ):
+                with ui.menu().props("anchor='bottom right' self='top right'").style(
+                    "border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);"
+                    "border: 1px solid #e2e8f0; overflow: hidden;"
+                ):
+                    with ui.element("div").style(
+                        "min-width: 180px; padding: 10px 16px 8px; border-bottom: 1px solid #f1f5f9;"
+                    ):
+                        ui.label(_username.capitalize() if _username else "User").style(
+                            "font-weight: 700; font-size: 0.9rem; color: #0f172a;"
+                        )
+                        ui.label("Logged in").style(
+                            "font-size: 0.75rem; color: #94a3b8;"
+                        )
+
+                    def _do_logout():
+                        from auth import invalidate_session
+                        invalidate_session(app.storage.user.get("session_key", ""))
+                        app.storage.user["authenticated"] = False
+                        app.storage.user["session_key"] = ""
+                        app.storage.user["username"] = ""
+                        ui.navigate.to("/login")
+
+                    ui.separator()
+                    ui.menu_item(
+                        "Logout",
+                        on_click=_do_logout,
+                    ).style("color: #ef4444; font-size: 0.85rem;")
 
             # Refresh status
             status_label = ui.label("").classes("text-xs text-gray-400 hidden sm:block")

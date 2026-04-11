@@ -1,7 +1,6 @@
 from nicegui import ui, app
 
-
-VALID_CREDENTIALS = {"admin": "admin"}
+from auth import verify_user, create_session
 
 
 def render_login_page():
@@ -177,10 +176,13 @@ def render_login_page():
             error_box = ui.html('<div class="login-error" id="login-error">Invalid username or password.</div>')
 
             def do_login():
-                u = username.value.strip()
+                u = username.value.strip().lower()
                 p = password.value
-                if VALID_CREDENTIALS.get(u) == p:
+                if verify_user(u, p):
+                    session_key = create_session(u)
                     app.storage.user["authenticated"] = True
+                    app.storage.user["username"] = u
+                    app.storage.user["session_key"] = session_key
                     ui.navigate.to("/app")
                 else:
                     ui.run_javascript(
