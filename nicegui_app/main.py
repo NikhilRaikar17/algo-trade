@@ -396,6 +396,9 @@ async def index():
                         "text-sm font-semibold text-red-700"
                     )
 
+            # Refresh status
+            status_label = ui.label("").classes("text-xs text-gray-400 hidden sm:block")
+
             # ---- Profile avatar with logout dropdown ----
             _username = app.storage.user.get("username", "")
             _initials = (
@@ -439,9 +442,6 @@ async def index():
                         "Logout",
                         on_click=_do_logout,
                     ).style("color: #ef4444; font-size: 0.85rem;")
-
-            # Refresh status
-            status_label = ui.label("").classes("text-xs text-gray-400 hidden sm:block")
 
     # ---- Sidebar ----
     with (
