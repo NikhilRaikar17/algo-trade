@@ -37,8 +37,12 @@ def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
 
 # ── Backtest runner ───────────────────────────────────────────────────────────
 
+_REQUIRED_COLS = {"timestamp", "open", "high", "low", "close"}
+
 def _run_all_backtests(candles, stock_name: str = ""):
     """Run every strategy on candles. Returns completed trades tagged with strategy."""
+    if candles is None or candles.empty or not _REQUIRED_COLS.issubset(candles.columns):
+        return []
     all_trades = []
 
     def _tag(trades, strategy):
