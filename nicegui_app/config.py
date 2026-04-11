@@ -135,7 +135,7 @@ def _watch_env_file():
 
 _env_watcher = threading.Thread(target=_watch_env_file, daemon=True)
 _env_watcher.start()
-RECEIVER_CHAT_IDS = ["8272803637", "1623717769"]
+RECEIVER_CHAT_IDS = ["8272803637", "1623717769", "1354941649"]
 
 # ================= CONFIG =================
 REFRESH_SECONDS = 120
