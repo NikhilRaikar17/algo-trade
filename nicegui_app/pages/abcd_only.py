@@ -129,7 +129,7 @@ def _build_abcd_content(container, label, candles):
             f"{len(candles)} candles (15-min, 5 days) | "
             f"{len(swings)} swings | {len(patterns)} patterns"
         ).classes("text-md font-semibold mb-2")
-        render_tv_abcd_chart(candles, swings, patterns)
+        chart_id = render_tv_abcd_chart(candles, swings, patterns)
 
         # --- Summary ---
         if not trades:
@@ -159,10 +159,12 @@ def _build_abcd_content(container, label, candles):
 
         # --- Trade Table ---
         ui.separator().classes("my-4")
-        ui.label("Trade Log").classes("text-lg font-semibold mb-2")
+        with ui.row().classes("items-center gap-3 mb-2"):
+            ui.label("Trade Log").classes("text-lg font-semibold")
+            ui.label("Click a row to highlight pattern on chart").classes("text-xs text-gray-400 italic")
 
         rows = []
-        for t in trades:
+        for i, t in enumerate(trades):
             time_str = (
                 t["time"].strftime("%d %b %H:%M")
                 if hasattr(t["time"], "strftime")
@@ -177,6 +179,7 @@ def _build_abcd_content(container, label, candles):
                 )
             rows.append(
                 {
+                    "_idx": i,
                     "Entry Time": time_str,
                     "Type": t["type"],
                     "Signal": t["signal"],
@@ -206,9 +209,17 @@ def _build_abcd_content(container, label, candles):
             {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
             {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
+        _cid = chart_id  # capture for closure
+
         table = ui.table(
-            columns=columns, rows=rows, row_key="Entry Time"
-        ).classes("w-full")
+            columns=columns, rows=rows, row_key="Entry Time",
+        ).classes("w-full cursor-pointer")
+
+        def _on_row_click(e):
+            idx = e.args[1].get("_idx", -1)
+            ui.run_javascript(f"window._tvShowTrade_{_cid}({idx})")
+
+        table.on("rowClick", _on_row_click)
         table.props("dense flat bordered")
 
         table.add_slot(

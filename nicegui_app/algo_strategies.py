@@ -394,52 +394,6 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
 # ================= RSI-ONLY =================
 
 
-def detect_rsi_only_signals(candles):
-    """Generate trade signals based purely on RSI overbought/oversold crossings."""
-    df = candles.copy()
-    df["rsi"] = compute_rsi(df["close"])
-    df = df.dropna().reset_index(drop=True)
-    if len(df) < 2:
-        return [], df
-    signals = []
-    for i in range(1, len(df)):
-        prev = df.iloc[i - 1]
-        curr = df.iloc[i]
-        # Bullish: RSI crosses above oversold from below
-        if prev["rsi"] <= RSI_OVERSOLD and curr["rsi"] > RSI_OVERSOLD:
-            target = curr["close"] * (1 + RSI_ONLY_TARGET_PCT)
-            sl = curr["close"] * (1 - RSI_ONLY_SL_PCT)
-            signals.append(
-                {
-                    "type": "Bullish",
-                    "signal": "BUY — RSI exits oversold",
-                    "entry": round(float(curr["close"]), 2),
-                    "target": round(float(target), 2),
-                    "stop_loss": round(float(sl), 2),
-                    "time": curr["timestamp"],
-                    "rsi": round(float(curr["rsi"]), 2),
-                    "prev_rsi": round(float(prev["rsi"]), 2),
-                }
-            )
-        # Bearish: RSI crosses below overbought from above
-        if prev["rsi"] >= RSI_OVERBOUGHT and curr["rsi"] < RSI_OVERBOUGHT:
-            target = curr["close"] * (1 - RSI_ONLY_TARGET_PCT)
-            sl = curr["close"] * (1 + RSI_ONLY_SL_PCT)
-            signals.append(
-                {
-                    "type": "Bearish",
-                    "signal": "SELL — RSI exits overbought",
-                    "entry": round(float(curr["close"]), 2),
-                    "target": round(float(target), 2),
-                    "stop_loss": round(float(sl), 2),
-                    "time": curr["timestamp"],
-                    "rsi": round(float(curr["rsi"]), 2),
-                    "prev_rsi": round(float(prev["rsi"]), 2),
-                }
-            )
-    return signals, df
-
-
 # ================= DOUBLE TOP =================
 
 
@@ -678,70 +632,6 @@ def backtest_double_bottom(signals, candles):
 
 
 # ================= RSI ONLY =================
-
-
-def backtest_rsi_only(signals, candles):
-    """Walk through same-day candles after each signal. Force-close at 3:30 PM."""
-    trades = []
-    for s in signals:
-        entry = s["entry"]
-        target = s["target"]
-        sl = s["stop_loss"]
-        signal_time = s["time"]
-        future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
-        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
-        last_bar = None
-        for _, bar in future.iterrows():
-            last_bar = bar
-            if s["type"] == "Bullish":
-                if float(bar["high"]) >= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(target - entry), 2),
-                    }
-                    break
-                if float(bar["low"]) <= sl:
-                    result = {
-                        "status": "SL Hit",
-                        "exit_price": round(float(sl), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(sl - entry), 2),
-                    }
-                    break
-            else:
-                if float(bar["low"]) <= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(entry - target), 2),
-                    }
-                    break
-                if float(bar["high"]) >= sl:
-                    result = {
-                        "status": "SL Hit",
-                        "exit_price": round(float(sl), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(entry - sl), 2),
-                    }
-                    break
-        # Force-close any trade still open at end of day
-        if result["status"] == "Open" and last_bar is not None:
-            exit_px = round(float(last_bar["close"]), 2)
-            if s["type"] == "Bullish":
-                pnl = round(float(exit_px - entry), 2)
-            else:
-                pnl = round(float(entry - exit_px), 2)
-            result = {
-                "status": "Day Close",
-                "exit_price": exit_px,
-                "exit_time": last_bar["timestamp"],
-                "pnl": pnl,
-            }
-        trades.append({**s, **result})
-    return trades
 
 
 # ================= EMA 10 CROSSOVER =================
@@ -1016,11 +906,6 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
                     alert += extra_alert_fn(s)
                 _send_telegram(alert)
     return active, completed
-
-
-def classify_rsi_only_trades(signals, current_price, contract_name=""):
-    return _classify_generic(signals, current_price, contract_name, "RSI", "rsionly",
-        extra_alert_fn=lambda s: "\nRSI: {}".format(s.get("rsi", "-")))
 
 
 def classify_double_top_trades(signals, current_price, contract_name=""):

@@ -373,6 +373,7 @@ async def index():
     refresh_fns = {}
     _prev_market_open = [None]
     _dashboard_refresh = [None]   # persists across build_ui() calls — avoids re-creating clock timer
+    _backtest_loaded: set = set()  # tracks which backtest pages have loaded at least once
     nav_btn_refs = {}
     page_client = context.client
 
@@ -509,6 +510,7 @@ async def index():
     async def build_ui():
         nonlocal refresh_fns
         refresh_fns = {}  # page_id → refresh_fn
+        _backtest_loaded.clear()  # force reload when market state changes
 
         market_open = is_market_open()
 
@@ -562,6 +564,14 @@ async def index():
         fn = refresh_fns.get(active)
         if fn is None:
             return  # static page (e.g. market-closed placeholder)
+
+        # Backtest pages use historical candle data that only changes during market hours.
+        # Allow first load always; skip subsequent periodic refreshes when market is closed.
+        _BACKTEST_PAGES = {"abcd_only", "dt_only", "db_only", "sma50", "ema10"}
+        if active in _BACKTEST_PAGES and not is_market_open() and active in _backtest_loaded:
+            return
+        if active in _BACKTEST_PAGES:
+            _backtest_loaded.add(active)
 
         status_label.text = f"Refreshing... {now_ist().strftime('%H:%M:%S')}"
         try:

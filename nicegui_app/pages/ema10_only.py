@@ -127,7 +127,7 @@ def _build_ema10_content(container, label, candles):
             f"{label} — Last: {candles['close'].iloc[-1]:,.2f} | "
             f"{len(candles)} candles (15-min, 5 days)"
         ).classes("text-md font-semibold mb-2")
-        render_tv_ema10_chart(candles, df_ind, signals)
+        chart_id = render_tv_ema10_chart(candles, df_ind, signals)
 
         if not trades:
             ui.label("No EMA 10 crossover signals in this period.").classes(
@@ -155,10 +155,12 @@ def _build_ema10_content(container, label, candles):
             )
 
         ui.separator().classes("my-4")
-        ui.label("Trade Log").classes("text-lg font-semibold mb-2")
+        with ui.row().classes("items-center gap-3 mb-2"):
+            ui.label("Trade Log").classes("text-lg font-semibold")
+            ui.label("Click a row to highlight signal on chart").classes("text-xs text-gray-400 italic")
 
         rows = []
-        for t in trades:
+        for i, t in enumerate(trades):
             time_str = (
                 t["time"].strftime("%d %b %H:%M")
                 if hasattr(t["time"], "strftime") else str(t["time"])
@@ -170,6 +172,7 @@ def _build_ema10_content(container, label, candles):
                     if hasattr(t["exit_time"], "strftime") else str(t["exit_time"])
                 )
             rows.append({
+                "_idx":       i,
                 "Entry Time": time_str,
                 "Signal":     t["signal"],
                 "Entry":      t["entry"],
@@ -194,7 +197,15 @@ def _build_ema10_content(container, label, candles):
             {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
             {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
-        table = ui.table(columns=columns, rows=rows, row_key="Entry Time").classes("w-full")
+        _cid = chart_id
+
+        table = ui.table(columns=columns, rows=rows, row_key="Entry Time").classes("w-full cursor-pointer")
+
+        def _on_row_click(e):
+            idx = e.args[1].get("_idx", -1)
+            ui.run_javascript(f"window._tvShowTrade_{_cid}({idx})")
+
+        table.on("rowClick", _on_row_click)
         table.props("dense flat bordered")
 
         table.add_slot(
