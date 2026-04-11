@@ -15,6 +15,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from passlib.context import CryptContext
+from sqlalchemy import text
 
 from db import Base, SessionLocal, engine
 from models import User, UserSession
@@ -28,6 +29,14 @@ SESSION_TTL_HOURS = 12
 
 # ── Schema creation ───────────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
+
+# Add last_login column to existing databases that pre-date this column
+with engine.connect() as _conn:
+    try:
+        _conn.execute(text("ALTER TABLE users ADD COLUMN last_login DATETIME"))
+        _conn.commit()
+    except Exception:
+        pass  # Column already exists
 
 # ── Seed users (idempotent) ───────────────────────────────────────────────────
 _SEED: list[tuple[str, str]] = [
@@ -80,6 +89,12 @@ def create_session(username: str) -> str:
             created_at=now,
             expires_at=expires,
         ))
+
+        # Record last login timestamp
+        user = s.get(User, username)
+        if user:
+            user.last_login = now
+
         s.commit()
 
     return key

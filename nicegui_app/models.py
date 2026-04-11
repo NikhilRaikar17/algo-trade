@@ -17,6 +17,7 @@ class User(Base):
 
     username        = Column(String, primary_key=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    last_login      = Column(DateTime, nullable=True)
 
 
 class UserSession(Base):
