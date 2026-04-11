@@ -182,8 +182,8 @@ def render_backtest_pnl_tab(container):
             losers_count = sum(1 for t in filtered if t["pnl"] < 0)
             win_rate = (winners / total_trades * 100) if total_trades else 0
 
-            # Brokerage: lot_size=1 since we trade shares, not F&O lots
-            charges = charges_for_trades(filtered, lot_size=1, quantity=quantity)
+            # Equity intraday charges: lot_size=1 (shares, not F&O lots)
+            charges = charges_for_trades(filtered, lot_size=1, quantity=quantity, segment="equity_intraday")
             gross_pnl = charges["gross_pnl"]
             total_charges = charges["total_charges"]
             net_pnl = charges["net_pnl"]
@@ -254,15 +254,16 @@ def render_backtest_pnl_tab(container):
                         strat_trades = [t for t in strat_trades if t.get("trade_date") == _state["date"]]
                     if stock_filter_active:
                         strat_trades = [t for t in strat_trades if t.get("stock") == _state["stock"]]
-                    spnl = sum(t["pnl"] for t in strat_trades)
+                    spnl_pts = sum(t["pnl"] for t in strat_trades)
+                    spnl_rs = spnl_pts * quantity
                     sw = sum(1 for t in strat_trades if t["pnl"] > 0)
                     sl_c = sum(1 for t in strat_trades if t["pnl"] < 0)
                     swr = f"{sw / len(strat_trades) * 100:.0f}%" if strat_trades else "—"
-                    scolor = "text-green-600" if spnl >= 0 else "text-red-600"
+                    scolor = "text-green-600" if spnl_rs >= 0 else "text-red-600"
                     border = "border-2 border-emerald-500" if _state["strategy"] == strat else ""
                     with ui.card().classes(f"p-3 min-w-[130px] flex-1 {border}"):
                         ui.label(strat).classes("text-sm font-bold text-gray-600 mb-1")
-                        ui.label(f"{spnl:+.2f}").classes(f"text-xl font-bold {scolor}")
+                        ui.label(f"₹{spnl_rs:+,.2f}").classes(f"text-xl font-bold {scolor}")
                         ui.label(
                             f"{len(strat_trades)} trades · {sw}W/{sl_c}L · WR {swr}"
                         ).classes("text-xs text-gray-500")
@@ -285,7 +286,7 @@ def render_backtest_pnl_tab(container):
                 day_rows = []
                 for date in sorted(date_groups.keys(), reverse=True):
                     dtrades = date_groups[date]
-                    dpnl = sum(t["pnl"] for t in dtrades)
+                    dpnl_rs = sum(t["pnl"] for t in dtrades) * quantity
                     dw = sum(1 for t in dtrades if t["pnl"] > 0)
                     dl = sum(1 for t in dtrades if t["pnl"] < 0)
                     dwr = f"{dw / len(dtrades) * 100:.0f}%" if dtrades else "0%"
@@ -295,9 +296,9 @@ def render_backtest_pnl_tab(container):
                         "Winners": dw,
                         "Losers": dl,
                         "Win %": dwr,
-                        "P&L": round(dpnl, 2),
+                        "P&L (₹)": round(dpnl_rs, 2),
                     })
-                build_trade_table(ui.element("div").classes("w-full"), day_rows, "P&L")
+                build_trade_table(ui.element("div").classes("w-full"), day_rows, "P&L (₹)")
             else:
                 ui.label("No data.").classes("text-gray-500 italic")
 
@@ -317,6 +318,7 @@ def render_backtest_pnl_tab(container):
             else:
                 rows = []
                 for t in filtered:
+                    pnl_pts = float(t.get("pnl", 0))
                     row = {
                         "Date": t.get("trade_date", ""),
                         "Strategy": t.get("strategy", ""),
@@ -324,13 +326,14 @@ def render_backtest_pnl_tab(container):
                         "Type": t.get("type", ""),
                         "Entry": t.get("entry", 0),
                         "Exit": round(t["exit_price"], 2) if t.get("exit_price") is not None else "—",
-                        "P&L": t.get("pnl", 0),
+                        "P&L (pts)": round(pnl_pts, 2),
+                        "P&L (₹)": round(pnl_pts * quantity, 2),
                         "Status": t.get("status", ""),
                     }
                     if is_all_mode:
                         row["Stock"] = t.get("stock", "")
                     rows.append(row)
-                build_trade_table(ui.element("div").classes("w-full"), rows, "P&L")
+                build_trade_table(ui.element("div").classes("w-full"), rows, "P&L (₹)")
 
     # ── filter row ────────────────────────────────────────────────────────────
 

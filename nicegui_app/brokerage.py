@@ -1,35 +1,38 @@
 """
-Dhan brokerage and taxes calculator for F&O (options) trades.
+Dhan brokerage and taxes calculator.
+
+Supports two segments:
+  - "equity_intraday"  — NSE equity intraday (MIS)
+  - "fno"              — NSE F&O (options)
 
 Reference: https://dhan.co/charges/
-Charges apply per executed order (buy + sell = 2 orders per round trip).
-
-  Brokerage:          ₹20 flat per order (or 0.03% of turnover, whichever is lower)
-  STT:                0.0625% of premium on SELL side
-  Exchange charges:   0.035% of turnover (NSE F&O)
-  GST:                18% on (brokerage + exchange charges)
-  SEBI charges:       ₹10 per crore of turnover (≈ negligible for small lots)
-  Stamp duty:         0.003% of premium on BUY side
 
 All amounts in ₹.
 """
 
 # ---------- constants ----------------------------------------------------------------
 
-_BROKERAGE_FLAT = 20.0          # ₹ per order
-_BROKERAGE_PCT  = 0.0003        # 0.03 % (fallback if flat is higher — take lower)
-_STT_PCT        = 0.000625      # 0.0625 % on sell-side premium
-_EXCHANGE_PCT   = 0.00035       # 0.035 % NSE F&O transaction charge
-_GST_PCT        = 0.18          # 18 % on (brokerage + exchange charges)
+_BROKERAGE_FLAT = 20.0          # ₹ per order (Dhan flat-fee)
+_BROKERAGE_PCT  = 0.0003        # 0.03% — fallback; take whichever is lower
+_GST_PCT        = 0.18          # 18% on (brokerage + exchange charges)
 _SEBI_PER_CRORE = 10.0          # ₹10 per crore of turnover
-_STAMP_PCT      = 0.00003       # 0.003 % on buy-side premium
+
+# Equity intraday (MIS) rates
+_EQ_STT_PCT        = 0.00025    # 0.025% on sell-side turnover
+_EQ_EXCHANGE_PCT   = 0.0000345  # 0.00345% NSE equity transaction charge
+_EQ_STAMP_PCT      = 0.00003    # 0.003% on buy-side turnover
+
+# F&O (options) rates
+_FNO_STT_PCT       = 0.000625   # 0.0625% on sell-side premium
+_FNO_EXCHANGE_PCT  = 0.00035    # 0.035% NSE F&O transaction charge
+_FNO_STAMP_PCT     = 0.00003    # 0.003% on buy-side premium
 
 # Standard lot sizes (current as of 2025-26 revision)
 LOT_SIZES: dict[str, int] = {
-    "NIFTY":     75,
-    "BANKNIFTY": 35,
-    "SENSEX":    10,
-    "FINNIFTY":  65,
+    "NIFTY":      75,
+    "BANKNIFTY":  35,
+    "SENSEX":     10,
+    "FINNIFTY":   65,
     "MIDCPNIFTY": 75,
 }
 DEFAULT_LOT_SIZE = 75  # fallback
@@ -46,17 +49,19 @@ def calculate_brokerage(
     entry_price: float,
     exit_price: float,
     lot_size: int = DEFAULT_LOT_SIZE,
-    quantity: int = 1,          # number of lots
+    quantity: int = 1,
+    segment: str = "fno",        # "fno" | "equity_intraday"
 ) -> dict:
     """
     Return a breakdown dict with all charges for one round-trip (buy + sell) trade.
 
     Parameters
     ----------
-    entry_price : float   option premium at entry (₹ per unit)
-    exit_price  : float   option premium at exit  (₹ per unit)
-    lot_size    : int     units per lot (e.g. 75 for NIFTY)
-    quantity    : int     number of lots traded
+    entry_price : float   price at entry (₹ per unit)
+    exit_price  : float   price at exit  (₹ per unit)
+    lot_size    : int     units per lot (1 for equity shares)
+    quantity    : int     number of lots / shares traded
+    segment     : str     "fno" or "equity_intraday"
 
     Returns
     -------
@@ -71,30 +76,39 @@ def calculate_brokerage(
         total_charges  – sum of all charges
         net_pnl        – gross_pnl − total_charges
     """
+    if segment == "equity_intraday":
+        stt_pct      = _EQ_STT_PCT
+        exchange_pct = _EQ_EXCHANGE_PCT
+        stamp_pct    = _EQ_STAMP_PCT
+    else:  # fno
+        stt_pct      = _FNO_STT_PCT
+        exchange_pct = _FNO_EXCHANGE_PCT
+        stamp_pct    = _FNO_STAMP_PCT
+
     units = lot_size * quantity
     buy_turnover  = entry_price * units
     sell_turnover = exit_price  * units
 
-    # Brokerage: ₹20 flat or 0.03 % of turnover, whichever is lower — per order
+    # Brokerage: ₹20 flat or 0.03% of turnover, whichever is lower — per order
     brokerage_buy  = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * buy_turnover)
     brokerage_sell = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * sell_turnover)
     brokerage = brokerage_buy + brokerage_sell
 
-    # STT — only on sell side for options
-    stt = _STT_PCT * sell_turnover
+    # STT — only on sell side
+    stt = stt_pct * sell_turnover
 
     # Exchange transaction charge (both sides)
-    exchange = _EXCHANGE_PCT * (buy_turnover + sell_turnover)
+    exchange = exchange_pct * (buy_turnover + sell_turnover)
 
     # GST on brokerage + exchange charges
     gst = _GST_PCT * (brokerage + exchange)
 
     # SEBI charges (₹10 per crore)
     total_turnover = buy_turnover + sell_turnover
-    sebi = _SEBI_PER_CRORE * total_turnover / 1_00_00_000  # per crore
+    sebi = _SEBI_PER_CRORE * total_turnover / 1_00_00_000
 
     # Stamp duty — on buy side only
-    stamp = _STAMP_PCT * buy_turnover
+    stamp = stamp_pct * buy_turnover
 
     total_charges = brokerage + stt + exchange + gst + sebi + stamp
     gross_pnl = (exit_price - entry_price) * units
@@ -117,6 +131,7 @@ def charges_for_trades(
     trades: list[dict],
     lot_size: int = DEFAULT_LOT_SIZE,
     quantity: int = 1,
+    segment: str = "fno",
 ) -> dict:
     """
     Aggregate brokerage breakdown across a list of completed trades.
@@ -142,10 +157,11 @@ def charges_for_trades(
         exit_px = float(t.get("exit_price", 0) or 0)
         if entry <= 0 or exit_px <= 0:
             # Fall back to raw pnl if prices are missing
-            totals["gross_pnl"] += float(t.get("pnl", 0))
-            totals["net_pnl"]   += float(t.get("pnl", 0))
+            raw = float(t.get("pnl", 0)) * quantity
+            totals["gross_pnl"] += raw
+            totals["net_pnl"]   += raw
             continue
-        b = calculate_brokerage(entry, exit_px, lot_size, quantity)
+        b = calculate_brokerage(entry, exit_px, lot_size, quantity, segment)
         for k in totals:
             totals[k] += b[k]
         n += 1
