@@ -214,9 +214,16 @@ def render_top_stocks_tab(container):
         if page_client._deleted:
             return
         try:
-            gainers, losers = await asyncio.get_event_loop().run_in_executor(
-                None, _fetch_top_stocks
-            )
+            from state import _cache_get
+            cached = _cache_get("top_stocks_data")
+            if cached:
+                gainers, losers = cached["gainers"], cached["losers"]
+            else:
+                gainers, losers = await asyncio.get_event_loop().run_in_executor(
+                    None, _fetch_top_stocks
+                )
+                from state import _cache_set
+                _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
             if page_client._deleted:
                 return
             content.clear()

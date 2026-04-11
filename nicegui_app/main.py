@@ -77,8 +77,24 @@ async def _start_scheduler():
             except Exception as e:
                 print(f"  [scheduler error] {e}")
 
+    async def _top_stocks_loop():
+        """Fetch & cache top stocks every 5 minutes, regardless of which page is open."""
+        from pages.top_stocks import _fetch_top_stocks
+        from state import _cache_set
+        while True:
+            try:
+                gainers, losers = await asyncio.get_event_loop().run_in_executor(
+                    None, _fetch_top_stocks
+                )
+                _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
+                print(f"  [top_stocks_bg] cached {len(gainers)} gainers, {len(losers)} losers")
+            except Exception as e:
+                print(f"  [top_stocks_bg error] {e}")
+            await asyncio.sleep(300)  # refresh every 5 minutes
+
     asyncio.create_task(_loop())
     asyncio.create_task(run_trading_engine())
+    asyncio.create_task(_top_stocks_loop())
 
 
 # ================= MAIN PAGE =================
