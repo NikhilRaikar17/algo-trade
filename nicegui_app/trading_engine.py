@@ -1,6 +1,7 @@
 """
-Background trading engine — runs all strategies on ATM CE/PE 5-min candles
-every 120 seconds during market hours, independent of any browser connection.
+Background trading engine — runs all strategies on top-stocks equity 5-min
+candles every 120 seconds during market hours, independent of any browser
+connection.
 
 Populates _trade_store and persists completed trades to .trade_history.json
 exactly as the live algo tab does, but driven by the server-side scheduler.
@@ -8,11 +9,10 @@ exactly as the live algo tab does, but driven by the server-side scheduler.
 
 import asyncio
 import traceback
-from datetime import datetime
 
-from config import now_ist, INDICES, REFRESH_SECONDS
+from config import now_ist, REFRESH_SECONDS
 from state import _trade_store, is_market_open
-from data import get_expiries, fetch_option_chain_raw, fetch_5min_candles
+from data import _fetch_any_stock_candles
 from algo_strategies import (
     find_swing_points,
     detect_abcd_patterns,
@@ -29,7 +29,7 @@ from algo_strategies import (
 
 
 def _run_strategies_for_contract(candles, current_price, contract_name):
-    """Run all 7 strategies for a single ATM option contract. Updates _trade_store."""
+    """Run all strategies for a single stock. Updates _trade_store."""
 
     # ABCD
     try:
@@ -74,50 +74,33 @@ def _run_strategies_for_contract(candles, current_price, contract_name):
 
 
 def _run_engine_tick():
-    """One full scan: fetch data for NIFTY + BANKNIFTY and run all strategies."""
+    """One full scan: fetch 5-min equity candles for all active top stocks and run all strategies."""
+    from db import get_active_top_stocks
+
     today_date = now_ist().date()
+    stocks = get_active_top_stocks()
 
-    for idx_key, cfg in INDICES.items():
+    if not stocks:
+        print("  [engine] No active top stocks in DB — skipping tick.")
+        return
+
+    for stock in stocks:
+        name = stock["name"]
+        security_id = stock["security_id"]
         try:
-            expiries = get_expiries(cfg["scrip"], cfg["segment"], 2, for_algo=True)
+            candles = _fetch_any_stock_candles(security_id, interval=5)
+            if candles is None or candles.empty:
+                print(f"  [engine] {name}: no candles")
+                continue
+            candles = candles[candles["timestamp"].dt.date == today_date].reset_index(drop=True)
+            if candles.empty:
+                print(f"  [engine] {name}: no today candles")
+                continue
+            current_price = round(float(candles["close"].iloc[-1]), 2)
+            _run_strategies_for_contract(candles, current_price, name)
+            print(f"  [engine] {name} @ {current_price:.2f} — strategies updated")
         except Exception as e:
-            print(f"  [engine:{idx_key}] expiries failed: {e}")
-            continue
-
-        for expiry in expiries:
-            try:
-                raw = fetch_option_chain_raw(cfg["scrip"], cfg["segment"], expiry)
-            except Exception as e:
-                print(f"  [engine:{idx_key}:{expiry}] option chain failed: {e}")
-                continue
-
-            spot = round(float(raw["last_price"]), 2)
-            atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
-            exp_tag = datetime.strptime(expiry, "%Y-%m-%d").strftime("%d%b").upper()
-
-            strikes = sorted(raw["oc"].keys(), key=lambda s: abs(float(s) - atm))
-            if not strikes:
-                continue
-            sides = raw["oc"][strikes[0]]
-
-            for opt_type in ["CE", "PE"]:
-                sec_id = sides.get(opt_type.lower(), {}).get("security_id")
-                if not sec_id:
-                    continue
-                try:
-                    candles = fetch_5min_candles(sec_id)
-                    if candles is None or candles.empty:
-                        continue
-                    # Filter to today's candles only (same as algo.py)
-                    candles = candles[candles["timestamp"].dt.date == today_date].reset_index(drop=True)
-                    if candles.empty:
-                        continue
-                    current_price = round(float(candles["close"].iloc[-1]), 2)
-                    contract_name = f"{cfg['name_prefix']} {exp_tag} {int(atm)} {opt_type}"
-                    _run_strategies_for_contract(candles, current_price, contract_name)
-                    print(f"  [engine] {contract_name} @ {current_price:.2f} — strategies updated")
-                except Exception as e:
-                    print(f"  [engine:{idx_key}:{expiry}:{opt_type}] candles/classify failed: {e}")
+            print(f"  [engine:{name}] candles/classify failed: {e}")
 
 
 async def run_trading_engine():
@@ -133,7 +116,6 @@ async def run_trading_engine():
         if not is_market_open():
             continue
         try:
-            # Run synchronous blocking work in a thread so the event loop stays free
             await loop.run_in_executor(None, _run_engine_tick)
         except Exception as e:
             print(f"  [engine] tick error: {e}\n{traceback.format_exc()}")

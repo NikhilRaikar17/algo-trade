@@ -162,11 +162,16 @@ def send_morning_message():
     if _is_already_sent(morning_key):
         return
 
+    from db import get_active_top_stocks
+    stocks = get_active_top_stocks()
+    stock_names = ", ".join(s["name"] for s in stocks) if stocks else "No stocks loaded yet"
+
     day_name = now.strftime("%A, %d %b %Y")
     _send_telegram(
         f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
         f"Strategies: ABCD Harmonic | Double Top | Double Bottom | EMA10 | SMA50\n"
-        f"Monitoring: NIFTY / BANKNIFTY ATM options (5-min candles)\n"
+        f"Monitoring: Top Stocks (5-min equity candles)\n"
+        f"Stocks ({len(stocks)}): {stock_names}\n"
         f"Refresh interval: {REFRESH_SECONDS}s\n"
         f"Market opens at 9:15 AM IST. Let's go!"
     )
@@ -242,6 +247,10 @@ def send_daily_pnl_summary():
     day_name = now.strftime("%A, %d %b %Y")
     result_emoji = "📈" if total_realized >= 0 else "📉"
 
+    from db import get_active_top_stocks
+    stocks = get_active_top_stocks()
+    stock_names = ", ".join(s["name"] for s in stocks) if stocks else "—"
+
     msg = (
         f"MARKET CLOSED — DAILY SUMMARY {result_emoji}\n"
         f"{day_name}\n{'=' * 30}\n\n"
@@ -249,6 +258,7 @@ def send_daily_pnl_summary():
         f"Unrealized P&L: {total_unrealized:+.2f}\n"
         f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
         f"Winners/Losers: {winners}W / {losers}L\n"
+        f"\nStocks Monitored: {stock_names}\n"
         f"\nStrategy Breakdown:\n{breakdown}\n\n"
         f"Trade Log (last {min(10, len(all_completed))}):\n{trade_log}\n\n"
         f"{'=' * 30}\n"

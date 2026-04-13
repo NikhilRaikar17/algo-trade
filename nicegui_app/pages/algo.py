@@ -1,15 +1,14 @@
 """
-Live algo trading tab — all strategies, index dropdown, 0.5s WS ticker.
+Live algo trading tab — all strategies, top-stocks equity selector, 0.5s WS ticker.
 """
 
 import asyncio
-from datetime import datetime
 from nicegui import ui
 from dhanhq import marketfeed as mf
 
-from config import now_ist, INDICES
+from config import now_ist
 from state import _trade_store
-from data import get_expiries, fetch_option_chain_raw, fetch_5min_candles
+from data import _fetch_any_stock_candles, STOCK_WATCH_GROUPS
 from algo_strategies import (
     # ABCD
     find_swing_points,
@@ -40,7 +39,13 @@ import ws_feed
 
 _STRATEGIES = get_strategies()
 
-_INDEX_OPTIONS = {"NIFTY": "NIFTY 50", "BANKNIFTY": "BANKNIFTY"}
+# Flatten all stocks from all groups for the selector
+_ALL_STOCKS: list[dict] = []
+for _grp in STOCK_WATCH_GROUPS:
+    _ALL_STOCKS.extend(_grp["stocks"])
+
+_STOCK_OPTIONS: dict[str, str] = {s["security_id"]: s["name"] for s in _ALL_STOCKS}
+_STOCK_BY_SID:  dict[str, dict] = {s["security_id"]: s for s in _ALL_STOCKS}
 
 
 def _fmt_time(t):
@@ -49,10 +54,10 @@ def _fmt_time(t):
     return t.strftime("%d %b %H:%M") if hasattr(t, "strftime") else str(t)
 
 
-# ── live bid/ask ticker ───────────────────────────────────────────────────────
+# ── live price ticker ─────────────────────────────────────────────────────────
 
-def _build_live_ticker(container, atm, iv_map, candles_by_type, active_timers):
-    """Build the live bid/ask table and start the 0.5s update timer."""
+def _build_live_ticker(container, security_id, stock_name, active_timers):
+    """Build a live bid/ask ticker table for an equity, updated every 0.5s."""
     live_labels = {}
 
     with container:
@@ -60,53 +65,43 @@ def _build_live_ticker(container, atm, iv_map, candles_by_type, active_timers):
             with ui.element("table").classes("text-sm border-collapse w-full"):
                 with ui.element("thead"):
                     with ui.element("tr").classes("bg-gray-100"):
-                        for col in ["Contract", "LTP", "Bid (Qty)", "Ask (Qty)", "Spread", "OI", "Volume", "IV %"]:
+                        for col in ["Stock", "LTP", "Bid (Qty)", "Ask (Qty)", "Spread", "OI", "Volume"]:
                             with ui.element("th").classes("px-3 py-1 text-left font-semibold border-b text-xs"):
                                 ui.label(col)
                 with ui.element("tbody"):
-                    for opt_type in ["CE", "PE"]:
-                        row_bg  = "bg-green-50" if opt_type == "CE" else "bg-red-50"
-                        lbl_cls = "text-green-700 font-bold" if opt_type == "CE" else "text-red-700 font-bold"
-                        with ui.element("tr").classes(f"border-b {row_bg}"):
+                    with ui.element("tr").classes("border-b bg-blue-50"):
+                        with ui.element("td").classes("px-3 py-1"):
+                            ui.label(stock_name).classes("text-xs text-blue-700 font-bold")
+                        for field, cls in [
+                            ("ltp",    "font-semibold"),
+                            ("bid",    "text-emerald-600"),
+                            ("ask",    "text-orange-600"),
+                            ("spread", "text-gray-600"),
+                            ("oi",     ""),
+                            ("vol",    ""),
+                        ]:
                             with ui.element("td").classes("px-3 py-1"):
-                                ui.label(f"{int(atm)} {opt_type}").classes(f"text-xs {lbl_cls}")
-                            for field, cls in [
-                                ("ltp",    "font-semibold"),
-                                ("bid",    "text-emerald-600"),
-                                ("ask",    "text-orange-600"),
-                                ("spread", "text-gray-600"),
-                                ("oi",     ""),
-                                ("vol",    ""),
-                            ]:
-                                with ui.element("td").classes("px-3 py-1"):
-                                    lbl = ui.label("–").classes(f"text-xs {cls}")
-                                    live_labels[(opt_type, field)] = lbl
-                            with ui.element("td").classes("px-3 py-1"):
-                                ui.label(f"{iv_map.get(opt_type, 0):.2f}").classes("text-xs")
+                                lbl = ui.label("–").classes(f"text-xs {cls}")
+                                live_labels[field] = lbl
 
     def _update():
         if container.client._deleted:
             return
-        for opt_type in ["CE", "PE"]:
-            entry = candles_by_type.get(opt_type)
-            if not entry:
-                continue
-            sec_id, _ = entry
-            q = ws_feed.get_quote(sec_id)
-            if not q:
-                continue
-            ltp    = q.get("ltp", 0)
-            bid    = q.get("bid", 0)
-            ask    = q.get("ask", 0)
-            bq     = q.get("bid_qty", 0)
-            aq     = q.get("ask_qty", 0)
-            spread = round(ask - bid, 2)
-            live_labels[(opt_type, "ltp")].set_text(f"{ltp:,.2f}")
-            live_labels[(opt_type, "bid")].set_text(f"{bid:,.2f} ({bq:,})")
-            live_labels[(opt_type, "ask")].set_text(f"{ask:,.2f} ({aq:,})")
-            live_labels[(opt_type, "spread")].set_text(f"{spread:,.2f}")
-            live_labels[(opt_type, "oi")].set_text(f"{q.get('oi', 0):,}")
-            live_labels[(opt_type, "vol")].set_text(f"{q.get('volume', 0):,}")
+        q = ws_feed.get_quote(security_id)
+        if not q:
+            return
+        ltp    = q.get("ltp", 0)
+        bid    = q.get("bid", 0)
+        ask    = q.get("ask", 0)
+        bq     = q.get("bid_qty", 0)
+        aq     = q.get("ask_qty", 0)
+        spread = round(ask - bid, 2)
+        live_labels["ltp"].set_text(f"₹{ltp:,.2f}")
+        live_labels["bid"].set_text(f"₹{bid:,.2f} ({bq:,})")
+        live_labels["ask"].set_text(f"₹{ask:,.2f} ({aq:,})")
+        live_labels["spread"].set_text(f"₹{spread:,.2f}")
+        live_labels["oi"].set_text(f"{q.get('oi', 0):,}")
+        live_labels["vol"].set_text(f"{q.get('volume', 0):,}")
 
     _update()
     t = ui.timer(0.5, _update)
@@ -179,20 +174,20 @@ def _render_trade_tabs(active, completed, current_price, algo_type):
                                   "PnL")
 
 
-# ── per-option-type strategy dispatch ─────────────────────────────────────────
+# ── per-stock strategy dispatch ───────────────────────────────────────────────
 
-def _run_strategy(algo_type, candles, current_price, contract_name, candles_by_type, opt_type):
-    header = f"{contract_name} — Last: {current_price:.2f} | {len(candles)} candles (5-min, today)"
+def _run_strategy(algo_type, candles, current_price, stock_name):
+    header = f"{stock_name} — Last: ₹{current_price:.2f} | {len(candles)} candles (5-min, today)"
 
     if algo_type == "abcd":
         swings   = find_swing_points(candles, order=2)
         patterns = detect_abcd_patterns(swings)
         ui.label(header).classes("text-md font-semibold")
-        render_tv_abcd_chart(candles, swings, patterns, contract_name, current_price)
+        render_tv_abcd_chart(candles, swings, patterns, stock_name, current_price)
         if not patterns:
             ui.label("No ABCD patterns detected today.").classes("text-gray-500 italic")
-        active, completed = classify_trades(patterns, current_price, contract_name)
-        _trade_store[f"abcd_trades_{contract_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_trades(patterns, current_price, stock_name)
+        _trade_store[f"abcd_trades_{stock_name}"] = {"active": active, "completed": completed}
         _render_trade_tabs(active, completed, current_price, "abcd")
         with ui.expansion("Swing Points & Pattern Details").classes("w-full mt-2"):
             for s in swings:
@@ -211,8 +206,8 @@ def _run_strategy(algo_type, candles, current_price, contract_name, candles_by_t
         render_tv_double_top_chart(candles, signals)
         if not signals:
             ui.label("No Double Top signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_double_top_trades(signals, current_price, contract_name)
-        _trade_store[f"dt_trades_{contract_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_double_top_trades(signals, current_price, stock_name)
+        _trade_store[f"dt_trades_{stock_name}"] = {"active": active, "completed": completed}
         _render_trade_tabs(active, completed, current_price, "dt")
 
     elif algo_type == "db":
@@ -221,8 +216,8 @@ def _run_strategy(algo_type, candles, current_price, contract_name, candles_by_t
         render_tv_double_bottom_chart(candles, signals)
         if not signals:
             ui.label("No Double Bottom signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_double_bottom_trades(signals, current_price, contract_name)
-        _trade_store[f"db_trades_{contract_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_double_bottom_trades(signals, current_price, stock_name)
+        _trade_store[f"db_trades_{stock_name}"] = {"active": active, "completed": completed}
         _render_trade_tabs(active, completed, current_price, "db")
 
     elif algo_type == "ema10":
@@ -231,8 +226,8 @@ def _run_strategy(algo_type, candles, current_price, contract_name, candles_by_t
         render_tv_ema10_chart(candles, df_ind, signals)
         if not signals:
             ui.label("No EMA10 signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_ema10_trades(signals, current_price, contract_name)
-        _trade_store[f"ema10_trades_{contract_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_ema10_trades(signals, current_price, stock_name)
+        _trade_store[f"ema10_trades_{stock_name}"] = {"active": active, "completed": completed}
         _render_trade_tabs(active, completed, current_price, "ema10")
 
     elif algo_type == "sma50":
@@ -241,60 +236,19 @@ def _run_strategy(algo_type, candles, current_price, contract_name, candles_by_t
         render_tv_sma50_chart(candles, df_ind, signals)
         if not signals:
             ui.label("No SMA50 signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_sma50_trades(signals, current_price, contract_name)
-        _trade_store[f"sma50_trades_{contract_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_sma50_trades(signals, current_price, stock_name)
+        _trade_store[f"sma50_trades_{stock_name}"] = {"active": active, "completed": completed}
         _render_trade_tabs(active, completed, current_price, "sma50")
-
-
-# ── per-expiry UI builder ─────────────────────────────────────────────────────
-
-def _render_algo_option(container, cfg, expiry, raw, candles_by_type, algo_type, active_timers):
-    spot = round(float(raw["last_price"]), 2)
-    atm  = round(spot / cfg["strike_step"]) * cfg["strike_step"]
-    exp_date = datetime.strptime(expiry, "%Y-%m-%d")
-    exp_tag  = exp_date.strftime("%d%b").upper()
-
-    oc = raw.get("oc", {})
-    strikes_sorted = sorted(oc.keys(), key=lambda s: abs(float(s) - atm))
-    atm_sides = oc.get(strikes_sorted[0], {}) if strikes_sorted else {}
-    ce_iv = round(float(atm_sides.get("ce", {}).get("implied_volatility", 0)), 2)
-    pe_iv = round(float(atm_sides.get("pe", {}).get("implied_volatility", 0)), 2)
-    iv_map = {"CE": ce_iv, "PE": pe_iv}
-
-    container.clear()
-    with container:
-        with ui.row().classes("gap-4 sm:gap-8 flex-wrap items-center mb-2"):
-            ui.label(f"Spot: {spot:,.2f}").classes("text-sm sm:text-lg font-bold")
-            ui.label(f"ATM: {atm:,}").classes("text-sm sm:text-lg")
-            ui.label(f"Expiry: {expiry}").classes("text-sm sm:text-lg text-gray-600")
-            ui.label("● LIVE").classes("text-xs font-bold text-green-600 animate-pulse")
-
-        ticker_container = ui.element("div").classes("w-full")
-        _build_live_ticker(ticker_container, atm, iv_map, candles_by_type, active_timers)
-
-        ui.separator()
-
-        for opt_type in ["CE", "PE"]:
-            ui.separator().classes("my-2")
-            entry = candles_by_type.get(opt_type)
-            if entry is None:
-                ui.label(f"No security ID for ATM {opt_type}").classes("text-orange-500")
-                continue
-            sec_id, candles = entry
-            if candles is None or candles.empty:
-                ui.label(f"No candle data for ATM {opt_type} (ID: {sec_id})").classes("text-orange-500")
-                continue
-            contract_name = f"{cfg['name_prefix']} {exp_tag} {int(atm)} {opt_type}"
-            current_price = round(float(candles["close"].iloc[-1]), 2)
-            _run_strategy(algo_type, candles, current_price, contract_name, candles_by_type, opt_type)
 
 
 # ── tab entry point ───────────────────────────────────────────────────────────
 
 def render_algo_tab(container, algo_type="abcd"):
     """Build the live algo trading tab. Returns async refresh()."""
-    _sel = {"index": "NIFTY", "algo": "abcd"}
-    active_timers = []  # 0.5s ticker timers — cancelled before each reload
+    # Default to first available stock
+    _default_sid = _ALL_STOCKS[0]["security_id"] if _ALL_STOCKS else None
+    _sel = {"security_id": _default_sid, "algo": "abcd"}
+    active_timers = []
 
     def _cancel_timers():
         for t in active_timers:
@@ -305,12 +259,12 @@ def render_algo_tab(container, algo_type="abcd"):
         ui.label("Live Algo Trading").classes("text-xl font-bold mb-2")
 
         with ui.row().classes("items-center gap-4 flex-wrap mb-4"):
-            ui.label("Index:").classes("text-sm font-medium text-gray-700")
-            index_select = ui.select(
-                options=_INDEX_OPTIONS,
-                value=_sel["index"],
+            ui.label("Stock:").classes("text-sm font-medium text-gray-700")
+            stock_select = ui.select(
+                options=_STOCK_OPTIONS,
+                value=_sel["security_id"],
                 label="",
-            ).props("outlined dense").classes("w-40")
+            ).props("outlined dense").classes("w-48")
 
             ui.label("Strategy:").classes("text-sm font-medium text-gray-700")
             strategy_select = ui.select(
@@ -325,11 +279,16 @@ def render_algo_tab(container, algo_type="abcd"):
             ui.label("Loading data…").classes("text-gray-500 text-center w-full")
 
     async def _load():
-        idx_key = index_select.value or "NIFTY"
-        strat   = strategy_select.value or "abcd"
-        _sel["index"] = idx_key
-        _sel["algo"]  = strat
-        cfg  = INDICES[idx_key]
+        sid   = stock_select.value or _default_sid
+        strat = strategy_select.value or "abcd"
+        _sel["security_id"] = sid
+        _sel["algo"]        = strat
+
+        stock = _STOCK_BY_SID.get(sid)
+        if not stock:
+            return
+        stock_name = stock["name"]
+
         loop = asyncio.get_event_loop()
 
         if content_container.client._deleted:
@@ -340,106 +299,55 @@ def render_algo_tab(container, algo_type="abcd"):
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
             strat_label = dict(_STRATEGIES).get(strat, strat)
-            ui.label(f"Loading {idx_key} — {strat_label}…").classes("text-gray-500 text-center w-full")
+            ui.label(f"Loading {stock_name} — {strat_label}…").classes("text-gray-500 text-center w-full")
 
-        # 1. Expiries
+        # Fetch 5-min equity candles
         try:
-            expiries = await loop.run_in_executor(
-                None, lambda: get_expiries(cfg["scrip"], cfg["segment"], 2, for_algo=True)
+            candles = await loop.run_in_executor(
+                None, lambda: _fetch_any_stock_candles(sid, interval=5)
             )
         except Exception as e:
             if not content_container.client._deleted:
                 content_container.clear()
                 with content_container:
-                    ui.label(f"Could not fetch expiries: {e}").classes("text-red-500")
+                    ui.label(f"Could not fetch candles: {e}").classes("text-red-500")
             return
 
         if content_container.client._deleted:
             return
 
-        # 2. Option chains
-        expiry_data = {}
-        for exp in expiries:
-            try:
-                raw = await loop.run_in_executor(
-                    None, lambda e=exp: fetch_option_chain_raw(cfg["scrip"], cfg["segment"], e)
-                )
-                expiry_data[exp] = raw
-            except Exception as e:
-                expiry_data[exp] = e
-            if content_container.client._deleted:
-                return
-            await asyncio.sleep(0.2)
-
-        # 3. 5-min candles for ATM CE + PE
-        candles_cache = {}
-        ws_securities = []
+        # Filter to today's candles
         today_date = now_ist().date()
+        if candles is not None and not candles.empty:
+            candles = candles[candles["timestamp"].dt.date == today_date].reset_index(drop=True)
 
-        for exp, raw in expiry_data.items():
-            if isinstance(raw, Exception):
-                continue
-            spot = round(float(raw["last_price"]), 2)
-            atm  = round(spot / cfg["strike_step"]) * cfg["strike_step"]
-            strikes = sorted(raw["oc"].keys(), key=lambda s: abs(float(s) - atm))
-            if not strikes:
-                continue
-            sides = raw["oc"][strikes[0]]
-            ce_id = sides.get("ce", {}).get("security_id")
-            pe_id = sides.get("pe", {}).get("security_id")
+        # Subscribe WS for live price
+        ws_feed.subscribe([(mf.NSE, sid)])
 
-            candles_cache[exp] = {}
-            for opt_type, sec_id in [("CE", ce_id), ("PE", pe_id)]:
-                if not sec_id:
-                    continue
-                ws_securities.append((mf.NSE_FNO, sec_id))
-                try:
-                    candles = await loop.run_in_executor(
-                        None, lambda sid=sec_id: fetch_5min_candles(sid)
-                    )
-                    if not candles.empty:
-                        candles = candles[candles["timestamp"].dt.date == today_date].reset_index(drop=True)
-                    candles_cache[exp][opt_type] = (sec_id, candles)
-                except Exception:
-                    candles_cache[exp][opt_type] = (sec_id, None)
-                if content_container.client._deleted:
-                    return
-                await asyncio.sleep(0.2)
-
-        if content_container.client._deleted:
-            return
-
-        # 4. Subscribe WS
-        if ws_securities:
-            ws_feed.subscribe(ws_securities)
-
-        # 5. Build UI
         _cancel_timers()
         content_container.clear()
         with content_container:
-            if not expiries:
-                ui.label("No expiries found").classes("text-gray-500")
+            if candles is None or candles.empty:
+                ui.label(f"No candle data for {stock_name} today.").classes("text-orange-500")
                 return
 
-            for exp in expiries:
-                result = expiry_data.get(exp)
-                with ui.expansion(f"Expiry: {exp}", value=True).classes("w-full border rounded mb-2"):
-                    if isinstance(result, Exception):
-                        ui.label(f"Error: {result}").classes("text-red-500")
-                    elif result is None:
-                        ui.label("No data").classes("text-gray-500")
-                    else:
-                        inner = ui.element("div").classes("w-full")
-                        _render_algo_option(
-                            inner, cfg, exp, result,
-                            candles_cache.get(exp, {}),
-                            strat, active_timers,
-                        )
+            current_price = round(float(candles["close"].iloc[-1]), 2)
 
-        # Flush all chart JS after UI is fully built and DOM is synced
+            with ui.row().classes("gap-4 sm:gap-8 flex-wrap items-center mb-2"):
+                ui.label(f"{stock_name}").classes("text-sm sm:text-lg font-bold")
+                ui.label(f"LTP: ₹{current_price:,.2f}").classes("text-sm sm:text-lg")
+                ui.label("● LIVE").classes("text-xs font-bold text-green-600 animate-pulse")
+
+            ticker_container = ui.element("div").classes("w-full")
+            _build_live_ticker(ticker_container, sid, stock_name, active_timers)
+
+            ui.separator()
+
+            _run_strategy(strat, candles, current_price, stock_name)
+
         await flush_pending_js()
 
-    index_select.on_value_change(lambda e: asyncio.ensure_future(_load()))
+    stock_select.on_value_change(lambda e: asyncio.ensure_future(_load()))
     strategy_select.on_value_change(lambda e: asyncio.ensure_future(_load()))
 
     async def refresh():
