@@ -4,5 +4,12 @@
       "Bash(curl --version)",
       "Bash(python -c \"import subprocess; r = subprocess.run\\([''which'', ''curl''], capture_output=True, text=True\\); print\\(r.stdout\\); r2 = subprocess.run\\([''where'', ''curl''], capture_output=True, text=True\\); print\\(r2.stdout\\)\")"
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "telegram@claude-plugins-official": true
   }
 }

@@ -653,13 +653,14 @@ def detect_ema10_signals(candles):
     """Generate signals when price crosses above/below EMA(10)."""
     df = candles.copy()
     df["ema10"] = compute_ema(df["close"], EMA10_PERIOD)
-    df = df.dropna().reset_index(drop=True)
-    if len(df) < 2:
-        return [], df
+    df_ind = df.reset_index(drop=True)           # full df with indicator (NaNs kept for chart line)
+    df_clean = df.dropna().reset_index(drop=True)  # NaN-free df for signal detection
+    if len(df_clean) < 2:
+        return [], df_ind
     signals = []
-    for i in range(1, len(df)):
-        prev = df.iloc[i - 1]
-        curr = df.iloc[i]
+    for i in range(1, len(df_clean)):
+        prev = df_clean.iloc[i - 1]
+        curr = df_clean.iloc[i]
         # Bullish: close crosses above EMA 10
         if prev["close"] <= prev["ema10"] and curr["close"] > curr["ema10"]:
             target = curr["close"] * (1 + EMA10_TARGET_PCT)
@@ -686,7 +687,7 @@ def detect_ema10_signals(candles):
                 "time": curr["timestamp"],
                 "ema10": round(float(curr["ema10"]), 2),
             })
-    return signals, df
+    return signals, df_ind
 
 
 def backtest_ema10(signals, candles):
@@ -760,13 +761,14 @@ def detect_sma50_signals(candles):
     """Generate signals when price crosses above/below SMA(50)."""
     df = candles.copy()
     df["sma50"] = compute_sma(df["close"], SMA50_PERIOD)
-    df = df.dropna().reset_index(drop=True)
-    if len(df) < 2:
-        return [], df
+    df_ind = df.reset_index(drop=True)           # full df with indicator (NaNs kept for chart line)
+    df_clean = df.dropna().reset_index(drop=True)  # NaN-free df for signal detection
+    if len(df_clean) < 2:
+        return [], df_ind
     signals = []
-    for i in range(1, len(df)):
-        prev = df.iloc[i - 1]
-        curr = df.iloc[i]
+    for i in range(1, len(df_clean)):
+        prev = df_clean.iloc[i - 1]
+        curr = df_clean.iloc[i]
         # Bullish: close crosses above SMA 50
         if prev["close"] <= prev["sma50"] and curr["close"] > curr["sma50"]:
             target = curr["close"] * (1 + SMA50_TARGET_PCT)
@@ -793,7 +795,7 @@ def detect_sma50_signals(candles):
                 "time": curr["timestamp"],
                 "sma50": round(float(curr["sma50"]), 2),
             })
-    return signals, df
+    return signals, df_ind
 
 
 def backtest_sma50(signals, candles):
