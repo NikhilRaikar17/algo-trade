@@ -26,7 +26,7 @@ def render_abcd_only_tab(container):
     selected: dict = {"security_id": None, "label": None}
 
     with container:
-        ui.label("ABCD Harmonic Scanner").classes("text-xl font-bold mb-2")
+        ui.label("ABCD Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
             "bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3"
         ):

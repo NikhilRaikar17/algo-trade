@@ -169,7 +169,7 @@ def send_morning_message():
     day_name = now.strftime("%A, %d %b %Y")
     _send_telegram(
         f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
-        f"Strategies: ABCD Harmonic | Double Top | Double Bottom | EMA10 | SMA50\n"
+        f"Strategies: ABCD | Double Top | Double Bottom | EMA10 | SMA50\n"
         f"Monitoring: Top Stocks (5-min equity candles)\n"
         f"Stocks ({len(stocks)}): {stock_names}\n"
         f"Refresh interval: {REFRESH_SECONDS}s\n"

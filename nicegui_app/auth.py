@@ -67,7 +67,7 @@ with SessionLocal() as _s:
 # display_name: shown in dropdowns
 # short_name: used in trade["strategy"] field and P&L grouping
 _SEED_STRATEGIES: list[tuple[str, str, str, int]] = [
-    ("abcd",  "ABCD Harmonic", "ABCD",         1),
+    ("abcd",  "ABCD",          "ABCD",         1),
     ("dt",    "Double Top",    "Double Top",    2),
     ("db",    "Double Bottom", "Double Bottom", 3),
     ("ema10", "EMA 10",        "EMA 10",        4),
@@ -84,6 +84,10 @@ with SessionLocal() as _s:
                 short_name=_short,
                 sort_order=_order,
             ))
+        else:
+            exists.display_name = _display
+            exists.short_name = _short
+            exists.sort_order = _order
     _s.commit()
 
 

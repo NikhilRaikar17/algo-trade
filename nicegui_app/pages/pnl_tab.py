@@ -11,7 +11,7 @@ from pnl import collect_all_trades
 from state import load_trade_history
 from ui_components import build_trade_table
 from strategy_registry import get_strategy_short_names
-from brokerage import charges_for_trades, LOT_SIZES, DEFAULT_LOT_SIZE
+from brokerage import charges_for_trades
 
 _ALL_STRATEGIES = get_strategy_short_names()
 
@@ -25,7 +25,7 @@ def render_pnl_tab(container):
         summary_container = ui.element("div").classes("w-full")
 
     # Mutable filter state shared between refresh() and event handlers
-    _state = {"strategy": "All", "date": "All", "lot_size": DEFAULT_LOT_SIZE, "quantity": 1}
+    _state = {"strategy": "All", "date": "All"}
     # Latest fetched data (updated each refresh cycle)
     _data = {"completed": [], "active": []}
 
@@ -82,10 +82,8 @@ def render_pnl_tab(container):
             losers = sum(1 for t in filtered if t.get("pnl", 0) < 0)
             win_rate = (winners / total_trades * 100) if total_trades else 0
 
-            # Brokerage calculation
-            lot_size = _state["lot_size"]
-            quantity = _state["quantity"]
-            charges = charges_for_trades(filtered, lot_size=lot_size, quantity=quantity)
+            # Brokerage calculation (equity intraday, 1 share per trade)
+            charges = charges_for_trades(filtered, lot_size=1, quantity=1, segment="equity_intraday")
             gross_pnl = charges["gross_pnl"]
             total_charges = charges["total_charges"]
             net_pnl = charges["net_pnl"]
@@ -95,9 +93,8 @@ def render_pnl_tab(container):
                     ui.label("Gross P&L").classes("text-sm text-gray-500")
                     color = "text-green-600" if gross_pnl >= 0 else "text-red-600"
                     ui.label(f"₹{gross_pnl:+,.2f}").classes(f"text-2xl font-bold {color}")
-                    ui.label(f"Raw: {total_pnl:+.2f} pts").classes("text-xs text-gray-400")
                 with ui.card().classes("p-3 min-w-[120px] flex-1 border border-orange-200"):
-                    ui.label("Brokerage & Taxes").classes("text-sm text-gray-500")
+                    ui.label("Charges").classes("text-sm text-gray-500")
                     ui.label(f"₹{total_charges:,.2f}").classes("text-2xl font-bold text-orange-500")
                     ui.label(
                         f"Avg ₹{charges['per_trade_avg_charges']:.0f}/trade"
@@ -106,7 +103,7 @@ def render_pnl_tab(container):
                     ui.label("Net P&L").classes("text-sm text-gray-500")
                     net_color = "text-green-600" if net_pnl >= 0 else "text-red-600"
                     ui.label(f"₹{net_pnl:+,.2f}").classes(f"text-2xl font-bold {net_color}")
-                    ui.label("After all charges").classes("text-xs text-gray-400")
+                    ui.label("After charges").classes("text-xs text-gray-400")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("Trades").classes("text-sm text-gray-500")
                     ui.label(str(total_trades)).classes("text-2xl font-bold")
@@ -116,23 +113,6 @@ def render_pnl_tab(container):
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("W / L").classes("text-sm text-gray-500")
                     ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")
-
-            # ── Brokerage breakdown (collapsible) ─────────────────────────
-            with ui.expansion("Charges Breakdown", icon="receipt_long").classes(
-                "w-full bg-gray-50 rounded mb-3 text-sm"
-            ):
-                with ui.row().classes("gap-6 flex-wrap px-4 py-2"):
-                    for label, key in [
-                        ("Brokerage", "brokerage"),
-                        ("STT", "stt"),
-                        ("Exchange", "exchange"),
-                        ("GST", "gst"),
-                        ("SEBI", "sebi"),
-                        ("Stamp", "stamp"),
-                    ]:
-                        with ui.element("div").classes("flex flex-col"):
-                            ui.label(label).classes("text-xs text-gray-500")
-                            ui.label(f"₹{charges[key]:.2f}").classes("text-sm font-semibold")
 
             # ── Per-strategy breakdown cards ───────────────────────────────
             ui.label("Strategy Breakdown").classes("text-base font-semibold mb-1")
@@ -301,22 +281,6 @@ def render_pnl_tab(container):
                     label="Date",
                 ).classes("w-36")
 
-                ui.separator().props("vertical").classes("mx-1 h-8")
-
-                ui.label("Lot Size:").classes("text-sm font-medium text-orange-600")
-                lot_select = ui.select(
-                    {name: f"{name} ({size})" for name, size in LOT_SIZES.items()},
-                    value=next(
-                        (n for n, s in LOT_SIZES.items() if s == _state["lot_size"]),
-                        list(LOT_SIZES.keys())[0],
-                    ),
-                    label="Index",
-                ).classes("w-40")
-
-                qty_input = ui.number(
-                    label="Lots", value=_state["quantity"], min=1, max=100, step=1
-                ).classes("w-20").props("dense outlined")
-
         def on_strat(e):
             _state["strategy"] = e.value
             _render()
@@ -325,21 +289,8 @@ def render_pnl_tab(container):
             _state["date"] = e.value
             _render()
 
-        def on_lot(e):
-            _state["lot_size"] = LOT_SIZES.get(e.value, DEFAULT_LOT_SIZE)
-            _render()
-
-        def on_qty(e):
-            try:
-                _state["quantity"] = max(1, int(e.value or 1))
-            except (TypeError, ValueError):
-                _state["quantity"] = 1
-            _render()
-
         strat_select.on_value_change(on_strat)
         date_select.on_value_change(on_date)
-        lot_select.on_value_change(on_lot)
-        qty_input.on_value_change(on_qty)
 
     # ── refresh (called by main loop) ─────────────────────────────────────────
 
@@ -351,7 +302,8 @@ def render_pnl_tab(container):
         _data["completed"] = all_completed
         _data["active"] = all_active
 
-        strategies = sorted(set(t.get("strategy", "Unknown") for t in all_completed))
+        trade_strategies = set(t.get("strategy", "Unknown") for t in all_completed)
+        strategies = sorted(set(_ALL_STRATEGIES) | trade_strategies)
         dates = sorted(
             set(t.get("trade_date", "Unknown") for t in all_completed),
             reverse=True,
