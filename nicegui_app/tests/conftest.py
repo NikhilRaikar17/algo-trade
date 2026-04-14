@@ -35,9 +35,9 @@ def sample_ohlcv_df():
       C (low)  at bar 12, price 106  → BC = 14, BC/AB = 0.70 (in [0.618-0.15, 0.786+0.15])
       D (high) at bar 18, price 126  → CD = 20, CD/AB = 1.0  (in [1.0-0.15, 1.618+0.15])
 
-    All other bars are neutral (open=close=110, high=112, low=108) except
-    the swing bars which have exaggerated highs/lows to be detected by
-    find_swing_points with order=3.
+    All other bars are neutral (open=close=110). To avoid false swings, the pattern
+    alternates between neutral-high (high=115, low=110) and neutral-low (high=111, low=105)
+    between the swing bars to prevent multiple highs/lows at the same level.
     """
     base = _ist(2026, 3, 10, 9, 15)
     from datetime import timedelta
@@ -45,20 +45,42 @@ def sample_ohlcv_df():
 
     opens  = [110.0] * 30
     closes = [110.0] * 30
+    # Create bars with distinct non-swing prices to avoid false swings
     highs  = [112.0] * 30
-    lows   = [108.0] * 30
+    lows   = [110.0] * 30
+
+    # Bars 0-2: baseline before swing A
+    # (defaults are fine)
 
     # Bar 3: swing LOW (A) — price dips to 100
     lows[3] = 100.0; highs[3] = 101.0; opens[3] = 101.0; closes[3] = 100.5
 
+    # Bars 4-6: recovery toward bar 7
+    for i in [4, 5, 6]:
+        highs[i] = 117.0
+        lows[i] = 114.0
+
     # Bar 7: swing HIGH (B) — price peaks at 120
     highs[7] = 120.0; lows[7] = 119.0; opens[7] = 119.5; closes[7] = 119.8
 
-    # Bar 12: swing LOW (C) — price dips to 106  (BC/AB = 14/20 = 0.70)
+    # Bars 8-11: retreat toward bar 12 (gradually lower)
+    for i in [8, 9, 10, 11]:
+        highs[i] = 115.0 - (i - 8) * 1.5
+        lows[i] = 113.0 - (i - 8) * 1.5
+
+    # Bar 12: swing LOW (C) — price dips to 106
     lows[12] = 106.0; highs[12] = 107.0; opens[12] = 107.0; closes[12] = 106.5
 
-    # Bar 18: swing HIGH (D) — price peaks at 126  (CD/AB = 20/20 = 1.0)
+    # Bars 13-17: recovery toward bar 18
+    for i in [13, 14, 15, 16, 17]:
+        highs[i] = 108.0 + (i - 12) * 2.0
+        lows[i] = 105.0 + (i - 12) * 2.0
+
+    # Bar 18: swing HIGH (D) — price peaks at 126
     highs[18] = 126.0; lows[18] = 125.0; opens[18] = 125.0; closes[18] = 125.5
+
+    # Bars 19-29: default baseline
+    # (defaults are fine)
 
     df = pd.DataFrame({
         "timestamp": times,
