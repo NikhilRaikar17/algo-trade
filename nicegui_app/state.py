@@ -79,6 +79,7 @@ def save_completed_trade(key, trade):
             "key": key,
             "trade_date": trade.get("trade_date", now_ist().strftime("%Y-%m-%d")),
             "strategy": str(trade.get("strategy", "Unknown")),
+            "symbol": str(trade.get("symbol", "")),
             "signal": str(trade.get("signal", "")),
             "entry": float(trade.get("entry", 0)),
             "exit_price": float(trade.get("exit_price", 0)),

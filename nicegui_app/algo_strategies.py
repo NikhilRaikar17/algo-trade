@@ -152,6 +152,7 @@ def classify_trades(patterns, current_price, contract_name=""):
                 if not _is_already_sent(completed_key):
                     p["trade_date"] = now_ist().strftime("%Y-%m-%d")
                     p["strategy"] = "ABCD"
+                    p["symbol"] = contract_name
                     save_completed_trade(completed_key, p)
                     _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
@@ -176,6 +177,7 @@ def classify_trades(patterns, current_price, contract_name=""):
                 if not _is_already_sent(completed_key):
                     p["trade_date"] = now_ist().strftime("%Y-%m-%d")
                     p["strategy"] = "ABCD"
+                    p["symbol"] = contract_name
                     save_completed_trade(completed_key, p)
                     _mark_sent(completed_key)
                     emoji = "+" if p["pnl"] > 0 else ""
@@ -184,6 +186,7 @@ def classify_trades(patterns, current_price, contract_name=""):
                     )
             else:
                 p["unrealized_pnl"] = round(pnl, 2)
+                p["symbol"] = contract_name
                 active.append(p)
                 if not _is_already_sent(active_key):
                     _mark_sent(active_key)
@@ -374,6 +377,7 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
             if not _is_already_sent(completed_key):
                 s["trade_date"] = now_ist().strftime("%Y-%m-%d")
                 s["strategy"] = "RSI+SMA"
+                s["symbol"] = contract_name
                 save_completed_trade(completed_key, s)
                 _mark_sent(completed_key)
                 emoji = "+" if pnl > 0 else ""
@@ -382,6 +386,7 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
                 )
         else:
             s["unrealized_pnl"] = pnl
+            s["symbol"] = contract_name
             active.append(s)
             if not _is_already_sent(active_key):
                 _mark_sent(active_key)
@@ -888,6 +893,7 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
             if not _is_already_sent(completed_key):
                 s["trade_date"] = now_ist().strftime("%Y-%m-%d")
                 s["strategy"] = strategy_name
+                s["symbol"] = contract_name
                 save_completed_trade(completed_key, s)
                 _mark_sent(completed_key)
                 emoji = "+" if pnl > 0 else ""
@@ -898,6 +904,7 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
                 )
         else:
             s["unrealized_pnl"] = pnl
+            s["symbol"] = contract_name
             active.append(s)
             if not _is_already_sent(active_key):
                 _mark_sent(active_key)

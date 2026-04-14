@@ -82,17 +82,31 @@ def _strategy_from_key(key):
     return "Unknown"
 
 
+def _symbol_from_key(key):
+    """Extract stock name from trade store key, e.g. 'abcd_trades_RELIANCE' → 'RELIANCE'."""
+    marker = "_trades_"
+    idx = key.find(marker)
+    if idx != -1:
+        return key[idx + len(marker):]
+    return ""
+
+
 def collect_all_trades():
     all_active = []
     all_completed = []
     for key, val in _trade_store.items():
         if isinstance(val, dict) and "active" in val and "completed" in val:
             strategy = _strategy_from_key(key)
+            symbol = _symbol_from_key(key)
             for t in val["active"]:
                 t["strategy"] = strategy
+                if not t.get("symbol"):
+                    t["symbol"] = symbol
                 all_active.append(t)
             for t in val["completed"]:
                 t["strategy"] = strategy
+                if not t.get("symbol"):
+                    t["symbol"] = symbol
                 all_completed.append(t)
     return all_active, all_completed
 

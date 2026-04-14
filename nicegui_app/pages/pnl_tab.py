@@ -25,7 +25,7 @@ def render_pnl_tab(container):
         summary_container = ui.element("div").classes("w-full")
 
     # Mutable filter state shared between refresh() and event handlers
-    _state = {"strategy": "All", "date": "All"}
+    _state = {"strategy": "All", "date": "All", "stock": "All"}
     # Latest fetched data (updated each refresh cycle)
     _data = {"completed": [], "active": []}
 
@@ -63,6 +63,8 @@ def render_pnl_tab(container):
             out = [t for t in out if t.get("strategy") == _state["strategy"]]
         if _state["date"] != "All":
             out = [t for t in out if t.get("trade_date") == _state["date"]]
+        if _state["stock"] != "All":
+            out = [t for t in out if t.get("symbol") == _state["stock"]]
         return out
 
     # ── main render ──────────────────────────────────────────────────────────
@@ -192,6 +194,7 @@ def render_pnl_tab(container):
                     {
                         "Date":      t.get("trade_date", ""),
                         "Strategy":  t.get("strategy", ""),
+                        "Stock":     t.get("symbol", ""),
                         "Signal":    t.get("signal", ""),
                         "Entry":     t.get("entry", 0),
                         "Target":    round(t.get("target", 0), 2) if t.get("target") else "—",
@@ -250,6 +253,7 @@ def render_pnl_tab(container):
                 rows = [
                     {
                         "Strategy":   t.get("strategy", ""),
+                        "Stock":      t.get("symbol", ""),
                         "Signal":     t.get("signal", ""),
                         "Entry":      t.get("entry", 0),
                         "Target":     t.get("target", 0),
@@ -263,7 +267,7 @@ def render_pnl_tab(container):
 
     # ── filter row builder ────────────────────────────────────────────────────
 
-    def _build_filter_row(strategies, dates):
+    def _build_filter_row(strategies, dates, stocks):
         filter_row.clear()
         with filter_row:
             with ui.row().classes("gap-4 items-center flex-wrap"):
@@ -273,6 +277,13 @@ def render_pnl_tab(container):
                     value=_state["strategy"],
                     label="Strategy",
                 ).classes("w-36")
+
+                ui.label("Stock:").classes("text-sm font-medium")
+                stock_select = ui.select(
+                    ["All"] + stocks,
+                    value=_state["stock"],
+                    label="Stock",
+                ).classes("w-40")
 
                 ui.label("Date:").classes("text-sm font-medium")
                 date_select = ui.select(
@@ -285,11 +296,16 @@ def render_pnl_tab(container):
             _state["strategy"] = e.value
             _render()
 
+        def on_stock(e):
+            _state["stock"] = e.value
+            _render()
+
         def on_date(e):
             _state["date"] = e.value
             _render()
 
         strat_select.on_value_change(on_strat)
+        stock_select.on_value_change(on_stock)
         date_select.on_value_change(on_date)
 
     # ── refresh (called by main loop) ─────────────────────────────────────────
@@ -308,14 +324,17 @@ def render_pnl_tab(container):
             set(t.get("trade_date", "Unknown") for t in all_completed),
             reverse=True,
         )
+        stocks = sorted(s for s in set(t.get("symbol", "") for t in all_completed + all_active) if s)
 
         # Reset stale filter values if they no longer exist in data
         if _state["strategy"] not in (["All"] + strategies):
             _state["strategy"] = "All"
         if _state["date"] not in (["All"] + dates):
             _state["date"] = "All"
+        if _state["stock"] not in (["All"] + stocks):
+            _state["stock"] = "All"
 
-        _build_filter_row(strategies, dates)
+        _build_filter_row(strategies, dates, stocks)
         _render()
 
     return refresh
