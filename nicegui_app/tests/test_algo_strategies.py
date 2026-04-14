@@ -2,6 +2,7 @@
 
 import pytest
 import pytz
+import pandas as pd
 from datetime import datetime, timedelta
 
 IST = pytz.timezone("Asia/Kolkata")
@@ -106,3 +107,72 @@ def test_detect_abcd_no_pattern_out_of_ratio(bc_ratio, cd_ab_ratio):
     ]
     patterns = detect_abcd_patterns(swings, tolerance=0.15)
     assert patterns == []
+
+
+# ── RSI+SMA helpers ──────────────────────────────────────────────────────────
+
+def _make_crossover_df(cross_direction="up", n_bars=60):
+    """
+    Build a synthetic OHLCV DataFrame that produces a clean SMA(9)/SMA(21) crossover.
+
+    cross_direction="up"  → fast SMA crosses above slow SMA at last bar (BUY signal)
+    cross_direction="down" → fast SMA crosses below slow SMA at last bar (SELL signal)
+    """
+    base = IST.localize(datetime(2026, 3, 10, 9, 15))
+    times = [base + timedelta(minutes=15 * i) for i in range(n_bars)]
+
+    if cross_direction == "up":
+        # Declining prices (fast SMA < slow SMA), then sharp rise at the end
+        closes = [100.0 - i * 0.1 for i in range(n_bars - 5)]
+        closes += [closes[-1] + i * 1.5 for i in range(1, 6)]
+    else:
+        # Rising prices (fast SMA > slow SMA), then sharp drop at the end
+        closes = [100.0 + i * 0.1 for i in range(n_bars - 5)]
+        closes += [closes[-1] - i * 1.5 for i in range(1, 6)]
+
+    df = pd.DataFrame({
+        "timestamp": times,
+        "open":  closes,
+        "high":  [c + 0.5 for c in closes],
+        "low":   [c - 0.5 for c in closes],
+        "close": closes,
+        "volume": [1000] * n_bars,
+    })
+    return df
+
+
+# ── detect_rsi_sma_signals ───────────────────────────────────────────────────
+
+def test_detect_rsi_sma_buy_signal():
+    from algo_strategies import detect_rsi_sma_signals
+    df = _make_crossover_df(cross_direction="up")
+    signals, _ = detect_rsi_sma_signals(df)
+    buy_signals = [s for s in signals if s["type"] == "Bullish"]
+    assert len(buy_signals) >= 1
+    s = buy_signals[-1]
+    assert s["signal"] == "BUY CE — SMA crossover + RSI recovery"
+    assert s["entry"] > 0
+    assert s["target"] > s["entry"]   # 4% above entry
+    assert s["stop_loss"] < s["entry"]  # 2% below entry
+
+
+def test_detect_rsi_sma_sell_signal():
+    from algo_strategies import detect_rsi_sma_signals
+    df = _make_crossover_df(cross_direction="down")
+    signals, _ = detect_rsi_sma_signals(df)
+    sell_signals = [s for s in signals if s["type"] == "Bearish"]
+    assert len(sell_signals) >= 1
+    s = sell_signals[-1]
+    assert s["signal"] == "BUY PE — SMA crossover + RSI overbought"
+    assert s["stop_loss"] > s["entry"]   # 2% above entry
+    assert s["target"] < s["entry"]      # 4% below entry
+
+
+def test_detect_rsi_sma_returns_dataframe_with_indicators():
+    from algo_strategies import detect_rsi_sma_signals
+    df = _make_crossover_df()
+    _, enriched = detect_rsi_sma_signals(df)
+    assert "rsi" in enriched.columns
+    assert "sma_fast" in enriched.columns
+    assert "sma_slow" in enriched.columns
+    assert enriched["rsi"].notna().any()
