@@ -1,9 +1,7 @@
 """Tests for state.py: cache, dedup, and market hours."""
 
-import json
 import time
 from datetime import datetime
-from unittest.mock import mock_open, patch
 
 import pytest
 import pytz
