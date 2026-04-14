@@ -1,4 +1,8 @@
-"""Shared pytest fixtures for the algotrading test suite."""
+"""
+Shared pytest fixtures for the algotrading test suite.
+
+Requires dev dependencies: uv sync --group dev
+"""
 
 import time
 from datetime import datetime
