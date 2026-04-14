@@ -1,16 +1,10 @@
 """Tests for algo_strategies.py: swing detection, ABCD patterns, RSI+SMA signals."""
 
-import numpy as np
-import pandas as pd
 import pytest
 import pytz
 from datetime import datetime, timedelta
 
 IST = pytz.timezone("Asia/Kolkata")
-
-
-def _ist(year, month, day, hour=10, minute=0):
-    return IST.localize(datetime(year, month, day, hour, minute))
 
 
 # ── find_swing_points ────────────────────────────────────────────────────────
