@@ -10,7 +10,27 @@
       "Bash(python -c \":*)",
       "Bash(python -c \"from datetime import datetime; print\\(''Local time:'', datetime.now\\(\\)\\); import time; print\\(''Timezone:'', time.tzname\\)\")",
       "Bash(python -m py_compile dhan_websockets/nifty_option_chain_app.py)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ls -la /c/Users/nikhi/Desktop/freelanceProject/algotrading/nicegui_app/*.py)",
+      "Bash(uv:*)",
+      "Bash(grep -r \"async def\\\\|asyncio\\\\|await \" /c/Users/nikhi/Desktop/freelanceProject/algotrading/nicegui_app/*.py)",
+      "Bash(grep -r \"fixture\\\\|@pytest\\\\|@mock\" /c/Users/nikhi/Desktop/freelanceProject/algotrading/nicegui_app/*.py)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(ls -la .venv/Scripts/pytest*)",
+      "Bash(./.venv/Scripts/pytest tests/test_state.py -v)",
+      "Bash(./.venv/Scripts/pytest tests/test_state.py --collect-only -q)",
+      "Bash(./.venv/Scripts/pytest tests/test_state.py -v --tb=short)",
+      "Bash(./.venv/Scripts/python -c \"from tests.test_state import *; print\\('Imports OK'\\)\")",
+      "Bash(./.venv/Scripts/pytest tests/test_state.py -v --tb=long)",
+      "Bash(./.venv/Scripts/pytest tests/test_state.py -v --collect-only)",
+      "Bash(./.venv/Scripts/pytest tests/test_state.py::test_cache_miss_returns_none -v -s)",
+      "Bash(./.venv/Scripts/python)",
+      "Bash(./.venv/Scripts/pytest tests/test_state.py -v --tb=short --setup-show)",
+      "Bash(./.venv/Scripts/python -m flake8 tests/test_state.py --max-line-length=100)",
+      "Bash(grep -E \"\\\\.py$|test\")"
     ]
   }
 }
