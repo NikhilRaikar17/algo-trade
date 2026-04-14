@@ -452,7 +452,7 @@ def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
                         entry = neckline  # limit entry at neckline, not the breakdown candle close
                         sl = resistance
                         height = sl - neckline
-                        target = float(neckline - height)
+                        target = float(neckline - 2 * height)  # target = 2× SL distance
                         all_signals.append({
                             "time": bar["timestamp"],
                             "signal": "SELL — Double Top neckline break",
@@ -568,7 +568,7 @@ def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_betwee
                         entry = neckline  # limit entry at neckline, not the breakout candle close
                         sl = support
                         height = neckline - sl
-                        target = float(neckline + height)
+                        target = float(neckline + 2 * height)  # target = 2× SL distance
                         all_signals.append({
                             "time": bar["timestamp"],
                             "signal": "BUY — Double Bottom neckline break",
