@@ -255,7 +255,26 @@ def render_dashboard(container):
         # ---- API Status Bar (two pills) ----
         api_status_container = ui.element("div").classes("w-full mb-4")
         with api_status_container:
-            _render_api_status_pills(ws_connected=False, last_tick=None)
+            with ui.row().classes("w-full gap-3 flex-wrap"):
+                # Pill 1: WebSocket status
+                with ui.card().classes(
+                    "border border-red-200 bg-red-50 rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
+                ).props("flat") as _ws_pill:
+                    with ui.row().classes("items-center gap-2"):
+                        _ws_icon = ui.icon("wifi_off", size="20px").classes("text-red-500")
+                        _ws_label = ui.label("Dhan WS — Disconnected").classes(
+                            "text-sm font-semibold text-red-700"
+                        )
+                        ui.space()
+                        _ws_dot = ui.element("div").classes("w-2 h-2 rounded-full bg-red-500 animate-pulse")
+
+                # Pill 2: Last tick
+                with ui.card().classes(
+                    "border border-gray-100 bg-gray-50 rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
+                ).props("flat"):
+                    with ui.row().classes("items-center gap-2"):
+                        ui.icon("schedule", size="20px").classes("text-gray-400")
+                        _tick_label = ui.label("Waiting for first tick…").classes("text-sm text-gray-500")
 
         # ---- Section Header ----
         with ui.row().classes("w-full items-center mb-4"):
@@ -310,7 +329,7 @@ def render_dashboard(container):
                     )
                     _price_labels[spot_key]["badge"].classes(color_cls, remove="text-green-700 text-red-700")
 
-            # Update API status pills
+            # Update API status pills in-place
             last_tick_times = [
                 entry.get("timestamp")
                 for key in ["NIFTY", "BANKNIFTY", "VIX"]
@@ -318,9 +337,27 @@ def render_dashboard(container):
                 if entry and entry.get("timestamp")
             ]
             last_tick = max(last_tick_times) if last_tick_times else None
-            api_status_container.clear()
-            with api_status_container:
-                _render_api_status_pills(ws_connected=_state.get_ws_connected(), last_tick=last_tick)
+            ws_ok = _state.get_ws_connected()
+            if ws_ok:
+                _ws_pill.classes(
+                    "border-green-200 bg-green-50",
+                    remove="border-red-200 bg-red-50"
+                )
+                _ws_icon.props("name=wifi").classes("text-green-500", remove="text-red-500")
+                _ws_label.set_text("Dhan WS — Live")
+                _ws_label.classes("text-green-700", remove="text-red-700")
+                _ws_dot.classes("bg-green-500", remove="bg-red-500 animate-pulse")
+            else:
+                _ws_pill.classes(
+                    "border-red-200 bg-red-50",
+                    remove="border-green-200 bg-green-50"
+                )
+                _ws_icon.props("name=wifi_off").classes("text-red-500", remove="text-green-500")
+                _ws_label.set_text("Dhan WS — Disconnected")
+                _ws_label.classes("text-red-700", remove="text-green-700")
+                _ws_dot.classes("bg-red-500 animate-pulse", remove="bg-green-500")
+            tick_text = f"Last tick: {last_tick} IST" if last_tick else "Waiting for first tick…"
+            _tick_label.set_text(tick_text)
 
         # Timer runs regardless of tab visibility — set_text on hidden labels is harmless
         # and cheaper than recreating the timer on each navigation.
@@ -464,7 +501,12 @@ def render_dashboard(container):
 
 
 def _compute_rsi14(closes: list[float]) -> float | None:
-    """Compute RSI(14) from a list of closing prices. Returns None if insufficient data."""
+    """Approximate RSI(14) using simple moving average of last 14 gains/losses.
+
+    Note: Uses SMA rather than Wilder's EMA, so values may differ slightly from
+    ta-lib or charting platforms for short series. Sufficient for the sentiment gauge.
+    Returns None if fewer than 15 data points.
+    """
     if len(closes) < 15:
         return None
     gains, losses = [], []
@@ -479,43 +521,6 @@ def _compute_rsi14(closes: list[float]) -> float | None:
     rs = avg_gain / avg_loss
     return round(100 - (100 / (1 + rs)), 2)
 
-
-def _render_api_status_pills(ws_connected: bool, last_tick: str | None):
-    """Render two status pills: WS connection health + last tick time."""
-    with ui.row().classes("w-full gap-3 flex-wrap"):
-        # Pill 1: WebSocket status
-        if ws_connected:
-            pill_cls = "border-green-200 bg-green-50"
-            dot_cls = "bg-green-500"
-            icon_name = "wifi"
-            icon_cls = "text-green-500"
-            title = "Dhan WS — Live"
-            title_cls = "text-sm font-semibold text-green-700"
-        else:
-            pill_cls = "border-red-200 bg-red-50"
-            dot_cls = "bg-red-500 animate-pulse"
-            icon_name = "wifi_off"
-            icon_cls = "text-red-500"
-            title = "Dhan WS — Disconnected"
-            title_cls = "text-sm font-semibold text-red-700"
-
-        with ui.card().classes(
-            f"border {pill_cls} rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
-        ).props("flat"):
-            with ui.row().classes("items-center gap-2"):
-                ui.icon(icon_name, size="20px").classes(icon_cls)
-                ui.label(title).classes(title_cls)
-                ui.space()
-                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_cls}")
-
-        # Pill 2: Last tick timestamp
-        with ui.card().classes(
-            "border border-gray-100 bg-gray-50 rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
-        ).props("flat"):
-            with ui.row().classes("items-center gap-2"):
-                ui.icon("schedule", size="20px").classes("text-gray-400")
-                tick_text = f"Last tick: {last_tick} IST" if last_tick else "Waiting for first tick…"
-                ui.label(tick_text).classes("text-sm text-gray-500")
 
 
 def _render_global_markets_loading():
