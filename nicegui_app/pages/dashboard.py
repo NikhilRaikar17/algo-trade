@@ -9,7 +9,7 @@ import pandas as pd
 from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
-from state import _cache_get, _cache_set, get_live_price, get_ws_connected, get_all_global_prices
+from state import _cache_get, _cache_set, get_live_price, get_ws_connected
 from data import get_expiries, fetch_option_chain, fetch_option_chain_raw, fetch_5min_candles, _fetch_any_index_candles, _candles_to_daily_change
 from tv_charts import render_tv_simple_candle_chart
 
@@ -313,13 +313,18 @@ def render_dashboard(container):
 
             # Update API status pills
             last_tick_times = [
-                v.get("timestamp") for v in _state._live_prices.values() if v.get("timestamp")
+                entry.get("timestamp")
+                for key in ["NIFTY", "BANKNIFTY", "VIX"]
+                for entry in [_state.get_live_price(key)]
+                if entry and entry.get("timestamp")
             ]
             last_tick = max(last_tick_times) if last_tick_times else None
             api_status_container.clear()
             with api_status_container:
                 _render_api_status_pills(ws_connected=_state.get_ws_connected(), last_tick=last_tick)
 
+        # Timer runs regardless of tab visibility — set_text on hidden labels is harmless
+        # and cheaper than recreating the timer on each navigation.
         ui.timer(2, _update_price_labels)
 
         # ---- ATM Option Charts ----
@@ -410,15 +415,6 @@ def render_dashboard(container):
     return refresh
 
 
-def _render_api_status_loading():
-    with ui.card().classes(
-        "w-full border border-gray-100 rounded-xl shadow-sm bg-white px-5 py-3"
-    ).props("flat"):
-        with ui.row().classes("items-center gap-3"):
-            ui.spinner("dots", size="sm").classes("text-gray-400")
-            ui.label("Checking Dhan API…").classes("text-sm text-gray-400")
-
-
 def _render_api_status_pills(ws_connected: bool, last_tick: str | None):
     """Render two status pills: WS connection health + last tick time."""
     with ui.row().classes("w-full gap-3 flex-wrap"):
@@ -457,41 +453,3 @@ def _render_api_status_pills(ws_connected: bool, last_tick: str | None):
                 ui.label(tick_text).classes("text-sm text-gray-500")
 
 
-def _render_api_status(h):
-    if h["ok"]:
-        border = "border-green-200"
-        bg     = "bg-green-50"
-        dot    = "bg-green-500"
-        title  = "Dhan API — Connected"
-        title_cls = "text-sm font-semibold text-green-700"
-        detail = f"Latency: {h['latency_ms']} ms" if h["latency_ms"] else "Price data fetched successfully"
-        detail_cls = "text-xs text-green-600"
-        icon   = "check_circle"
-        icon_cls = "text-green-500"
-    else:
-        border = "border-red-200"
-        bg     = "bg-red-50"
-        dot    = "bg-red-500"
-        title  = "Dhan API — Unreachable"
-        title_cls = "text-sm font-semibold text-red-700"
-        detail = h["error"] or "Unknown error"
-        detail_cls = "text-xs text-red-500"
-        icon   = "error_outline"
-        icon_cls = "text-red-500"
-
-    with ui.card().classes(
-        f"w-full border {border} {bg} rounded-xl shadow-sm px-5 py-3"
-    ).props("flat"):
-        with ui.row().classes("items-center gap-3 w-full"):
-            ui.icon(icon, size="22px").classes(icon_cls)
-            with ui.column().classes("gap-0"):
-                ui.label(title).classes(title_cls)
-                ui.label(detail).classes(detail_cls)
-            ui.space()
-            with ui.element("div").classes(
-                f"flex items-center gap-1.5 text-xs font-medium {'text-green-600' if h['ok'] else 'text-red-600'}"
-            ):
-                ui.element("div").classes(
-                    f"w-2 h-2 rounded-full {dot} {'animate-pulse' if not h['ok'] else ''}"
-                )
-                ui.label("Live" if h["ok"] else "Down")
