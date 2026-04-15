@@ -9,7 +9,7 @@ import pandas as pd
 from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
-from state import _cache_get, _cache_set
+from state import _cache_get, _cache_set, get_live_price, get_ws_connected, get_all_global_prices
 from data import get_expiries, fetch_option_chain, fetch_option_chain_raw, fetch_5min_candles, _fetch_any_index_candles, _candles_to_daily_change
 from tv_charts import render_tv_simple_candle_chart
 
@@ -253,40 +253,74 @@ def render_dashboard(container):
 
         ui.timer(1, update_clocks)
 
-        # ---- API Status Card ----
-        api_status_container = ui.element("div").classes("w-full mb-6")
+        # ---- API Status Bar (two pills) ----
+        api_status_container = ui.element("div").classes("w-full mb-4")
         with api_status_container:
-            _render_api_status_loading()
+            _render_api_status_pills(ws_connected=False, last_tick=None)
 
         # ---- Section Header ----
         with ui.row().classes("w-full items-center mb-4"):
             with ui.row().classes("items-center gap-2"):
                 ui.icon("monitoring", size="22px").classes("text-emerald-500")
-                ui.label("Market Overview").classes(
-                    "text-lg font-semibold text-gray-800"
-                )
+                ui.label("Market Overview").classes("text-lg font-semibold text-gray-800")
             ui.space()
             update_time_label = ui.label("").classes("text-xs text-gray-400")
 
-        # ---- Price Cards ----
-        price_container = ui.element("div").classes("w-full")
+        # ---- Price Cards (created ONCE; labels updated in-place) ----
+        _price_labels: dict[str, dict] = {}  # key → {"price": label, "badge": label, "card": card}
+        with ui.element("div").classes("w-full responsive-price-grid"):
+            for name in ["NIFTY", "BANKNIFTY"]:
+                card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
+                dot_color = "bg-emerald-500" if name == "NIFTY" else "bg-teal-600"
+                for ptype in ["SPOT", "FUT"]:
+                    key = f"{name}_{ptype}"
+                    with ui.card().classes(
+                        f"{card_cls} shadow-sm !rounded-xl"
+                    ).style("min-height: 120px; border: 2px solid #d1d5db !important;") as card:
+                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
+                            with ui.row().classes("items-center gap-2"):
+                                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
+                                label_text = f"{name} {ptype}"
+                                ui.label(label_text).classes(
+                                    "text-[11px] font-bold text-gray-500 uppercase tracking-widest"
+                                )
+                            price_lbl = ui.label("--").classes(
+                                "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
+                            )
+                            badge_lbl = ui.label("").classes("text-xs font-semibold mt-2")
+                    _price_labels[key] = {"price": price_lbl, "badge": badge_lbl, "card": card}
 
-        # Loading state
-        with price_container:
-            with ui.element("div").classes("w-full responsive-price-grid"):
-                for name in ["NIFTY", "BANKNIFTY"]:
-                    card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
-                    for ptype in ["SPOT", "FUT"]:
-                        with ui.card().classes(
-                            f"{card_cls} border border-gray-200 shadow-sm !rounded-xl"
-                        ).style("min-height: 120px"):
-                            with ui.column().classes("items-center justify-center w-full h-full py-4"):
-                                ui.label(f"{name} {ptype}").classes(
-                                    "text-xs font-semibold text-gray-400 uppercase tracking-wider"
-                                )
-                                ui.label("--").classes(
-                                    "text-2xl font-bold text-gray-300 mt-1"
-                                )
+        def _update_price_labels():
+            """Update price labels in-place from state._live_prices every 2s."""
+            import state as _state
+            for name in ["NIFTY", "BANKNIFTY"]:
+                entry = _state.get_live_price(name)
+                if entry is None:
+                    continue
+                ltp = entry["ltp"]
+                change = entry["change"]
+                change_pct = entry["change_pct"]
+                sign = "+" if change >= 0 else ""
+                color_cls = "text-green-700" if change >= 0 else "text-red-700"
+
+                spot_key = f"{name}_SPOT"
+                if spot_key in _price_labels:
+                    _price_labels[spot_key]["price"].set_text(f"{ltp:,.2f}")
+                    _price_labels[spot_key]["badge"].set_text(
+                        f"{sign}{change:,.2f} ({sign}{change_pct}%)"
+                    )
+                    _price_labels[spot_key]["badge"].classes(color_cls, remove="text-green-700 text-red-700")
+
+            # Update API status pills
+            last_tick_times = [
+                v.get("timestamp") for v in _state._live_prices.values() if v.get("timestamp")
+            ]
+            last_tick = max(last_tick_times) if last_tick_times else None
+            api_status_container.clear()
+            with api_status_container:
+                _render_api_status_pills(ws_connected=_state.get_ws_connected(), last_tick=last_tick)
+
+        ui.timer(2, _update_price_labels)
 
         # ---- ATM Option Charts ----
         charts_container = ui.element("div").classes("w-full mt-6")
@@ -300,101 +334,23 @@ def render_dashboard(container):
         if page_client._deleted:
             return
 
-        # Derive API health from price fetch result — no extra API call needed
-        any_ok = any(v.get("spot") is not None for v in prices.values())
-        api_health = {"ok": any_ok, "latency_ms": None, "error": None if any_ok else "Could not fetch price data"}
-        api_status_container.clear()
-        with api_status_container:
-            _render_api_status(api_health)
+        # Update FUT card labels in-place
+        for name in ["NIFTY", "BANKNIFTY"]:
+            data = prices.get(name, {})
+            spot = data.get("spot")
+            fut = data.get("fut")
 
-        price_container.clear()
-        with price_container:
-            with ui.element("div").classes("w-full responsive-price-grid"):
-                for name in ["NIFTY", "BANKNIFTY"]:
-                    data = prices.get(name, {})
-                    spot = data.get("spot")
-                    fut = data.get("fut")
-                    expiry = data.get("expiry")
-                    spot_change = data.get("spot_change")
-                    spot_change_pct = data.get("spot_change_pct")
-
-                    card_cls = "price-card-nifty" if name == "NIFTY" else "price-card-bnf"
-                    dot_color = "bg-emerald-500" if name == "NIFTY" else "bg-teal-600"
-
-                    if spot_change is None:
-                        side_border_color = "#d1d5db"  # gray-300
-                    elif spot_change >= 0:
-                        side_border_color = "#4ade80"  # green-400
-                    else:
-                        side_border_color = "#f87171"  # red-400
-
-                    # Spot card
-                    with ui.card().classes(
-                        f"{card_cls} shadow-sm !rounded-xl"
-                    ).style(f"min-height: 120px; border: 2px solid {side_border_color} !important;"):
-                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
-                            with ui.row().classes("items-center gap-2"):
-                                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
-                                ui.label(f"{name} SPOT").classes(
-                                    "text-[11px] font-bold text-gray-500 uppercase tracking-widest"
-                                )
-                            spot_text = f"{spot:,.2f}" if spot else "N/A"
-                            ui.label(spot_text).classes(
-                                "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
-                            )
-                            if spot_change is not None and spot_change_pct is not None:
-                                sign = "+" if spot_change >= 0 else ""
-                                if spot_change >= 0:
-                                    bg = "bg-green-50 text-green-700"
-                                    icon = "arrow_drop_up"
-                                else:
-                                    bg = "bg-red-50 text-red-700"
-                                    icon = "arrow_drop_down"
-                                with ui.row().classes(
-                                    f"items-center gap-0 mt-2 px-2 py-0.5 rounded-md {bg}"
-                                ).style("width: fit-content"):
-                                    ui.icon(icon, size="18px")
-                                    ui.label(
-                                        f"{sign}{spot_change:,.2f} ({sign}{spot_change_pct}%)"
-                                    ).classes("text-xs font-semibold")
-
-                    # Futures card
-                    with ui.card().classes(
-                        f"{card_cls} shadow-sm !rounded-xl"
-                    ).style(f"min-height: 120px; border: 2px solid {side_border_color} !important;"):
-                        with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
-                            with ui.row().classes("items-center gap-2"):
-                                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
-                                exp_tag = ""
-                                if expiry:
-                                    exp_date = datetime.strptime(expiry, "%Y-%m-%d")
-                                    exp_tag = f" ({exp_date.strftime('%d%b').upper()})"
-                                ui.label(f"{name} FUT{exp_tag}").classes(
-                                    "text-[11px] font-bold text-gray-500 uppercase tracking-widest"
-                                )
-                            fut_text = f"{fut:,.2f}" if fut else "N/A"
-                            ui.label(fut_text).classes(
-                                "text-xl sm:text-3xl font-bold text-gray-900 mt-2 tracking-tight"
-                            )
-
-                            # Basis
-                            if spot and fut:
-                                basis = round(fut - spot, 2)
-                                basis_pct = round((basis / spot) * 100, 3)
-                                sign = "+" if basis >= 0 else ""
-                                if basis >= 0:
-                                    bg = "bg-green-50 text-green-700"
-                                    icon = "arrow_drop_up"
-                                else:
-                                    bg = "bg-red-50 text-red-700"
-                                    icon = "arrow_drop_down"
-                                with ui.row().classes(
-                                    f"items-center gap-0 mt-2 px-2 py-0.5 rounded-md {bg}"
-                                ).style("width: fit-content"):
-                                    ui.icon(icon, size="18px")
-                                    ui.label(
-                                        f"{sign}{basis:,.2f} ({sign}{basis_pct}%)"
-                                    ).classes("text-xs font-semibold")
+            fut_key = f"{name}_FUT"
+            if fut_key in _price_labels and fut is not None:
+                _price_labels[fut_key]["price"].set_text(f"{fut:,.2f}")
+                if spot and fut:
+                    basis = round(fut - spot, 2)
+                    basis_pct = round((basis / spot) * 100, 3)
+                    sign = "+" if basis >= 0 else ""
+                    badge_text = f"{sign}{basis:,.2f} ({sign}{basis_pct}%)"
+                    color_cls = "text-green-700" if basis >= 0 else "text-red-700"
+                    _price_labels[fut_key]["badge"].set_text(badge_text)
+                    _price_labels[fut_key]["badge"].classes(color_cls, remove="text-green-700 text-red-700")
 
         update_time_label.set_text(
             f"Updated {now_ist().strftime('%H:%M:%S')} IST"
@@ -461,6 +417,44 @@ def _render_api_status_loading():
         with ui.row().classes("items-center gap-3"):
             ui.spinner("dots", size="sm").classes("text-gray-400")
             ui.label("Checking Dhan API…").classes("text-sm text-gray-400")
+
+
+def _render_api_status_pills(ws_connected: bool, last_tick: str | None):
+    """Render two status pills: WS connection health + last tick time."""
+    with ui.row().classes("w-full gap-3 flex-wrap"):
+        # Pill 1: WebSocket status
+        if ws_connected:
+            pill_cls = "border-green-200 bg-green-50"
+            dot_cls = "bg-green-500"
+            icon_name = "wifi"
+            icon_cls = "text-green-500"
+            title = "Dhan WS — Live"
+            title_cls = "text-sm font-semibold text-green-700"
+        else:
+            pill_cls = "border-red-200 bg-red-50"
+            dot_cls = "bg-red-500 animate-pulse"
+            icon_name = "wifi_off"
+            icon_cls = "text-red-500"
+            title = "Dhan WS — Disconnected"
+            title_cls = "text-sm font-semibold text-red-700"
+
+        with ui.card().classes(
+            f"border {pill_cls} rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
+        ).props("flat"):
+            with ui.row().classes("items-center gap-2"):
+                ui.icon(icon_name, size="20px").classes(icon_cls)
+                ui.label(title).classes(title_cls)
+                ui.space()
+                ui.element("div").classes(f"w-2 h-2 rounded-full {dot_cls}")
+
+        # Pill 2: Last tick timestamp
+        with ui.card().classes(
+            "border border-gray-100 bg-gray-50 rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
+        ).props("flat"):
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("schedule", size="20px").classes("text-gray-400")
+                tick_text = f"Last tick: {last_tick} IST" if last_tick else "Waiting for first tick…"
+                ui.label(tick_text).classes("text-sm text-gray-500")
 
 
 def _render_api_status(h):
