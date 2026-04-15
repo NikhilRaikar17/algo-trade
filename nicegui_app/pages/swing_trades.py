@@ -5,7 +5,6 @@ momentum candidates using SMA(9/21) crossover + RSI(14) on 15-min candles.
 """
 
 import asyncio
-import traceback
 from nicegui import ui
 
 from config import dhan, SWING_RSI_BULL, SWING_RSI_BEAR
@@ -94,7 +93,7 @@ def render_swing_trades_tab(container):
         candidates = []
         stocks = []
         try:
-            stocks = get_active_top_stocks() or []
+            stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks) or []
         except Exception:
             pass
 
