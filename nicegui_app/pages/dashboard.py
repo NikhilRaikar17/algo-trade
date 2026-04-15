@@ -330,6 +330,11 @@ def render_dashboard(container):
         # ---- ATM Option Charts ----
         charts_container = ui.element("div").classes("w-full mt-6")
 
+        # ---- Global Markets Grid ----
+        global_markets_container = ui.element("div").classes("w-full mt-8")
+        with global_markets_container:
+            _render_global_markets_loading()
+
     page_client = context.client
 
     async def refresh():
@@ -412,6 +417,16 @@ def render_dashboard(container):
                         )
                         render_tv_simple_candle_chart(candles, height=300)
 
+        # ---- Global Markets ----
+        from state import get_all_global_prices
+        global_prices = get_all_global_prices()
+        global_markets_container.clear()
+        with global_markets_container:
+            if global_prices:
+                _render_global_markets_grid(global_prices)
+            else:
+                _render_global_markets_loading()
+
     return refresh
 
 
@@ -451,5 +466,66 @@ def _render_api_status_pills(ws_connected: bool, last_tick: str | None):
                 ui.icon("schedule", size="20px").classes("text-gray-400")
                 tick_text = f"Last tick: {last_tick} IST" if last_tick else "Waiting for first tick…"
                 ui.label(tick_text).classes("text-sm text-gray-500")
+
+
+def _render_global_markets_loading():
+    with ui.card().classes("w-full border border-gray-100 rounded-xl shadow-sm bg-white px-5 py-3").props("flat"):
+        with ui.row().classes("items-center gap-3"):
+            ui.spinner("dots", size="sm").classes("text-gray-400")
+            ui.label("Loading global markets…").classes("text-sm text-gray-400")
+
+
+_GLOBAL_GROUPS = [
+    ("🌎 US Indices",           ["^GSPC", "^IXIC", "^DJI"]),
+    ("🌍 Europe",               ["^FTSE", "^GDAXI", "^FCHI"]),
+    ("🌏 Asia",                 ["^N225", "^HSI", "000001.SS"]),
+    ("⚡ Commodities & Crypto", ["GC=F", "CL=F", "BTC-USD", "ETH-USD"]),
+]
+
+
+def _render_global_markets_grid(prices: dict):
+    """Render global market tiles grouped by region."""
+    with ui.row().classes("items-center gap-2 mb-4"):
+        ui.icon("public", size="22px").classes("text-emerald-500")
+        ui.label("Global Markets").classes("text-lg font-semibold text-gray-800")
+        ui.space()
+        with ui.element("div").classes(
+            "text-xs text-gray-400 bg-gray-100 rounded-full px-3 py-0.5"
+        ):
+            ui.label("Delayed ~15 min")
+
+    for group_label, symbols in _GLOBAL_GROUPS:
+        ui.label(group_label).classes("text-xs font-bold text-gray-500 uppercase tracking-wider mt-4 mb-2")
+        with ui.element("div").classes("w-full").style(
+            "display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem;"
+        ):
+            for sym in symbols:
+                entry = prices.get(sym)
+                if entry is None:
+                    continue
+                price = entry["price"]
+                change_pct = entry["change_pct"]
+                flag = entry["flag"]
+                name = entry["name"]
+                currency = entry["currency"]
+                up = change_pct >= 0
+                sign = "+" if up else ""
+                border_color = "#4ade80" if up else "#f87171"
+                badge_cls = "bg-green-50 text-green-700" if up else "bg-red-50 text-red-700"
+                arrow = "arrow_drop_up" if up else "arrow_drop_down"
+
+                with ui.card().classes("border shadow-sm !rounded-xl").style(
+                    f"border: 1.5px solid {border_color} !important; min-height: 90px;"
+                ):
+                    with ui.column().classes("w-full h-full justify-center px-3 py-3 gap-0.5"):
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label(flag).style("font-size: 1rem;")
+                            ui.label(name).classes("text-[10px] font-bold text-gray-500 uppercase tracking-wider truncate")
+                        ui.label(f"{currency} {price:,.2f}").classes("text-base font-bold text-gray-900 mt-1")
+                        with ui.row().classes(
+                            f"items-center gap-0 px-1.5 py-0.5 rounded-md {badge_cls}"
+                        ).style("width: fit-content"):
+                            ui.icon(arrow, size="16px")
+                            ui.label(f"{sign}{change_pct}%").classes("text-xs font-semibold")
 
 
