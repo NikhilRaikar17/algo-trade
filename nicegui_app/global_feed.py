@@ -44,7 +44,7 @@ def _fetch_and_store() -> None:
 
     for symbol, (name, currency, flag) in SYMBOLS.items():
         try:
-            close_col = ("Close", symbol)
+            close_col = (symbol, "Close")
             if close_col not in df.columns:
                 continue
             closes = df[close_col].dropna()

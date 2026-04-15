@@ -284,6 +284,46 @@ async def index():
             }
         }
 
+        /* ---- Global markets grids ---- */
+        /* 3-col group: US / Europe / Asia */
+        .global-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+        @media (max-width: 640px) {
+            .global-grid-3 { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 380px) {
+            .global-grid-3 { grid-template-columns: 1fr; }
+        }
+
+        /* 4-col group: Commodities & Crypto */
+        .global-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+        }
+        @media (max-width: 900px) {
+            .global-grid-4 { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 380px) {
+            .global-grid-4 { grid-template-columns: 1fr; }
+        }
+
+        /* ---- Widgets / Market Insights grid ---- */
+        .widgets-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        @media (max-width: 900px) {
+            .widgets-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .widgets-grid { grid-template-columns: 1fr; }
+        }
+
         /* ---- Header ticker (spot prices) ---- */
         .ticker-badge {
             display: flex; align-items: center; gap: 6px;

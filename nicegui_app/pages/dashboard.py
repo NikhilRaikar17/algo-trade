@@ -4,13 +4,11 @@ Dashboard page: clocks (IST / CEST) and market price cards.
 
 import time
 import asyncio
-from datetime import datetime
 from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
 from state import _cache_get, _cache_set, get_live_price, get_ws_connected
-from data import get_expiries, fetch_option_chain, fetch_option_chain_raw, fetch_5min_candles, _fetch_any_index_candles, _candles_to_daily_change
-from tv_charts import render_tv_simple_candle_chart
+from data import get_expiries, fetch_option_chain, _fetch_any_index_candles, _candles_to_daily_change
 
 
 def _compute_synthetic_futures(spot, df, strike_step):
@@ -60,43 +58,6 @@ def fetch_dashboard_prices():
     return prices
 
 
-def fetch_atm_candles():
-    """Fetch today's 5-min candles for ATM CE and PE for each index."""
-    cache_key = "dashboard_atm_candles"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
-
-    today = now_ist().date()
-    result = {}
-    for name, cfg in INDICES.items():
-        result[name] = {}
-        try:
-            expiries = get_expiries(cfg["scrip"], cfg["segment"], 1)
-            expiry = expiries[0]
-            raw = fetch_option_chain_raw(cfg["scrip"], cfg["segment"], expiry)
-            spot = round(float(raw["last_price"]), 2)
-            atm = round(spot / cfg["strike_step"]) * cfg["strike_step"]
-            strikes = sorted(raw["oc"].keys(), key=lambda s: abs(float(s) - atm))
-            sides = raw["oc"][strikes[0]] if strikes else {}
-            for opt_type, key in [("CE", "ce"), ("PE", "pe")]:
-                sec_id = sides.get(key, {}).get("security_id")
-                if not sec_id:
-                    continue
-                try:
-                    candles = fetch_5min_candles(sec_id)
-                    if not candles.empty:
-                        candles = candles[candles["timestamp"].dt.date == today].reset_index(drop=True)
-                    result[name][opt_type] = {"atm": atm, "candles": candles, "expiry": expiry}
-                except Exception:
-                    pass
-                time.sleep(0.3)
-        except Exception as e:
-            print(f"  [dashboard] {name} ATM candles error: {e}")
-        time.sleep(0.5)
-
-    _cache_set(cache_key, result)
-    return result
 
 
 def render_dashboard(container):
@@ -252,29 +213,38 @@ def render_dashboard(container):
 
         ui.timer(1, update_clocks)
 
-        # ---- API Status Bar (two pills) ----
-        api_status_container = ui.element("div").classes("w-full mb-4")
-        with api_status_container:
-            with ui.row().classes("w-full gap-3 flex-wrap"):
-                # Pill 1: WebSocket status
-                with ui.card().classes(
-                    "border border-red-200 bg-red-50 rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
-                ).props("flat") as _ws_pill:
-                    with ui.row().classes("items-center gap-2"):
-                        _ws_icon = ui.icon("wifi_off", size="20px").classes("text-red-500")
-                        _ws_label = ui.label("Dhan WS — Disconnected").classes(
-                            "text-sm font-semibold text-red-700"
-                        )
-                        ui.space()
-                        _ws_dot = ui.element("div").classes("w-2 h-2 rounded-full bg-red-500 animate-pulse")
+        # ---- API Connection Status Card ----
+        with ui.card().classes(
+            "w-full mb-6 !rounded-2xl shadow-sm border border-gray-100"
+        ).style("background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);").props("flat"):
+            with ui.row().classes("items-center gap-4 px-5 py-4 flex-wrap"):
+                # Section label
+                with ui.row().classes("items-center gap-2 mr-2"):
+                    ui.icon("hub", size="20px").classes("text-slate-500")
+                    ui.label("API Connection").classes("text-sm font-semibold text-slate-600 uppercase tracking-wider")
 
-                # Pill 2: Last tick
-                with ui.card().classes(
-                    "border border-gray-100 bg-gray-50 rounded-xl shadow-sm px-4 py-2 flex-1 min-w-[200px]"
-                ).props("flat"):
-                    with ui.row().classes("items-center gap-2"):
-                        ui.icon("schedule", size="20px").classes("text-gray-400")
-                        _tick_label = ui.label("Waiting for first tick…").classes("text-sm text-gray-500")
+                ui.element("div").classes("w-px h-6 bg-gray-200")
+
+                # REST API status badge (updated after fetch_dashboard_prices succeeds/fails)
+                with ui.row().classes("items-center gap-2"):
+                    _api_dot = ui.element("div").classes("w-2.5 h-2.5 rounded-full bg-gray-300")
+                    _api_icon = ui.icon("cloud_queue", size="18px").classes("text-gray-400")
+                    _api_label = ui.label("Dhan API · Checking…").classes("text-sm font-semibold text-gray-500")
+
+                ui.element("div").classes("w-px h-6 bg-gray-200")
+
+                # WS status badge
+                with ui.row().classes("items-center gap-2"):
+                    _ws_dot = ui.element("div").classes("w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse")
+                    _ws_icon = ui.icon("wifi_off", size="18px").classes("text-red-500")
+                    _ws_label = ui.label("Dhan WS · Disconnected").classes("text-sm font-semibold text-red-600")
+
+                ui.element("div").classes("w-px h-6 bg-gray-200")
+
+                # Last tick
+                with ui.row().classes("items-center gap-2"):
+                    ui.icon("schedule", size="18px").classes("text-gray-400")
+                    _tick_label = ui.label("Waiting for first tick…").classes("text-sm text-gray-500")
 
         # ---- Section Header ----
         with ui.row().classes("w-full items-center mb-4"):
@@ -339,22 +309,14 @@ def render_dashboard(container):
             last_tick = max(last_tick_times) if last_tick_times else None
             ws_ok = _state.get_ws_connected()
             if ws_ok:
-                _ws_pill.classes(
-                    "border-green-200 bg-green-50",
-                    remove="border-red-200 bg-red-50"
-                )
                 _ws_icon.props("name=wifi").classes("text-green-500", remove="text-red-500")
-                _ws_label.set_text("Dhan WS — Live")
-                _ws_label.classes("text-green-700", remove="text-red-700")
+                _ws_label.set_text("Dhan WS · Live")
+                _ws_label.classes("text-green-600 font-semibold", remove="text-red-600")
                 _ws_dot.classes("bg-green-500", remove="bg-red-500 animate-pulse")
             else:
-                _ws_pill.classes(
-                    "border-red-200 bg-red-50",
-                    remove="border-green-200 bg-green-50"
-                )
                 _ws_icon.props("name=wifi_off").classes("text-red-500", remove="text-green-500")
-                _ws_label.set_text("Dhan WS — Disconnected")
-                _ws_label.classes("text-red-700", remove="text-green-700")
+                _ws_label.set_text("Dhan WS · Disconnected")
+                _ws_label.classes("text-red-600 font-semibold", remove="text-green-600")
                 _ws_dot.classes("bg-red-500 animate-pulse", remove="bg-green-500")
             tick_text = f"Last tick: {last_tick} IST" if last_tick else "Waiting for first tick…"
             _tick_label.set_text(tick_text)
@@ -362,9 +324,6 @@ def render_dashboard(container):
         # Timer runs regardless of tab visibility — set_text on hidden labels is harmless
         # and cheaper than recreating the timer on each navigation.
         ui.timer(2, _update_price_labels)
-
-        # ---- ATM Option Charts ----
-        charts_container = ui.element("div").classes("w-full mt-6")
 
         # ---- Global Markets Grid ----
         global_markets_container = ui.element("div").classes("w-full mt-8")
@@ -384,6 +343,19 @@ def render_dashboard(container):
         )
         if page_client._deleted:
             return
+
+        # Update REST API status indicator
+        api_ok = any(v.get("spot") is not None for v in prices.values())
+        if api_ok:
+            _api_dot.classes("bg-green-500", remove="bg-red-500 bg-gray-300 animate-pulse")
+            _api_icon.props("name=cloud_done").classes("text-green-500", remove="text-red-500 text-gray-400")
+            _api_label.set_text("Dhan API · Connected")
+            _api_label.classes("text-green-600", remove="text-red-600 text-gray-500")
+        else:
+            _api_dot.classes("bg-red-500 animate-pulse", remove="bg-green-500 bg-gray-300")
+            _api_icon.props("name=cloud_off").classes("text-red-500", remove="text-green-500 text-gray-400")
+            _api_label.set_text("Dhan API · Error")
+            _api_label.classes("text-red-600", remove="text-green-600 text-gray-500")
 
         # Update FUT card labels in-place
         for name in ["NIFTY", "BANKNIFTY"]:
@@ -406,57 +378,6 @@ def render_dashboard(container):
         update_time_label.set_text(
             f"Updated {now_ist().strftime('%H:%M:%S')} IST"
         )
-
-        # ---- ATM Option Charts ----
-        atm_candles = await asyncio.get_running_loop().run_in_executor(
-            None, fetch_atm_candles
-        )
-        if page_client._deleted:
-            return
-
-        charts_container.clear()
-        with charts_container:
-            with ui.row().classes("items-center gap-2 mb-4"):
-                ui.icon("candlestick_chart", size="22px").classes("text-emerald-500")
-                ui.label("ATM Option Charts (5-min)").classes("text-lg font-semibold text-gray-800")
-
-            for name in ["NIFTY", "BANKNIFTY"]:
-                index_data = atm_candles.get(name, {})
-                if not index_data:
-                    continue
-
-                # Use CE data to get atm/expiry (same for both legs)
-                sample = index_data.get("CE") or index_data.get("PE")
-                if not sample:
-                    continue
-                atm = sample["atm"]
-                expiry = sample["expiry"]
-                exp_tag = datetime.strptime(expiry, "%Y-%m-%d").strftime("%d%b").upper()
-
-                with ui.card().classes("w-full border border-gray-200 shadow-sm !rounded-xl mb-4 p-4"):
-                    with ui.row().classes("items-center gap-3 mb-3"):
-                        dot_color = "bg-emerald-500" if name == "NIFTY" else "bg-teal-600"
-                        ui.element("div").classes(f"w-3 h-3 rounded-full {dot_color}")
-                        ui.label(f"{name} — ATM {int(atm)} ({exp_tag})").classes(
-                            "text-base font-bold text-gray-800"
-                        )
-
-                    for opt_type in ["CE", "PE"]:
-                        label_cls = "text-green-700 font-bold" if opt_type == "CE" else "text-red-700 font-bold"
-                        ui.label(f"{opt_type} {int(atm)}").classes(f"text-sm {label_cls} mt-3 mb-1")
-                        entry = index_data.get(opt_type)
-                        if entry is None:
-                            ui.label(f"No data for {opt_type}").classes("text-orange-500 italic")
-                            continue
-                        candles = entry["candles"]
-                        if candles is None or candles.empty:
-                            ui.label(f"No candle data yet for {opt_type} today.").classes("text-gray-400 italic")
-                            continue
-                        ltp = round(float(candles["close"].iloc[-1]), 2)
-                        ui.label(f"LTP: {ltp:,.2f} | {len(candles)} candles today").classes(
-                            "text-xs text-gray-500 mb-2"
-                        )
-                        render_tv_simple_candle_chart(candles, height=300)
 
         # ---- Global Markets ----
         from state import get_all_global_prices
@@ -489,9 +410,7 @@ def render_dashboard(container):
             with ui.row().classes("items-center gap-2 mb-4"):
                 ui.icon("insights", size="22px").classes("text-emerald-500")
                 ui.label("Market Insights").classes("text-lg font-semibold text-gray-800")
-            with ui.element("div").style(
-                "display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;"
-            ).classes("w-full"):
+            with ui.element("div").classes("w-full widgets-grid"):
                 _render_sentiment_gauge(rsi_value)
                 _render_vix_dial(vix_value)
                 _render_top_movers(global_snapshot)
@@ -558,9 +477,8 @@ def _render_global_markets_grid(prices: dict):
 
     for group_label, symbols in _GLOBAL_GROUPS:
         ui.label(group_label).classes("text-xs font-bold text-gray-500 uppercase tracking-wider mt-4 mb-2")
-        with ui.element("div").classes("w-full").style(
-            "display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem;"
-        ):
+        grid_cls = "global-grid-4" if len(symbols) == 4 else "global-grid-3"
+        with ui.element("div").classes(f"w-full {grid_cls}"):
             for sym in symbols:
                 entry = prices.get(sym)
                 if entry is None:
@@ -576,14 +494,14 @@ def _render_global_markets_grid(prices: dict):
                 badge_cls = "bg-green-50 text-green-700" if up else "bg-red-50 text-red-700"
                 arrow = "arrow_drop_up" if up else "arrow_drop_down"
 
-                with ui.card().classes("border shadow-sm !rounded-xl").style(
-                    f"border: 1.5px solid {border_color} !important; min-height: 90px;"
+                with ui.card().classes("border shadow-sm !rounded-xl h-full").style(
+                    f"border: 1.5px solid {border_color} !important; min-height: 95px;"
                 ):
-                    with ui.column().classes("w-full h-full justify-center px-3 py-3 gap-0.5"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label(flag).style("font-size: 1rem;")
-                            ui.label(name).classes("text-[10px] font-bold text-gray-500 uppercase tracking-wider truncate")
-                        ui.label(f"{currency} {price:,.2f}").classes("text-base font-bold text-gray-900 mt-1")
+                    with ui.column().classes("w-full h-full justify-between px-3 py-3 gap-1"):
+                        with ui.row().classes("items-center gap-1.5"):
+                            ui.label(flag).style("font-size: 1.1rem; line-height:1;")
+                            ui.label(name).classes("text-[10px] font-bold text-gray-500 uppercase tracking-wider").style("white-space:nowrap; overflow:hidden; text-overflow:ellipsis;")
+                        ui.label(f"{currency} {price:,.2f}").classes("text-sm font-bold text-gray-900 leading-tight")
                         with ui.row().classes(
                             f"items-center gap-0 px-1.5 py-0.5 rounded-md {badge_cls}"
                         ).style("width: fit-content"):
