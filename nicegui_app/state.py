@@ -55,6 +55,20 @@ def _mark_sent(key):
 _trade_store = {}  # key -> {"active": [...], "completed": [...]}
 _ltp_history = {}  # history for SMA trend
 
+# ================= LIVE PRICE STATE (WebSocket feed) =================
+_live_prices: dict = {}
+# Structure per key:
+# {"NIFTY": {"ltp": 22450.5, "prev_close": 22300.0,
+#             "change": 150.5, "change_pct": 0.67, "timestamp": "14:32:05"}}
+# "VIX" key uses same structure; "ltp" holds the VIX value.
+
+_global_prices: dict = {}
+# Structure per key:
+# {"^GSPC": {"name": "S&P 500", "price": 5200.1, "change_pct": 0.34,
+#             "currency": "USD", "flag": "🇺🇸"}}
+
+_ws_connected: bool = False
+
 
 # ================= TRADE HISTORY (PERSISTENT) =================
 _TRADE_HISTORY_FILE = os.path.join(os.path.dirname(__file__), ".trade_history.json")
@@ -227,3 +241,34 @@ def _cache_get_stable(key):
         if entry:
             return entry["data"]
     return None
+
+
+# ================= LIVE PRICE HELPERS =================
+_live_lock = threading.Lock()
+_global_lock = threading.Lock()
+
+
+def set_live_price(key: str, data: dict) -> None:
+    """Thread-safe write to _live_prices. Call from ws_feed background task."""
+    global _live_prices
+    with _live_lock:
+        _live_prices[key] = data
+
+
+def get_live_price(key: str) -> dict | None:
+    """Thread-safe read from _live_prices."""
+    with _live_lock:
+        return _live_prices.get(key)
+
+
+def set_global_price(key: str, data: dict) -> None:
+    """Thread-safe write to _global_prices."""
+    global _global_prices
+    with _global_lock:
+        _global_prices[key] = data
+
+
+def get_all_global_prices() -> dict:
+    """Thread-safe snapshot of _global_prices."""
+    with _global_lock:
+        return dict(_global_prices)
