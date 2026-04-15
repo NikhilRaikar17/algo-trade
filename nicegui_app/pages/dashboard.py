@@ -335,6 +335,11 @@ def render_dashboard(container):
         with global_markets_container:
             _render_global_markets_loading()
 
+        # ---- Widgets Row ----
+        widgets_container = ui.element("div").classes("w-full mt-8")
+        with widgets_container:
+            _render_widgets_loading()
+
     page_client = context.client
 
     async def refresh():
@@ -427,7 +432,54 @@ def render_dashboard(container):
             else:
                 _render_global_markets_loading()
 
+        # ---- Widgets ----
+        nifty_candles = await asyncio.get_running_loop().run_in_executor(
+            None, lambda: _fetch_any_index_candles("13")
+        )
+        rsi_value = None
+        if nifty_candles is not None and not nifty_candles.empty and "close" in nifty_candles.columns:
+            closes = [float(c) for c in nifty_candles["close"].tolist()]
+            rsi_value = _compute_rsi14(closes)
+
+        vix_entry = get_live_price("VIX")
+        vix_value = vix_entry["ltp"] if vix_entry else None
+        from state import get_all_global_prices
+        global_snapshot = get_all_global_prices()
+
+        if page_client._deleted:
+            return
+
+        widgets_container.clear()
+        with widgets_container:
+            with ui.row().classes("items-center gap-2 mb-4"):
+                ui.icon("insights", size="22px").classes("text-emerald-500")
+                ui.label("Market Insights").classes("text-lg font-semibold text-gray-800")
+            with ui.element("div").style(
+                "display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;"
+            ).classes("w-full"):
+                _render_sentiment_gauge(rsi_value)
+                _render_vix_dial(vix_value)
+                _render_top_movers(global_snapshot)
+                _render_economic_calendar()
+
     return refresh
+
+
+def _compute_rsi14(closes: list[float]) -> float | None:
+    """Compute RSI(14) from a list of closing prices. Returns None if insufficient data."""
+    if len(closes) < 15:
+        return None
+    gains, losses = [], []
+    for i in range(1, len(closes)):
+        delta = closes[i] - closes[i - 1]
+        gains.append(max(delta, 0))
+        losses.append(max(-delta, 0))
+    avg_gain = sum(gains[-14:]) / 14
+    avg_loss = sum(losses[-14:]) / 14
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return round(100 - (100 / (1 + rs)), 2)
 
 
 def _render_api_status_pills(ws_connected: bool, last_tick: str | None):
@@ -473,6 +525,13 @@ def _render_global_markets_loading():
         with ui.row().classes("items-center gap-3"):
             ui.spinner("dots", size="sm").classes("text-gray-400")
             ui.label("Loading global markets…").classes("text-sm text-gray-400")
+
+
+def _render_widgets_loading():
+    with ui.card().classes("w-full border border-gray-100 rounded-xl shadow-sm bg-white px-5 py-3").props("flat"):
+        with ui.row().classes("items-center gap-3"):
+            ui.spinner("dots", size="sm").classes("text-gray-400")
+            ui.label("Loading market insights…").classes("text-sm text-gray-400")
 
 
 _GLOBAL_GROUPS = [
@@ -529,3 +588,181 @@ def _render_global_markets_grid(prices: dict):
                             ui.label(f"{sign}{change_pct}%").classes("text-xs font-semibold")
 
 
+def _render_sentiment_gauge(rsi: float | None):
+    """Market Sentiment: SVG arc needle driven by RSI(14)."""
+    if rsi is None:
+        score = 50
+        label = "Neutral"
+        color = "#94a3b8"
+    elif rsi < 30:
+        score = int(rsi * 100 / 30 * 0.2)
+        label = "Extreme Fear"
+        color = "#ef4444"
+    elif rsi < 40:
+        score = int(20 + (rsi - 30) * 2)
+        label = "Fear"
+        color = "#f97316"
+    elif rsi < 60:
+        score = int(40 + (rsi - 40))
+        label = "Neutral"
+        color = "#eab308"
+    elif rsi < 70:
+        score = int(60 + (rsi - 60) * 2)
+        label = "Greed"
+        color = "#22c55e"
+    else:
+        score = int(80 + (rsi - 70) * 100 / 30 * 0.2)
+        label = "Extreme Greed"
+        color = "#16a34a"
+
+    score = max(0, min(100, score))
+    angle = -90 + score * 1.8
+
+    svg = f"""
+    <svg viewBox="0 0 200 120" width="180" height="110">
+      <defs>
+        <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"   stop-color="#ef4444"/>
+          <stop offset="25%"  stop-color="#f97316"/>
+          <stop offset="50%"  stop-color="#eab308"/>
+          <stop offset="75%"  stop-color="#22c55e"/>
+          <stop offset="100%" stop-color="#16a34a"/>
+        </linearGradient>
+      </defs>
+      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#arcGrad)" stroke-width="14" stroke-linecap="round"/>
+      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#f1f5f9" stroke-width="5" stroke-linecap="round" opacity="0.4"/>
+      <g transform="rotate({angle}, 100, 100)">
+        <line x1="100" y1="100" x2="100" y2="30" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="100" cy="100" r="5" fill="#0f172a"/>
+      </g>
+    </svg>
+    """
+    with ui.card().classes("border border-gray-200 shadow-sm !rounded-xl p-4").props("flat"):
+        with ui.column().classes("items-center gap-1 w-full"):
+            ui.label("Market Sentiment").classes("text-xs font-bold text-gray-500 uppercase tracking-wider")
+            ui.html(svg)
+            ui.label(label).classes("text-sm font-bold mt-1").style(f"color: {color};")
+            rsi_text = f"RSI(14): {rsi}" if rsi is not None else "Insufficient data"
+            ui.label(rsi_text).classes("text-xs text-gray-400")
+
+
+def _render_vix_dial(vix: float | None):
+    """India VIX circular ring dial."""
+    if vix is None:
+        display = "--"
+        ring_color = "#94a3b8"
+        zone_label = "No data"
+        zone_cls = "text-gray-400"
+    elif vix < 15:
+        display = f"{vix:.1f}"
+        ring_color = "#22c55e"
+        zone_label = "Calm"
+        zone_cls = "text-green-600"
+    elif vix < 20:
+        display = f"{vix:.1f}"
+        ring_color = "#eab308"
+        zone_label = "Moderate"
+        zone_cls = "text-yellow-600"
+    else:
+        display = f"{vix:.1f}"
+        ring_color = "#ef4444"
+        zone_label = "Elevated Fear"
+        zone_cls = "text-red-600"
+
+    max_vix = 40.0
+    fill_ratio = min(float(vix or 0) / max_vix, 1.0)
+    circ = 283.0
+    dash_len = round(fill_ratio * circ, 1)
+
+    svg = f"""
+    <svg viewBox="0 0 120 120" width="110" height="110">
+      <circle cx="60" cy="60" r="45" fill="none" stroke="#f1f5f9" stroke-width="12"/>
+      <circle cx="60" cy="60" r="45" fill="none" stroke="{ring_color}" stroke-width="12"
+              stroke-dasharray="{dash_len} {circ}" stroke-linecap="round"
+              transform="rotate(-90 60 60)"/>
+      <text x="60" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">{display}</text>
+      <text x="60" y="72" text-anchor="middle" font-size="9" fill="#94a3b8">India VIX</text>
+    </svg>
+    """
+    with ui.card().classes("border border-gray-200 shadow-sm !rounded-xl p-4").props("flat"):
+        with ui.column().classes("items-center gap-1 w-full"):
+            ui.label("India VIX").classes("text-xs font-bold text-gray-500 uppercase tracking-wider")
+            ui.html(svg)
+            ui.label(zone_label).classes(f"text-sm font-bold {zone_cls}")
+
+
+def _render_top_movers(all_prices: dict):
+    """Table of biggest movers across tracked indices."""
+    import state as _state
+    rows = []
+    for sym, entry in all_prices.items():
+        rows.append({
+            "name": entry["name"],
+            "flag": entry["flag"],
+            "price": entry["price"],
+            "change_pct": entry["change_pct"],
+            "currency": entry["currency"],
+        })
+    for idx_name in ["NIFTY", "BANKNIFTY"]:
+        lp = _state.get_live_price(idx_name)
+        if lp:
+            rows.append({
+                "name": idx_name,
+                "flag": "🇮🇳",
+                "price": lp["ltp"],
+                "change_pct": lp["change_pct"],
+                "currency": "INR",
+            })
+
+    rows.sort(key=lambda r: abs(r["change_pct"]), reverse=True)
+    top5 = rows[:5]
+
+    with ui.card().classes("border border-gray-200 shadow-sm !rounded-xl p-4").props("flat"):
+        ui.label("Top Movers").classes("text-xs font-bold text-gray-500 uppercase tracking-wider mb-3")
+        if not top5:
+            ui.label("No data yet").classes("text-sm text-gray-400 italic")
+            return
+        for row in top5:
+            pct = row["change_pct"]
+            up = pct >= 0
+            sign = "+" if up else ""
+            row_bg = "bg-green-50" if up else "bg-red-50"
+            pct_cls = "text-green-700 font-semibold" if up else "text-red-700 font-semibold"
+            with ui.row().classes(f"w-full items-center justify-between px-2 py-1.5 rounded-lg {row_bg} mb-1"):
+                with ui.row().classes("items-center gap-2"):
+                    ui.label(row["flag"]).style("font-size: 0.9rem;")
+                    ui.label(row["name"]).classes("text-xs font-bold text-gray-700 truncate").style("max-width: 100px;")
+                ui.label(f"{sign}{pct}%").classes(pct_cls).style("font-size: 0.75rem;")
+
+
+def _render_economic_calendar():
+    """Upcoming economic events strip."""
+    from economic_calendar import get_upcoming_events
+    from datetime import date
+    events = get_upcoming_events(n=5)
+    today = date.today()
+
+    type_colors = {
+        "expiry": ("bg-blue-100 text-blue-700", "Expiry"),
+        "rbi":    ("bg-amber-100 text-amber-700", "RBI"),
+        "fed":    ("bg-purple-100 text-purple-700", "Fed"),
+    }
+
+    with ui.card().classes("border border-gray-200 shadow-sm !rounded-xl p-4").props("flat"):
+        ui.label("Economic Calendar").classes("text-xs font-bold text-gray-500 uppercase tracking-wider mb-3")
+        if not events:
+            ui.label("No upcoming events").classes("text-sm text-gray-400 italic")
+            return
+        for ev in events:
+            delta = (ev["date"] - today).days
+            highlight = delta <= 3
+            row_cls = "border-l-4 border-amber-400 bg-amber-50 pl-2" if highlight else "border-l-4 border-gray-200 pl-2"
+            chip_cls, chip_label = type_colors.get(ev["type"], ("bg-gray-100 text-gray-600", ev["type"]))
+            with ui.row().classes(f"w-full items-center gap-3 py-1.5 pr-2 rounded-r-lg {row_cls} mb-1"):
+                with ui.element("div").classes(
+                    "text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-lg px-2 py-1 text-center"
+                ).style("min-width: 52px;"):
+                    ui.label(ev["date"].strftime("%d %b")).classes("text-gray-800 font-bold text-xs")
+                ui.label(ev["label"]).classes("text-sm text-gray-700 flex-1")
+                with ui.element("span").classes(f"text-[10px] font-bold px-2 py-0.5 rounded-full {chip_cls}"):
+                    ui.label(chip_label)
