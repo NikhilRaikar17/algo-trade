@@ -5,7 +5,6 @@ Dashboard page: clocks (IST / CEST) and market price cards.
 import time
 import asyncio
 from datetime import datetime
-import pandas as pd
 from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
@@ -343,7 +342,7 @@ def render_dashboard(container):
     page_client = context.client
 
     async def refresh():
-        prices = await asyncio.get_event_loop().run_in_executor(
+        prices = await asyncio.get_running_loop().run_in_executor(
             None, fetch_dashboard_prices
         )
         if page_client._deleted:
@@ -372,7 +371,7 @@ def render_dashboard(container):
         )
 
         # ---- ATM Option Charts ----
-        atm_candles = await asyncio.get_event_loop().run_in_executor(
+        atm_candles = await asyncio.get_running_loop().run_in_executor(
             None, fetch_atm_candles
         )
         if page_client._deleted:
@@ -443,7 +442,6 @@ def render_dashboard(container):
 
         vix_entry = get_live_price("VIX")
         vix_value = vix_entry["ltp"] if vix_entry else None
-        from state import get_all_global_prices
         global_snapshot = get_all_global_prices()
 
         if page_client._deleted:
