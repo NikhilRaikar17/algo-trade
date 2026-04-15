@@ -53,6 +53,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         _nav_button("markets",      "Overview",     "bar_chart",    icon_color="icon-orange")
         _nav_button("market_news",  "Market News",  "newspaper",    icon_color="icon-orange")
         _nav_button("top_stocks",   "Top Stocks",   "rocket_launch", icon_color="icon-amber")
+        _nav_button("swing_trades", "Swing Trades", "trending_up",   icon_color="icon-orange")
 
         ui.separator().classes("my-2 mx-4")
 
