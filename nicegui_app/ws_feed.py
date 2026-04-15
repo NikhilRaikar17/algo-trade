@@ -1,82 +1,89 @@
 """
-Live WebSocket market feed manager (Dhan Full packet, type 21).
-Runs DhanFeed in a single daemon thread — connect + consume in sequence.
-NiceGUI reads _quote_store via ui.timer (no asyncio involved here).
+WebSocket feed for live NIFTY, BANKNIFTY, and India VIX prices.
 
-Full packet fields used:
-  LTP, OI, volume  —  from the top-level dict
-  depth[0].bid_price / ask_price / bid_quantity / ask_quantity  — best bid/ask
+Connects to Dhan's marketfeed WebSocket and writes ticks to state._live_prices.
+Reconnects automatically with exponential backoff (2 → 4 → 8 → … → 60 s) on failure.
+
+Usage (called once from main.py):
+    asyncio.create_task(start_ws_feed())
 """
-import threading
+import asyncio
+import os
+from datetime import datetime
+
 from dhanhq import marketfeed
-from config import CLIENT_ID, ACCESS_TOKEN
+from dotenv import load_dotenv
 
-# {str(security_id): {ltp, bid, ask, bid_qty, ask_qty, oi, volume}}
-_quote_store: dict = {}
+import state
 
-# Track what's currently subscribed so we don't restart unnecessarily
-_subscribed: frozenset = frozenset()
-_consuming = threading.Event()  # set while the consume loop is running
+load_dotenv()
+
+_CLIENT_ID = os.getenv("DHAN_CLIENT_CODE", "")
+_ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID", "")
+
+# Dhan security IDs for index instruments
+_SECURITY_MAP = {
+    "13": "NIFTY",
+    "25": "BANKNIFTY",
+    "234613": "VIX",
+}
+
+# Instruments: (exchange_segment, security_id, subscription_type)
+# marketfeed.IDX is the segment constant for NSE index instruments
+_INSTRUMENTS = [
+    (marketfeed.IDX, "13", marketfeed.Ticker),      # NIFTY
+    (marketfeed.IDX, "25", marketfeed.Ticker),      # BANKNIFTY
+    (marketfeed.IDX, "234613", marketfeed.Ticker),  # India VIX
+]
+
+# Re-export for test mocking
+DhanFeed = marketfeed.DhanFeed
 
 
-def get_quote(security_id) -> dict:
-    """Return latest Full-packet data for a security, or {} if not yet received."""
-    return dict(_quote_store.get(str(security_id), {}))
+def _on_tick(tick: dict) -> None:
+    """Process a single tick from the WebSocket and write to state."""
+    sec_id = str(tick.get("security_id", ""))
+    name = _SECURITY_MAP.get(sec_id)
+    if name is None:
+        return
+
+    ltp = tick.get("LTP")
+    if ltp is None:
+        return
+
+    prev_close = tick.get("prev_close") or ltp
+    change = round(float(ltp) - float(prev_close), 2)
+    change_pct = round((change / float(prev_close)) * 100, 2) if prev_close else 0.0
+
+    state.set_live_price(name, {
+        "ltp": float(ltp),
+        "prev_close": float(prev_close),
+        "change": change,
+        "change_pct": change_pct,
+        "timestamp": datetime.now().strftime("%H:%M:%S"),
+    })
+    state._ws_connected = True
 
 
-def subscribe(securities: list):
+async def start_ws_feed() -> None:
     """
-    Start (or restart) the Full market data feed.
-
-    securities: list of (segment_int, security_id_str)
-      e.g. [(marketfeed.NSE_FNO, "123456"), (marketfeed.NSE_FNO, "654321")]
-
-    Non-blocking — returns immediately; WebSocket connects in the background.
-    If the same set is already active, this is a no-op.
+    Connect to Dhan WebSocket and stream ticks into state._live_prices.
+    Reconnects with exponential backoff (2 → 4 → 8 → … → 60 s) on failure.
     """
-    global _subscribed
-
-    new_set = frozenset((int(seg), str(sid)) for seg, sid in securities)
-    if new_set == _subscribed and _consuming.is_set():
-        return  # already live, nothing to do
-
-    _subscribed = new_set
-    _consuming.clear()
-
-    def _run():
-        import asyncio
-        # DhanFeed.run_forever() calls asyncio internally — the background thread
-        # has no event loop by default, so we create one explicitly.
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    backoff = 2
+    while True:
         try:
-            instruments = [(seg, str(sid), marketfeed.Full) for seg, sid in securities]
-            feed = marketfeed.DhanFeed(CLIENT_ID, ACCESS_TOKEN, instruments, version="v2")
-
-            feed.run_forever()
-            _consuming.set()
-            ids = [str(s) for _, s in securities]
-            print(f"  [ws_feed] connected — consuming {ids}")
-
-            # Consume loop: each get_data() call receives one packet
-            while True:
-                data = feed.get_data()
-                if not data or "security_id" not in data:
-                    continue
-                sec_id = str(data["security_id"])
-                depth = data.get("depth") or []
-                best = depth[0] if depth else {}
-                _quote_store[sec_id] = {
-                    "ltp":     float(data.get("LTP") or 0),
-                    "bid":     float(best.get("bid_price") or 0),
-                    "ask":     float(best.get("ask_price") or 0),
-                    "bid_qty": int(best.get("bid_quantity") or 0),
-                    "ask_qty": int(best.get("ask_quantity") or 0),
-                    "oi":      int(data.get("OI") or 0),
-                    "volume":  int(data.get("volume") or 0),
-                }
-        except Exception as e:
-            print(f"  [ws_feed] feed error: {e}")
-            _consuming.clear()
-
-    threading.Thread(target=_run, daemon=True, name="ws-feed").start()
+            feed = DhanFeed(_CLIENT_ID, _ACCESS_TOKEN, _INSTRUMENTS, version="v2",
+                            on_message=_on_tick)
+            print("  [ws_feed] connecting to Dhan WebSocket...")
+            await asyncio.get_event_loop().run_in_executor(None, feed.run_forever)
+        except Exception as exc:
+            state._ws_connected = False
+            print(f"  [ws_feed] disconnected ({exc}), retrying in {backoff}s...")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+        else:
+            # run_forever returned cleanly -- reconnect after a short delay
+            state._ws_connected = False
+            await asyncio.sleep(2)
+            backoff = 2
