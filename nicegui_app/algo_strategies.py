@@ -935,3 +935,60 @@ def classify_ema10_trades(signals, current_price, contract_name=""):
 def classify_sma50_trades(signals, current_price, contract_name=""):
     return _classify_generic(signals, current_price, contract_name, "SMA50", "sma50",
         extra_alert_fn=lambda s: "\nSMA50: {}".format(s.get("sma50", "-")))
+
+
+# ================= SWING TRADE SIGNAL DETECTION =================
+
+def detect_swing_trade_signals(df) -> dict | None:
+    """
+    Detect whether a stock/index qualifies as a swing trade candidate on its
+    most recent 15-min candle data.
+
+    BULLISH: SMA(9) > SMA(21) AND RSI(14) > SWING_RSI_BULL (55)
+    BEARISH: SMA(9) < SMA(21) AND RSI(14) < SWING_RSI_BEAR (45)
+
+    Returns a dict with signal details, or None if no signal.
+    Keys: direction, price, rsi, sma_fast, sma_slow, entry, target, sl
+    """
+    from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, SWING_RSI_BULL, SWING_RSI_BEAR
+
+    if df is None or len(df) < max(RSI_PERIOD, SMA_SLOW) + 1:
+        return None
+
+    closes = df["close"].values.astype(float)
+
+    rsi_arr = talib.RSI(closes, timeperiod=RSI_PERIOD)
+    sma_fast_arr = talib.SMA(closes, timeperiod=SMA_FAST)
+    sma_slow_arr = talib.SMA(closes, timeperiod=SMA_SLOW)
+
+    rsi = float(rsi_arr[-1])
+    sma_fast = float(sma_fast_arr[-1])
+    sma_slow = float(sma_slow_arr[-1])
+    price = float(closes[-1])
+
+    if np.isnan(rsi) or np.isnan(sma_fast) or np.isnan(sma_slow):
+        return None
+
+    if sma_fast > sma_slow and rsi > SWING_RSI_BULL:
+        direction = "BULLISH"
+        entry = price
+        target = round(entry * 1.02, 2)
+        sl = round(entry * 0.99, 2)
+    elif sma_fast < sma_slow and rsi < SWING_RSI_BEAR:
+        direction = "BEARISH"
+        entry = price
+        target = round(entry * 0.98, 2)
+        sl = round(entry * 1.01, 2)
+    else:
+        return None
+
+    return {
+        "direction": direction,
+        "price": round(price, 2),
+        "rsi": round(rsi, 1),
+        "sma_fast": round(sma_fast, 2),
+        "sma_slow": round(sma_slow, 2),
+        "entry": round(entry, 2),
+        "target": target,
+        "sl": sl,
+    }

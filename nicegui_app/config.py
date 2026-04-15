@@ -150,6 +150,10 @@ SMA_SLOW = 21
 RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 
+# Swing trade momentum thresholds (SMA crossover + RSI filter)
+SWING_RSI_BULL = 55   # RSI must be above this for a bullish swing candidate
+SWING_RSI_BEAR = 45   # RSI must be below this for a bearish swing candidate
+
 INDICES = {
     "NIFTY": {
         "scrip": 13,
