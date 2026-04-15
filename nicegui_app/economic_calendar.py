@@ -1,5 +1,8 @@
 """
 Economic calendar: NSE expiry dates, RBI MPC dates, US Fed FOMC dates for 2026.
+
+NOTE: All dates are hardcoded for 2026. Add 2027 dates before year-end or
+get_upcoming_events() will return an empty list from 2027-01-01 onwards.
 """
 from datetime import date
 
