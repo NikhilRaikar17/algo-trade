@@ -20,6 +20,8 @@ from sidebar import build_sidebar
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
 from trading_engine import run_trading_engine
 from email_report import send_backtest_email_report
+from ws_feed import start_ws_feed
+from global_feed import start_global_feed
 from pages.homepage import render_homepage
 from pages.login import render_login_page
 from pages import (
@@ -111,6 +113,8 @@ async def _start_scheduler():
     asyncio.create_task(_loop())
     asyncio.create_task(run_trading_engine())
     asyncio.create_task(_top_stocks_loop())
+    asyncio.create_task(start_ws_feed())
+    asyncio.create_task(start_global_feed())
 
 
 # ================= MAIN PAGE =================
