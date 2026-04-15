@@ -10,10 +10,10 @@ import state
 def reset_state():
     """Reset live price state before each test."""
     state._live_prices.clear()
-    state._ws_connected = False
+    state.set_ws_connected(False)
     yield
     state._live_prices.clear()
-    state._ws_connected = False
+    state.set_ws_connected(False)
 
 
 def test_on_tick_writes_nifty_to_state():
@@ -65,7 +65,7 @@ def test_on_tick_sets_ws_connected_true():
     from ws_feed import _on_tick
     tick = {"security_id": "13", "LTP": 22000.0, "prev_close": 21900.0}
     _on_tick(tick)
-    assert state._ws_connected is True
+    assert state.get_ws_connected() is True
 
 
 def test_on_tick_unknown_security_ignored():

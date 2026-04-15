@@ -62,7 +62,7 @@ def _on_tick(tick: dict) -> None:
         "change_pct": change_pct,
         "timestamp": datetime.now().strftime("%H:%M:%S"),
     })
-    state._ws_connected = True
+    state.set_ws_connected(True)
 
 
 async def start_ws_feed() -> None:
@@ -76,14 +76,14 @@ async def start_ws_feed() -> None:
             feed = DhanFeed(_CLIENT_ID, _ACCESS_TOKEN, _INSTRUMENTS, version="v2",
                             on_message=_on_tick)
             print("  [ws_feed] connecting to Dhan WebSocket...")
-            await asyncio.get_event_loop().run_in_executor(None, feed.run_forever)
+            await asyncio.get_running_loop().run_in_executor(None, feed.run_forever)
         except Exception as exc:
-            state._ws_connected = False
+            state.set_ws_connected(False)
             print(f"  [ws_feed] disconnected ({exc}), retrying in {backoff}s...")
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60)
         else:
             # run_forever returned cleanly -- reconnect after a short delay
-            state._ws_connected = False
+            state.set_ws_connected(False)
             await asyncio.sleep(2)
             backoff = 2
