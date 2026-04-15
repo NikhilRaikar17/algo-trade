@@ -37,6 +37,7 @@ from pages import (
     render_market_closed,
     render_market_news_tab,
     render_top_stocks_tab,
+    render_swing_trades_tab,
 )
 
 
@@ -47,6 +48,7 @@ ALL_PAGE_IDS = [
     "markets",
     "market_news",
     "top_stocks",
+    "swing_trades",
     "nifty",
     "banknifty",
     "algo",
@@ -529,6 +531,7 @@ async def index():
         refresh_fns["markets"]      = render_markets_tab(page_containers["markets"])
         refresh_fns["market_news"]  = render_market_news_tab(page_containers["market_news"])
         refresh_fns["top_stocks"]   = render_top_stocks_tab(page_containers["top_stocks"])
+        refresh_fns["swing_trades"] = render_swing_trades_tab(page_containers["swing_trades"])
         refresh_fns["nifty"]     = render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
         refresh_fns["banknifty"] = render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"])
         refresh_fns["pnl"]       = render_pnl_tab(page_containers["pnl"])

@@ -12,3 +12,4 @@ from pages.backtest_pnl_tab import render_backtest_pnl_tab
 from pages.market_closed import render_market_closed
 from pages.market_news import render_market_news_tab
 from pages.top_stocks import render_top_stocks_tab
+from pages.swing_trades import render_swing_trades_tab
