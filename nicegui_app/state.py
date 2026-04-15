@@ -250,7 +250,6 @@ _global_lock = threading.Lock()
 
 def set_live_price(key: str, data: dict) -> None:
     """Thread-safe write to _live_prices. Call from ws_feed background task."""
-    global _live_prices
     with _live_lock:
         _live_prices[key] = data
 
@@ -263,7 +262,6 @@ def get_live_price(key: str) -> dict | None:
 
 def set_global_price(key: str, data: dict) -> None:
     """Thread-safe write to _global_prices."""
-    global _global_prices
     with _global_lock:
         _global_prices[key] = data
 
@@ -272,3 +270,19 @@ def get_all_global_prices() -> dict:
     """Thread-safe snapshot of _global_prices."""
     with _global_lock:
         return dict(_global_prices)
+
+
+_ws_connected_lock = threading.Lock()
+
+
+def set_ws_connected(value: bool) -> None:
+    """Thread-safe write to _ws_connected."""
+    global _ws_connected
+    with _ws_connected_lock:
+        _ws_connected = value
+
+
+def get_ws_connected() -> bool:
+    """Thread-safe read of _ws_connected."""
+    with _ws_connected_lock:
+        return _ws_connected
