@@ -279,25 +279,50 @@ def render_dashboard(container):
                     _price_labels[key] = {"price": price_lbl, "badge": badge_lbl, "card": card}
 
         def _update_price_labels():
-            """Update price labels in-place from state._live_prices every 2s."""
-            import state as _state
-            for name in ["NIFTY", "BANKNIFTY"]:
-                entry = _state.get_live_price(name)
-                if entry is None:
-                    continue
-                ltp = entry["ltp"]
-                change = entry["change"]
-                change_pct = entry["change_pct"]
-                sign = "+" if change >= 0 else ""
-                color_cls = "text-green-700" if change >= 0 else "text-red-700"
+            """Update price labels in-place every 2s.
 
+            Priority:
+            - Market hours: use live WS price from state._live_prices
+            - After hours / WS unavailable: fall back to REST spot price from
+              the dashboard_prices cache (populated by fetch_dashboard_prices)
+            """
+            import state as _state
+            from state import _cache_get
+            rest_prices = _cache_get("dashboard_prices") or {}
+
+            for name in ["NIFTY", "BANKNIFTY"]:
+                ws_entry = _state.get_live_price(name)
                 spot_key = f"{name}_SPOT"
-                if spot_key in _price_labels:
+                if spot_key not in _price_labels:
+                    continue
+
+                if ws_entry is not None:
+                    # Live WS data available — use it
+                    ltp = ws_entry["ltp"]
+                    change = ws_entry["change"]
+                    change_pct = ws_entry["change_pct"]
+                    sign = "+" if change >= 0 else ""
+                    color_cls = "text-green-700" if change >= 0 else "text-red-700"
                     _price_labels[spot_key]["price"].set_text(f"{ltp:,.2f}")
                     _price_labels[spot_key]["badge"].set_text(
                         f"{sign}{change:,.2f} ({sign}{change_pct}%)"
                     )
                     _price_labels[spot_key]["badge"].classes(color_cls, remove="text-green-700 text-red-700")
+                else:
+                    # No WS data — fall back to REST spot price (after-hours LTP)
+                    rest_entry = rest_prices.get(name, {})
+                    spot = rest_entry.get("spot")
+                    if spot is not None:
+                        spot_change = rest_entry.get("spot_change")
+                        spot_change_pct = rest_entry.get("spot_change_pct")
+                        _price_labels[spot_key]["price"].set_text(f"{spot:,.2f}")
+                        if spot_change is not None and spot_change_pct is not None:
+                            sign = "+" if spot_change >= 0 else ""
+                            color_cls = "text-green-700" if spot_change >= 0 else "text-red-700"
+                            _price_labels[spot_key]["badge"].set_text(
+                                f"{sign}{spot_change:,.2f} ({sign}{spot_change_pct}%)"
+                            )
+                            _price_labels[spot_key]["badge"].classes(color_cls, remove="text-green-700 text-red-700")
 
             # Update API status pills in-place
             last_tick_times = [
