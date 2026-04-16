@@ -350,11 +350,6 @@ def render_dashboard(container):
         # and cheaper than recreating the timer on each navigation.
         ui.timer(2, _update_price_labels)
 
-        # ---- Global Markets Grid ----
-        global_markets_container = ui.element("div").classes("w-full mt-8")
-        with global_markets_container:
-            _render_global_markets_loading()
-
         # ---- Widgets Row ----
         widgets_container = ui.element("div").classes("w-full mt-8")
         with widgets_container:
@@ -403,16 +398,6 @@ def render_dashboard(container):
         update_time_label.set_text(
             f"Updated {now_ist().strftime('%H:%M:%S')} IST"
         )
-
-        # ---- Global Markets ----
-        from state import get_all_global_prices
-        global_prices = get_all_global_prices()
-        global_markets_container.clear()
-        with global_markets_container:
-            if global_prices:
-                _render_global_markets_grid(global_prices)
-            else:
-                _render_global_markets_loading()
 
         # ---- Widgets ----
         nifty_candles = await asyncio.get_running_loop().run_in_executor(
@@ -485,7 +470,7 @@ _GLOBAL_GROUPS = [
     ("🌎 US Indices",           ["^GSPC", "^IXIC", "^DJI"]),
     ("🌍 Europe",               ["^FTSE", "^GDAXI", "^FCHI"]),
     ("🌏 Asia",                 ["^N225", "^HSI", "000001.SS"]),
-    ("⚡ Commodities & Crypto", ["GC=F", "CL=F", "BTC-USD", "ETH-USD"]),
+    ("⚡ Commodities & Crypto", ["GC=F", "GC=F_INR", "CL=F", "BTC-USD", "ETH-USD"]),
 ]
 
 
@@ -502,7 +487,7 @@ def _render_global_markets_grid(prices: dict):
 
     for group_label, symbols in _GLOBAL_GROUPS:
         ui.label(group_label).classes("text-xs font-bold text-gray-500 uppercase tracking-wider mt-4 mb-2")
-        grid_cls = "global-grid-4" if len(symbols) == 4 else "global-grid-3"
+        grid_cls = "global-grid-4" if len(symbols) >= 4 else "global-grid-3"
         with ui.element("div").classes(f"w-full {grid_cls}"):
             for sym in symbols:
                 entry = prices.get(sym)

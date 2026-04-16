@@ -35,12 +35,25 @@ _TICKERS = " ".join(SYMBOLS.keys())
 
 def _fetch_and_store() -> None:
     """Download latest prices via yfinance and write to state._global_prices."""
+    # Also fetch USD/INR for gold conversion
+    all_tickers = _TICKERS + " USDINR=X"
     try:
-        df = yf.download(_TICKERS, period="2d", interval="1d",
+        df = yf.download(all_tickers, period="2d", interval="1d",
                          group_by="ticker", auto_adjust=True, progress=False)
     except Exception as exc:
         print(f"  [global_feed] download failed: {exc}")
         return
+
+    # Extract USD/INR rate
+    usd_inr = None
+    try:
+        fx_col = ("USDINR=X", "Close")
+        if fx_col in df.columns:
+            fx_closes = df[fx_col].dropna()
+            if len(fx_closes) >= 1:
+                usd_inr = float(fx_closes.iloc[-1])
+    except Exception as exc:
+        print(f"  [global_feed] USD/INR fetch failed: {exc}")
 
     for symbol, (name, currency, flag) in SYMBOLS.items():
         try:
@@ -64,6 +77,29 @@ def _fetch_and_store() -> None:
             })
         except Exception as exc:
             print(f"  [global_feed] skipping {symbol}: {exc}")
+
+    # Derive Gold in INR from Gold (USD) × USD/INR rate
+    if usd_inr is not None:
+        try:
+            gold_col = ("GC=F", "Close")
+            if gold_col in df.columns:
+                gold_closes = df[gold_col].dropna()
+                if len(gold_closes) >= 2:
+                    gold_prev_usd = float(gold_closes.iloc[-2])
+                    gold_curr_usd = float(gold_closes.iloc[-1])
+                    _TROY_OZ_TO_GRAM = 31.1035
+                    gold_inr = round(gold_curr_usd * usd_inr / _TROY_OZ_TO_GRAM, 2)
+                    gold_prev_inr = gold_prev_usd * usd_inr / _TROY_OZ_TO_GRAM
+                    change_pct = round((gold_inr - gold_prev_inr) / gold_prev_inr * 100, 2) if gold_prev_inr else 0.0
+                    set_global_price("GC=F_INR", {
+                        "name": "Gold /g (INR)",
+                        "price": gold_inr,
+                        "change_pct": change_pct,
+                        "currency": "INR",
+                        "flag": "🥇",
+                    })
+        except Exception as exc:
+            print(f"  [global_feed] Gold INR conversion failed: {exc}")
 
 
 async def start_global_feed() -> None:
