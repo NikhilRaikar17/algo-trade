@@ -7,7 +7,7 @@ import asyncio
 from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
-from state import _cache_get, _cache_set, get_live_price, get_ws_connected
+from state import _cache_get, _cache_set, get_live_price, get_ws_connected, get_all_global_prices
 from data import get_expiries, fetch_option_chain, _fetch_any_index_candles, _candles_to_daily_change
 
 
