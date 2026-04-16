@@ -11,6 +11,7 @@ from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT,
 from state import _is_already_sent, _mark_sent, _send_telegram, save_completed_trade
 
 _MARKET_CLOSE = _dtime(15, 30)
+_NO_NEW_TRADE_AFTER = _dtime(15, 0)  # no new entries after 3:00 PM IST
 
 
 def _same_day_candles(future, signal_time):
@@ -303,6 +304,8 @@ def detect_rsi_sma_signals(candles):
     for i in range(1, len(df)):
         prev = df.iloc[i - 1]
         curr = df.iloc[i]
+        if curr["timestamp"].time() >= _NO_NEW_TRADE_AFTER:
+            continue  # no new entries after 3 PM
         if (
             prev["sma_fast"] <= prev["sma_slow"]
             and curr["sma_fast"] > curr["sma_slow"]
@@ -402,7 +405,7 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
 # ================= DOUBLE TOP =================
 
 
-def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
+def detect_double_top_signals(candles, max_peak_diff_pct=0.003, min_bars_between=5):
     """
     Detect double top bearish reversal patterns in OHLC candle data.
 
@@ -411,7 +414,7 @@ def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
     Signal: SELL | Target: neckline − height | SL: above second peak
 
     Strictly intraday: P1 and P2 must be on the same calendar date.
-    max_peak_diff_pts: maximum absolute point difference between P1 and P2 (default 5 pts).
+    max_peak_diff_pct: maximum % difference between P1 and P2 (default 0.3%).
     """
     all_signals = []
 
@@ -423,15 +426,19 @@ def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
         swings = find_swing_points(day_candles, order=3)
         swing_highs = [s for s in swings if s["type"] == "high"]
 
-        for i in range(len(swing_highs) - 1):
-            for j in range(i + 1, len(swing_highs)):
+        # Iterate P2 candidates; for each P2, find the most recent valid P1
+        # (searching backwards from P2) so we always show the nearest P1/P2 pair.
+        used_p2_indices = set()
+        for j in range(1, len(swing_highs)):
+            p2 = swing_highs[j]
+            for i in range(j - 1, -1, -1):
                 p1 = swing_highs[i]
-                p2 = swing_highs[j]
 
                 if p2["index"] - p1["index"] < min_bars_between:
                     continue
 
-                if abs(p1["price"] - p2["price"]) > max_peak_diff_pts:
+                avg_price = (p1["price"] + p2["price"]) / 2
+                if abs(p1["price"] - p2["price"]) / avg_price > max_peak_diff_pct:
                     continue
 
                 # Neckline = lowest low between the two peaks
@@ -443,13 +450,15 @@ def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
                 # the neckline break voids the pattern entirely.
                 resistance = float(max(p1["price"], p2["price"]))
                 after_p2 = day_candles.iloc[p2["index"] + 1:]
-                pattern_valid = True
+                signal_found = False
                 for _, bar in after_p2.iterrows():
+                    if bar["timestamp"].time() >= _NO_NEW_TRADE_AFTER:
+                        break  # no new entries after 3 PM
                     if float(bar["high"]) > resistance:
-                        pattern_valid = False
-                        break
+                        break  # pattern voided
                     if float(bar["close"]) < neckline:
-                        entry = neckline  # limit entry at neckline, not the breakdown candle close
+                        # Entry is one point below neckline (confirmed breakdown)
+                        entry = neckline - 1.0
                         sl = resistance
                         height = sl - neckline
                         target = float(neckline - 2 * height)  # target = 2× SL distance
@@ -465,7 +474,11 @@ def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
                             "peak2_time": p2["time"],
                             "neckline": round(neckline, 2),
                         })
+                        signal_found = True
                         break
+                if signal_found:
+                    used_p2_indices.add(j)
+                    break  # move to next P2; don't try other P1s for this P2
 
     # De-duplicate by entry bar time — keep first occurrence per timestamp
     seen = set()
@@ -479,36 +492,57 @@ def detect_double_top_signals(candles, max_peak_diff_pts=5, min_bars_between=5):
 
 
 def backtest_double_top(signals, candles):
-    """Walk through same-day candles after each double top signal. Force-close at 3:30 PM."""
+    """Walk through same-day candles after each double top signal. Force-close at 3:30 PM.
+
+    Two-phase simulation:
+      Phase 1 — wait for price to pull back up and touch entry (neckline - 1 pt).
+                 If SL is hit before fill, mark as "No Fill".
+      Phase 2 — once filled, track target/SL.
+    """
     trades = []
     for s in signals:
-        entry = s["entry"]
+        entry = s["entry"]   # neckline - 1.0 (sell limit)
         target = s["target"]
         sl = s["stop_loss"]
         signal_time = s["time"]
         future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
-        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        result = {"status": "No Fill", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        filled = False
         last_bar = None
         for _, bar in future.iterrows():
             last_bar = bar
-            # SELL trade: target is below entry, SL is above entry
-            if float(bar["low"]) <= target:
-                result = {
-                    "status": "Target Hit",
-                    "exit_price": round(float(target), 2),
-                    "exit_time": bar["timestamp"],
-                    "pnl": round(float(entry - target), 2),
-                }
-                break
-            if float(bar["high"]) >= sl:
-                result = {
-                    "status": "SL Hit",
-                    "exit_price": round(float(sl), 2),
-                    "exit_time": bar["timestamp"],
-                    "pnl": round(float(entry - sl), 2),
-                }
-                break
-        if result["status"] == "Open" and last_bar is not None:
+            if not filled:
+                # Phase 1: wait for a bar whose high reaches the entry level
+                if float(bar["high"]) >= entry:
+                    filled = True
+                    # Check if SL also hit on the same bar (worst-case: use SL)
+                    if float(bar["high"]) >= sl:
+                        result = {
+                            "status": "SL Hit",
+                            "exit_price": round(float(sl), 2),
+                            "exit_time": bar["timestamp"],
+                            "pnl": round(float(entry - sl), 2),
+                        }
+                        break
+            if filled:
+                # Phase 2: track target and SL
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
+                    }
+                    break
+                if float(bar["high"]) >= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+        if filled and result["status"] == "No Fill" and last_bar is not None:
             exit_px = round(float(last_bar["close"]), 2)
             result = {
                 "status": "Day Close",
@@ -520,7 +554,7 @@ def backtest_double_top(signals, candles):
     return trades
 
 
-def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_between=5):
+def detect_double_bottom_signals(candles, max_trough_diff_pct=0.003, min_bars_between=5):
     """
     Detect double bottom bullish reversal patterns in OHLC candle data.
 
@@ -529,7 +563,7 @@ def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_betwee
     Signal: BUY | Target: neckline + height | SL: below second trough
 
     Strictly intraday: T1 and T2 must be on the same calendar date.
-    max_trough_diff_pts: maximum absolute point difference between T1 and T2 (default 5 pts).
+    max_trough_diff_pct: maximum % difference between T1 and T2 (default 0.3%).
     """
     all_signals = []
 
@@ -541,15 +575,19 @@ def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_betwee
         swings = find_swing_points(day_candles, order=3)
         swing_lows = [s for s in swings if s["type"] == "low"]
 
-        for i in range(len(swing_lows) - 1):
-            for j in range(i + 1, len(swing_lows)):
+        # Iterate T2 candidates; for each T2, find the most recent valid T1
+        # (searching backwards from T2) so we always show the nearest T1/T2 pair.
+        used_t2_indices = set()
+        for j in range(1, len(swing_lows)):
+            t2 = swing_lows[j]
+            for i in range(j - 1, -1, -1):
                 t1 = swing_lows[i]
-                t2 = swing_lows[j]
 
                 if t2["index"] - t1["index"] < min_bars_between:
                     continue
 
-                if abs(t1["price"] - t2["price"]) > max_trough_diff_pts:
+                avg_price = (t1["price"] + t2["price"]) / 2
+                if abs(t1["price"] - t2["price"]) / avg_price > max_trough_diff_pct:
                     continue
 
                 # Neckline = highest high between the two troughs
@@ -561,11 +599,15 @@ def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_betwee
                 # the neckline break voids the pattern entirely.
                 support = float(min(t1["price"], t2["price"]))
                 after_t2 = day_candles.iloc[t2["index"] + 1:]
+                signal_found = False
                 for _, bar in after_t2.iterrows():
+                    if bar["timestamp"].time() >= _NO_NEW_TRADE_AFTER:
+                        break  # no new entries after 3 PM
                     if float(bar["low"]) < support:
                         break  # pattern voided
                     if float(bar["close"]) > neckline:
-                        entry = neckline  # limit entry at neckline, not the breakout candle close
+                        # Entry is one point above neckline (confirmed breakout)
+                        entry = neckline + 1.0
                         sl = support
                         height = neckline - sl
                         target = float(neckline + 2 * height)  # target = 2× SL distance
@@ -581,7 +623,11 @@ def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_betwee
                             "trough2_time": t2["time"],
                             "neckline": round(neckline, 2),
                         })
+                        signal_found = True
                         break
+                if signal_found:
+                    used_t2_indices.add(j)
+                    break  # move to next T2; don't try other T1s for this T2
 
     # De-duplicate by entry bar time — keep first occurrence per timestamp
     seen = set()
@@ -595,36 +641,57 @@ def detect_double_bottom_signals(candles, max_trough_diff_pts=5, min_bars_betwee
 
 
 def backtest_double_bottom(signals, candles):
-    """Walk through same-day candles after each double bottom signal. Force-close at 3:30 PM."""
+    """Walk through same-day candles after each double bottom signal. Force-close at 3:30 PM.
+
+    Two-phase simulation:
+      Phase 1 — wait for price to pull back down and touch entry (neckline + 1 pt).
+                 If SL is hit before fill, mark as "No Fill".
+      Phase 2 — once filled, track target/SL.
+    """
     trades = []
     for s in signals:
-        entry = s["entry"]
+        entry = s["entry"]   # neckline + 1.0 (buy limit)
         target = s["target"]
         sl = s["stop_loss"]
         signal_time = s["time"]
         future = _same_day_candles(candles[candles["timestamp"] > signal_time], signal_time)
-        result = {"status": "Open", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        result = {"status": "No Fill", "exit_price": None, "exit_time": None, "pnl": 0.0}
+        filled = False
         last_bar = None
         for _, bar in future.iterrows():
             last_bar = bar
-            # BUY trade: target is above entry, SL is below entry
-            if float(bar["high"]) >= target:
-                result = {
-                    "status": "Target Hit",
-                    "exit_price": round(float(target), 2),
-                    "exit_time": bar["timestamp"],
-                    "pnl": round(float(target - entry), 2),
-                }
-                break
-            if float(bar["low"]) <= sl:
-                result = {
-                    "status": "SL Hit",
-                    "exit_price": round(float(sl), 2),
-                    "exit_time": bar["timestamp"],
-                    "pnl": round(float(sl - entry), 2),
-                }
-                break
-        if result["status"] == "Open" and last_bar is not None:
+            if not filled:
+                # Phase 1: wait for a bar whose low reaches the entry level
+                if float(bar["low"]) <= entry:
+                    filled = True
+                    # Check if SL also hit on the same bar (worst-case: use SL)
+                    if float(bar["low"]) <= sl:
+                        result = {
+                            "status": "SL Hit",
+                            "exit_price": round(float(sl), 2),
+                            "exit_time": bar["timestamp"],
+                            "pnl": round(float(sl - entry), 2),
+                        }
+                        break
+            if filled:
+                # Phase 2: track target and SL
+                if float(bar["high"]) >= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(target - entry), 2),
+                    }
+                    break
+                if float(bar["low"]) <= sl:
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(sl - entry), 2),
+                    }
+                    break
+        if filled and result["status"] == "No Fill" and last_bar is not None:
             exit_px = round(float(last_bar["close"]), 2)
             result = {
                 "status": "Day Close",
@@ -666,6 +733,8 @@ def detect_ema10_signals(candles):
     for i in range(1, len(df_clean)):
         prev = df_clean.iloc[i - 1]
         curr = df_clean.iloc[i]
+        if curr["timestamp"].time() >= _NO_NEW_TRADE_AFTER:
+            continue  # no new entries after 3 PM
         # Bullish: close crosses above EMA 10
         if prev["close"] <= prev["ema10"] and curr["close"] > curr["ema10"]:
             target = curr["close"] * (1 + EMA10_TARGET_PCT)
@@ -774,6 +843,8 @@ def detect_sma50_signals(candles):
     for i in range(1, len(df_clean)):
         prev = df_clean.iloc[i - 1]
         curr = df_clean.iloc[i]
+        if curr["timestamp"].time() >= _NO_NEW_TRADE_AFTER:
+            continue  # no new entries after 3 PM
         # Bullish: close crosses above SMA 50
         if prev["close"] <= prev["sma50"] and curr["close"] > curr["sma50"]:
             target = curr["close"] * (1 + SMA50_TARGET_PCT)

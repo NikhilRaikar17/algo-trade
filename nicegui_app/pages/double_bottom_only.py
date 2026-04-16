@@ -252,7 +252,7 @@ def _build_double_bottom_content(container, label, candles):
             "body-cell-status",
             r"""
             <q-td :props="props">
-                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : 'grey'"
+                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : props.value === 'No Fill' ? 'blue-grey' : 'grey'"
                          :label="props.value" />
             </q-td>
             """,
