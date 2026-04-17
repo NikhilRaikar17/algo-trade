@@ -237,7 +237,7 @@ def render_dashboard(container):
                 with ui.row().classes("items-center gap-2"):
                     _ws_dot = ui.element("div").classes("w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse")
                     _ws_icon = ui.icon("wifi_off", size="18px").classes("text-red-500")
-                    _ws_label = ui.label("Dhan WS · Disconnected").classes("text-sm font-semibold text-red-600")
+                    _ws_label = ui.label("Live Data · Disconnected").classes("text-sm font-semibold text-red-600")
 
                 ui.element("div").classes("w-px h-6 bg-gray-200")
 
@@ -335,12 +335,12 @@ def render_dashboard(container):
             ws_ok = _state.get_ws_connected()
             if ws_ok:
                 _ws_icon.props("name=wifi").classes("text-green-500", remove="text-red-500")
-                _ws_label.set_text("Dhan WS · Live")
+                _ws_label.set_text("Live Data · Connected")
                 _ws_label.classes("text-green-600 font-semibold", remove="text-red-600")
                 _ws_dot.classes("bg-green-500", remove="bg-red-500 animate-pulse")
             else:
                 _ws_icon.props("name=wifi_off").classes("text-red-500", remove="text-green-500")
-                _ws_label.set_text("Dhan WS · Disconnected")
+                _ws_label.set_text("Live Data · Disconnected")
                 _ws_label.classes("text-red-600 font-semibold", remove="text-green-600")
                 _ws_dot.classes("bg-red-500 animate-pulse", remove="bg-green-500")
             tick_text = f"Last tick: {last_tick} IST" if last_tick else "Waiting for first tick…"
