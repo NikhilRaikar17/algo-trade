@@ -324,7 +324,8 @@ def render_dashboard(container):
                             )
                             _price_labels[spot_key]["badge"].classes(color_cls, remove="text-green-700 text-red-700")
 
-            # Update API status pills in-place
+            # Update live data status pill
+            from state import is_market_open
             last_tick_times = [
                 entry.get("timestamp")
                 for key in ["NIFTY", "BANKNIFTY", "VIX"]
@@ -332,17 +333,21 @@ def render_dashboard(container):
                 if entry and entry.get("timestamp")
             ]
             last_tick = max(last_tick_times) if last_tick_times else None
-            ws_ok = _state.get_ws_connected()
-            if ws_ok:
-                _ws_icon.props("name=wifi").classes("text-green-500", remove="text-red-500")
+            if not is_market_open():
+                _ws_icon.props("name=wifi_off").classes("text-gray-400", remove="text-green-500 text-red-500")
+                _ws_label.set_text("Live Data · Market Closed")
+                _ws_label.classes("text-gray-500 font-semibold", remove="text-green-600 text-red-600")
+                _ws_dot.classes("bg-gray-300", remove="bg-green-500 bg-red-500 animate-pulse")
+            elif _state.get_ws_connected():
+                _ws_icon.props("name=wifi").classes("text-green-500", remove="text-red-500 text-gray-400")
                 _ws_label.set_text("Live Data · Connected")
-                _ws_label.classes("text-green-600 font-semibold", remove="text-red-600")
-                _ws_dot.classes("bg-green-500", remove="bg-red-500 animate-pulse")
+                _ws_label.classes("text-green-600 font-semibold", remove="text-red-600 text-gray-500")
+                _ws_dot.classes("bg-green-500", remove="bg-red-500 bg-gray-300 animate-pulse")
             else:
-                _ws_icon.props("name=wifi_off").classes("text-red-500", remove="text-green-500")
+                _ws_icon.props("name=wifi_off").classes("text-red-500", remove="text-green-500 text-gray-400")
                 _ws_label.set_text("Live Data · Disconnected")
-                _ws_label.classes("text-red-600 font-semibold", remove="text-green-600")
-                _ws_dot.classes("bg-red-500 animate-pulse", remove="bg-green-500")
+                _ws_label.classes("text-red-600 font-semibold", remove="text-green-600 text-gray-500")
+                _ws_dot.classes("bg-red-500 animate-pulse", remove="bg-green-500 bg-gray-300")
             tick_text = f"Last tick: {last_tick} IST" if last_tick else "Waiting for first tick…"
             _tick_label.set_text(tick_text)
 
