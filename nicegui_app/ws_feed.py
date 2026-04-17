@@ -20,11 +20,15 @@ from dhanhq import marketfeed
 from dotenv import load_dotenv
 
 import state
-from config import CLIENT_ID, ACCESS_TOKEN
 
 load_dotenv()
 
-# ── Equity Full-packet quote store ───────────────────────────────────────────
+_CLIENT_ID = os.getenv("DHAN_CLIENT_CODE", "")
+_ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID", "")
+
+# ── Equity Full-packet quote store (used by live algo tab) ───────────────────
+# Fully independent from the index feed below — separate thread, separate loop,
+# separate credentials read directly from env.
 # {str(security_id): {ltp, bid, ask, bid_qty, ask_qty, oi, volume}}
 _quote_store: dict = {}
 _eq_subscribed: frozenset = frozenset()
@@ -38,7 +42,7 @@ def get_quote(security_id) -> dict:
 
 def subscribe(securities: list) -> None:
     """
-    Start (or restart) the equity Full-packet feed in a background thread.
+    Start (or restart) the equity Full-packet feed in a background daemon thread.
 
     securities: list of (segment_int, security_id_str)
       e.g. [(marketfeed.NSE, "2885")]
@@ -54,15 +58,16 @@ def subscribe(securities: list) -> None:
     _eq_subscribed = new_set
     _eq_consuming.clear()
 
+    _eq_client_id    = os.getenv("DHAN_CLIENT_CODE", "")
+    _eq_access_token = os.getenv("DHAN_TOKEN_ID", "")
+
     def _run():
-        # Give the feed its own isolated event loop so it never conflicts
-        # with NiceGUI's running asyncio loop on the main thread.
+        # Isolated event loop — never touches NiceGUI's asyncio loop.
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             instruments = [(seg, str(sid), marketfeed.Full) for seg, sid in securities]
-            feed = marketfeed.DhanFeed(CLIENT_ID, ACCESS_TOKEN, instruments, version="v2")
-            # feed.loop is now the new loop we just set
+            feed = marketfeed.DhanFeed(_eq_client_id, _eq_access_token, instruments, version="v2")
             loop.run_until_complete(feed.connect())
             _eq_consuming.set()
             ids = [str(s) for _, s in securities]
@@ -92,9 +97,6 @@ def subscribe(securities: list) -> None:
     threading.Thread(target=_run, daemon=True, name="ws-feed-equity").start()
 
 # ─────────────────────────────────────────────────────────────────────────────
-
-_CLIENT_ID = os.getenv("DHAN_CLIENT_CODE", "")
-_ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID", "")
 
 # Dhan security IDs for index instruments
 _SECURITY_MAP = {
@@ -168,38 +170,38 @@ def _process_tick(tick: dict) -> None:
     state.set_ws_connected(True)
 
 
-def _run_feed_blocking(feed: "DhanFeed") -> None:
+def _run_index_feed() -> None:
     """
-    Blocking poll loop: connect then read ticks one by one via get_data().
-    DhanFeed.run_forever() only calls connect() — it does not loop on recv().
-    We must call connect() first, then poll get_data() in a tight loop.
+    Blocking index feed loop — runs in a daemon thread with its own isolated
+    event loop so it never conflicts with NiceGUI's running asyncio loop.
+    Reconnects automatically with exponential backoff on failure.
     """
-    import asyncio as _asyncio
-    loop = feed.loop
-    loop.run_until_complete(feed.connect())
-    print("  [ws_feed] connected, streaming ticks...")
+    backoff = 2
     while True:
-        tick = loop.run_until_complete(feed.get_instrument_data())
-        _process_tick(tick)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            feed = DhanFeed(_CLIENT_ID, _ACCESS_TOKEN, _INSTRUMENTS, version="v2")
+            loop.run_until_complete(feed.connect())
+            state.set_ws_connected(True)
+            print("  [ws_feed] connected, streaming ticks...")
+            backoff = 2  # reset on successful connect
+            while True:
+                tick = loop.run_until_complete(feed.get_instrument_data())
+                _process_tick(tick)
+        except Exception as exc:
+            state.set_ws_connected(False)
+            print(f"  [ws_feed] disconnected ({exc}), retrying in {backoff}s...")
+            import time as _time
+            _time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+        finally:
+            loop.close()
 
 
 async def start_ws_feed() -> None:
     """
-    Connect to Dhan WebSocket and stream ticks into state._live_prices.
-    Reconnects with exponential backoff (2 → 4 → 8 → … → 60 s) on failure.
+    Spawn the index feed in a background daemon thread and return immediately.
+    The thread handles its own reconnect loop — no asyncio involvement needed.
     """
-    backoff = 2
-    while True:
-        feed = DhanFeed(_CLIENT_ID, _ACCESS_TOKEN, _INSTRUMENTS, version="v2")
-        try:
-            print("  [ws_feed] connecting to Dhan WebSocket...")
-            await asyncio.get_running_loop().run_in_executor(None, _run_feed_blocking, feed)
-        except Exception as exc:
-            state.set_ws_connected(False)
-            print(f"  [ws_feed] disconnected ({exc}), retrying in {backoff}s...")
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)
-        else:
-            state.set_ws_connected(False)
-            await asyncio.sleep(2)
-            backoff = 2
+    threading.Thread(target=_run_index_feed, daemon=True, name="ws-feed-index").start()
