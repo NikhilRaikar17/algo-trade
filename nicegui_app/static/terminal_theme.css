@@ -1,0 +1,888 @@
+/* ================================================================
+   ALGO TRADE — TERMINAL THEME
+   Outfit (display) · DM Sans (body) · JetBrains Mono (data)
+   Dark by default · Light toggled via body.at-light-theme
+   ================================================================ */
+
+/* ---- TOKEN LAYER ---- */
+:root {
+  --at-bg:       #0a0d10;
+  --at-bg1:      #0f1317;
+  --at-bg2:      #141a1f;
+  --at-bg3:      #1a2128;
+  --at-panel:    #0f1317;
+  --at-line:     #1f2830;
+  --at-line2:    #2a353f;
+  --at-fg:       #e6edf3;
+  --at-fg-dim:   #8a97a3;
+  --at-fg-faint: #5a6672;
+  --at-accent:   #00d084;
+  --at-up:       #00d084;
+  --at-down:     #ff4d5e;
+  --at-warn:     #ffb020;
+  --at-info:     #4f8cff;
+  --at-radius:   8px;
+  --at-radius-sm: 6px;
+  --at-mono:     'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+  --at-sans:     'DM Sans', -apple-system, system-ui, sans-serif;
+  --at-cond:     'Outfit', var(--at-sans);
+}
+
+/* ================================================================
+   BASE
+   ================================================================ */
+html, body {
+  background: var(--at-bg) !important;
+  color: var(--at-fg) !important;
+  font-family: var(--at-sans) !important;
+  -webkit-font-smoothing: antialiased !important;
+  overflow-x: hidden !important;   /* block horizontal scroll */
+  overflow-y: auto !important;     /* allow vertical scroll */
+  max-width: 100vw !important;
+}
+
+/* ================================================================
+   QUASAR PAGE LAYOUT
+   ================================================================ */
+.q-layout,
+.q-page-container,
+.q-page {
+  background: var(--at-bg) !important;
+}
+
+/* Quasar layout — no horizontal overflow at any level */
+.q-layout {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
+.q-page-container {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
+.q-page {
+  overflow-x: hidden !important;
+  max-width: 100% !important;
+}
+
+/* All direct content divs must not exceed viewport width */
+.q-page > div,
+.q-page > div > div {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* ================================================================
+   HEADER
+   ================================================================ */
+.q-header {
+  background: var(--at-bg1) !important;
+  border-bottom: 1px solid var(--at-line) !important;
+  box-shadow: none !important;
+}
+.header-bar {
+  background: var(--at-bg1) !important;
+  border-bottom: 1px solid var(--at-line) !important;
+  backdrop-filter: none !important;
+}
+
+/* ================================================================
+   DRAWER / SIDEBAR
+   ================================================================ */
+.q-drawer {
+  background: var(--at-bg1) !important;
+  border-right: 1px solid var(--at-line) !important;
+  box-shadow: none !important;
+}
+.q-drawer__backdrop { background: rgba(0,0,0,0.7) !important; }
+
+/* ================================================================
+   SCROLLBAR
+   ================================================================ */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--at-line2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--at-fg-faint); }
+
+/* ================================================================
+   TAILWIND TEXT COLORS
+   ================================================================ */
+.text-gray-900,
+.text-gray-800 { color: var(--at-fg)      !important; }
+
+.text-gray-700,
+.text-gray-600,
+.text-slate-600,
+.text-slate-700 { color: var(--at-fg-dim)  !important; }
+
+.text-gray-500,
+.text-gray-400,
+.text-gray-300,
+.text-slate-500,
+.text-slate-400 { color: var(--at-fg-faint) !important; }
+
+.text-gray-200,
+.text-gray-100  { color: var(--at-line2) !important; }
+
+.text-emerald-600,
+.text-emerald-500,
+.text-emerald-700,
+.text-teal-600,
+.text-green-700,
+.text-green-600 { color: var(--at-accent) !important; }
+
+.text-red-700,
+.text-red-600,
+.text-red-500   { color: var(--at-down) !important; }
+
+.text-white     { color: var(--at-fg) !important; }
+
+/* ================================================================
+   TAILWIND BACKGROUND COLORS
+   ================================================================ */
+.bg-white        { background: var(--at-bg1)  !important; }
+.bg-gray-50,
+.bg-gray-100,
+.bg-slate-50     { background: var(--at-bg2)  !important; }
+.bg-gray-200     { background: var(--at-bg3)  !important; }
+
+.bg-green-50     { background: rgba(0,208,132,0.08)  !important; }
+.bg-red-50       { background: rgba(255,77,94,0.08)   !important; }
+.bg-amber-50,
+.bg-yellow-50    { background: rgba(255,176,32,0.08)  !important; }
+
+/* ================================================================
+   BORDER COLORS
+   ================================================================ */
+.border-gray-100,
+.border-gray-200,
+.border-b,
+.border         { border-color: var(--at-line) !important; }
+.border-green-200 { border-color: rgba(0,208,132,0.3)  !important; }
+.border-red-200   { border-color: rgba(255,77,94,0.3)   !important; }
+
+/* ================================================================
+   SHADOW — subtle instead of none
+   ================================================================ */
+.shadow-sm  { box-shadow: 0 1px 4px rgba(0,0,0,0.25) !important; }
+.shadow     { box-shadow: 0 2px 8px rgba(0,0,0,0.30) !important; }
+.shadow-md  { box-shadow: 0 4px 16px rgba(0,0,0,0.35) !important; }
+
+/* ================================================================
+   RADIUS — soft, not zero
+   ================================================================ */
+.rounded-full    { border-radius: 9999px !important; }
+.rounded-2xl     { border-radius: 12px !important; }
+.rounded-xl      { border-radius: var(--at-radius) !important; }
+.rounded-lg      { border-radius: var(--at-radius-sm) !important; }
+.rounded         { border-radius: 4px !important; }
+
+/* ================================================================
+   QUASAR BUTTONS
+   ================================================================ */
+.q-btn { font-family: var(--at-sans) !important; }
+.q-btn--flat { color: var(--at-fg-dim) !important; }
+.q-btn--flat:hover { background: rgba(255,255,255,0.04) !important; }
+
+/* Nav buttons */
+.nav-btn,
+.nav-sub-btn {
+  color: var(--at-fg-dim) !important;
+  font-family: var(--at-sans) !important;
+  border-radius: 0 !important;
+}
+.nav-btn:hover,
+.nav-sub-btn:hover {
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--at-fg) !important;
+}
+.nav-btn.nav-btn-active {
+  background: var(--at-bg3) !important;
+  border-left: 2px solid var(--at-accent) !important;
+  color: var(--at-fg) !important;
+}
+.nav-btn .q-icon       { color: var(--at-fg-faint) !important; }
+.nav-btn.nav-btn-active .q-icon { color: var(--at-accent) !important; }
+
+/* Section icon colors */
+.icon-blue   .q-icon  { color: var(--at-info)   !important; }
+.icon-orange .q-icon  { color: var(--at-warn)   !important; }
+.icon-amber  .q-icon  { color: #c9a95a          !important; }
+.icon-purple .q-icon  { color: #a78bfa          !important; }
+.icon-green  .q-icon  { color: var(--at-accent) !important; }
+.icon-rose   .q-icon  { color: var(--at-down)   !important; }
+.icon-gray   .q-icon  { color: var(--at-fg-dim) !important; }
+
+/* ================================================================
+   EXPANSION ITEMS
+   ================================================================ */
+.q-expansion-item {
+  color: var(--at-fg-dim) !important;
+  font-family: var(--at-sans) !important;
+  background: transparent !important;
+}
+.q-expansion-item .q-icon { color: var(--at-fg-faint) !important; }
+.q-expansion-item__content { background: var(--at-bg2) !important; }
+.q-expansion-item__toggle-icon { color: var(--at-fg-faint) !important; }
+.q-item__label { color: var(--at-fg-dim) !important; }
+.q-item:hover  { background: rgba(255,255,255,0.04) !important; }
+
+/* ================================================================
+   SEPARATOR
+   ================================================================ */
+.q-separator { background: var(--at-line) !important; }
+
+/* ================================================================
+   INPUTS
+   ================================================================ */
+.q-field__native,
+.q-field__input {
+  color: var(--at-fg) !important;
+  font-family: var(--at-mono) !important;
+  font-size: 12px !important;
+}
+.q-field--outlined .q-field__control {
+  border-color: var(--at-line2) !important;
+  background: var(--at-bg2) !important;
+  border-radius: var(--at-radius-sm) !important;
+}
+.q-field--outlined:hover .q-field__control { border-color: var(--at-accent) !important; }
+.q-field__label { color: var(--at-fg-faint) !important; font-size: 12px !important; }
+.q-field__marginal { color: var(--at-fg-faint) !important; }
+.q-field--focused .q-field__label { color: var(--at-accent) !important; }
+
+/* ================================================================
+   CARDS
+   ================================================================ */
+.q-card {
+  background: var(--at-panel) !important;
+  border: 1px solid var(--at-line) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.25) !important;
+  border-radius: var(--at-radius) !important;
+}
+.q-card:hover {
+  background: var(--at-bg2) !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.35) !important;
+}
+
+/* ================================================================
+   TABLES
+   ================================================================ */
+.q-table__container {
+  background: var(--at-panel) !important;
+  border-radius: var(--at-radius) !important;
+  border: 1px solid var(--at-line) !important;
+  overflow: hidden !important;
+}
+.q-table th {
+  background: var(--at-bg2) !important;
+  color: var(--at-fg-dim) !important;
+  font-family: var(--at-cond) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-bottom: 1px solid var(--at-line) !important;
+  padding: 6px 10px !important;
+}
+.q-table td {
+  background: var(--at-panel) !important;
+  color: var(--at-fg) !important;
+  border-bottom: 1px solid var(--at-line) !important;
+  font-size: 12px !important;
+  padding: 5px 10px !important;
+}
+.q-table tbody tr:hover td { background: rgba(255,255,255,0.025) !important; }
+
+/* ================================================================
+   MENUS / DROPDOWNS
+   ================================================================ */
+.q-menu {
+  background: var(--at-bg2) !important;
+  border: 1px solid var(--at-line2) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+  border-radius: var(--at-radius) !important;
+}
+.q-item { color: var(--at-fg-dim) !important; }
+.q-item:hover { background: rgba(255,255,255,0.06) !important; color: var(--at-fg) !important; }
+
+/* ================================================================
+   NOTIFICATIONS
+   ================================================================ */
+.q-notification {
+  background: var(--at-bg2) !important;
+  border: 1px solid var(--at-line2) !important;
+  color: var(--at-fg) !important;
+  font-family: var(--at-mono) !important;
+  font-size: 11px !important;
+  border-radius: var(--at-radius-sm) !important;
+}
+
+/* ================================================================
+   TYPOGRAPHY
+   ================================================================ */
+.q-icon { color: inherit; }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--at-cond) !important;
+  color: var(--at-fg) !important;
+  letter-spacing: 0.01em;
+}
+
+/* ================================================================
+   MARKET STATUS BADGES
+   ================================================================ */
+.market-badge-open {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,208,132,0.10) !important;
+  border: 1px solid rgba(0,208,132,0.35) !important;
+  border-radius: 20px !important;
+  padding: 3px 10px !important;
+}
+.market-badge-closed {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,77,94,0.10) !important;
+  border: 1px solid rgba(255,77,94,0.35) !important;
+  border-radius: 20px !important;
+  padding: 3px 10px !important;
+}
+
+/* ================================================================
+   HEADER TICKER BADGES
+   ================================================================ */
+.ticker-badge {
+  font-family: var(--at-mono) !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 6px !important;
+  padding: 3px 9px !important;
+  border: 1px solid var(--at-line2) !important;
+}
+.ticker-badge.up {
+  background: rgba(0,208,132,0.10) !important;
+  color: var(--at-up) !important;
+  border-color: rgba(0,208,132,0.3) !important;
+}
+.ticker-badge.down {
+  background: rgba(255,77,94,0.10) !important;
+  color: var(--at-down) !important;
+  border-color: rgba(255,77,94,0.3) !important;
+}
+.ticker-badge.flat {
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--at-fg-dim) !important;
+  border-color: var(--at-line2) !important;
+}
+
+/* ================================================================
+   DASHBOARD CLOCK CARDS
+   ================================================================ */
+.clock-card-ist,
+.clock-card-cest {
+  background: var(--at-panel) !important;
+  border: 1px solid var(--at-line) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.2) !important;
+  border-radius: var(--at-radius) !important;
+}
+.clock-country-label {
+  font-family: var(--at-cond) !important;
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  color: var(--at-fg-faint) !important;
+}
+.clock-time {
+  font-family: var(--at-mono) !important;
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--at-fg) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.clock-date {
+  font-family: var(--at-mono) !important;
+  font-size: 0.65rem !important;
+  color: var(--at-fg-faint) !important;
+}
+.clock-tz-badge-ist {
+  background: rgba(0,208,132,0.10) !important;
+  color: var(--at-accent) !important;
+  border: 1px solid rgba(0,208,132,0.3) !important;
+  border-radius: 4px !important;
+  font-family: var(--at-mono) !important;
+  font-size: 0.6rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+}
+.clock-tz-badge-cest {
+  background: rgba(79,140,255,0.10) !important;
+  color: var(--at-info) !important;
+  border: 1px solid rgba(79,140,255,0.3) !important;
+  border-radius: 4px !important;
+  font-family: var(--at-mono) !important;
+  font-size: 0.6rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* ================================================================
+   DASHBOARD PRICE CARDS
+   ================================================================ */
+.price-card-nifty {
+  background: var(--at-panel) !important;
+  border: 1px solid var(--at-line) !important;
+  border-left: 3px solid var(--at-accent) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.2) !important;
+  border-radius: var(--at-radius) !important;
+}
+.price-card-nifty:hover { box-shadow: 0 0 0 1px var(--at-accent), 0 4px 16px rgba(0,208,132,0.1) !important; }
+.price-card-bnf {
+  background: var(--at-panel) !important;
+  border: 1px solid var(--at-line) !important;
+  border-left: 3px solid #00a86b !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.2) !important;
+  border-radius: var(--at-radius) !important;
+}
+.price-card-bnf:hover { box-shadow: 0 0 0 1px #00a86b, 0 4px 16px rgba(0,168,107,0.1) !important; }
+
+/* ================================================================
+   HEADER BRAND
+   ================================================================ */
+.at-header-logo {
+  width: 30px; height: 30px;
+  background: var(--at-accent);
+  display: grid; place-items: center;
+  color: #001a10; font-weight: 800;
+  font-family: var(--at-cond); font-size: 17px;
+  flex-shrink: 0;
+  border-radius: 7px;
+}
+.at-header-brand {
+  display: flex; align-items: center; gap: 10px;
+}
+.at-header-title {
+  font-family: var(--at-cond);
+  font-weight: 700; font-size: 15px;
+  letter-spacing: 0.03em;
+  color: var(--at-fg) !important;
+  text-transform: uppercase;
+}
+.at-header-ver {
+  font-family: var(--at-mono);
+  font-size: 9px; letter-spacing: 0.10em;
+  color: var(--at-fg-faint) !important;
+}
+
+/* ================================================================
+   PULSING STATUS DOT
+   ================================================================ */
+@keyframes at-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.at-status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  display: inline-block;
+}
+.at-status-dot.live {
+  background: var(--at-accent);
+  box-shadow: 0 0 6px var(--at-accent);
+  animation: at-pulse 1.6s ease-in-out infinite;
+}
+
+/* ================================================================
+   MARKET TICKER MARQUEE
+   ================================================================ */
+.at-ticker-strip {
+  height: 28px;
+  background: var(--at-bg1);
+  border-bottom: 1px solid var(--at-line);
+  overflow: hidden;
+  position: relative;
+}
+.at-ticker-inner {
+  display: flex;
+  gap: 32px;
+  white-space: nowrap;
+  animation: at-marquee 80s linear infinite;
+  width: max-content;
+  padding: 0 20px;
+  align-items: center;
+  height: 100%;
+}
+@keyframes at-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.at-ticker-item {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--at-mono); font-size: 11px;
+}
+.at-ticker-sym  { font-weight: 600; color: var(--at-fg); letter-spacing: 0.02em; }
+.at-ticker-val  { color: var(--at-fg); }
+.at-ticker-chg.up   { color: var(--at-up); }
+.at-ticker-chg.down { color: var(--at-down); }
+
+/* ================================================================
+   BOTTOM STATUS BAR
+   ================================================================ */
+.at-status-bar {
+  display: flex; align-items: center;
+  height: 22px;
+  background: var(--at-bg1);
+  border-top: 1px solid var(--at-line);
+  font-family: var(--at-mono); font-size: 10px; letter-spacing: 0.06em;
+}
+.at-status-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px; height: 100%;
+  border-right: 1px solid var(--at-line);
+}
+.at-status-key  { color: var(--at-fg-faint); }
+.at-status-val  { color: var(--at-up); }
+.at-sebi-text   { color: var(--at-fg-faint); padding: 0 12px; font-size: 9px; margin-left: auto; }
+.at-shortcuts   {
+  border-left: 1px solid var(--at-line);
+  padding: 0 12px; height: 100%;
+  display: flex; align-items: center; gap: 6px;
+}
+.at-shortcut-key { color: var(--at-fg); }
+.at-shortcut-lbl { color: var(--at-fg-faint); }
+
+/* ================================================================
+   SIDEBAR FOOTER INFO
+   ================================================================ */
+.at-sidebar-ver {
+  font-family: var(--at-mono); font-size: 9px;
+  letter-spacing: 0.14em; color: var(--at-fg-faint);
+}
+
+/* ================================================================
+   MARKET NEWS / CARDS
+   ================================================================ */
+.markets-grid .q-card,
+.news-grid .q-card {
+  background: var(--at-bg2) !important;
+  border: 1px solid var(--at-line2) !important;
+  border-radius: var(--at-radius) !important;
+}
+
+/* ================================================================
+   GRIDS & LAYOUT — RESPONSIVE
+   ================================================================ */
+.responsive-price-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 1024px) {
+  .responsive-price-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+}
+@media (max-width: 480px) {
+  .responsive-price-grid { grid-template-columns: 1fr; gap: 0.5rem; }
+}
+
+.global-grid-3 {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+}
+@media (max-width: 640px) { .global-grid-3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 380px) { .global-grid-3 { grid-template-columns: 1fr; } }
+
+.global-grid-4 {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;
+}
+@media (max-width: 900px) { .global-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 380px) { .global-grid-4 { grid-template-columns: 1fr; } }
+
+.widgets-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+}
+@media (max-width: 900px) { .widgets-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .widgets-grid { grid-template-columns: 1fr; } }
+
+.markets-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;
+}
+@media (max-width: 1024px) { .markets-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 768px)  { .markets-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px)  { .markets-grid { grid-template-columns: 1fr; } }
+
+.news-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+}
+@media (max-width: 1024px) { .news-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .news-grid { grid-template-columns: 1fr; } }
+
+/* ================================================================
+   RESPONSIVE TABLES
+   ================================================================ */
+.responsive-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.responsive-table-wrap table { min-width: 500px; }
+.q-table__container { overflow-x: auto !important; }
+@media (max-width: 768px) {
+  .q-table th, .q-table td { padding: 4px 6px !important; font-size: 0.75rem !important; }
+}
+
+/* ================================================================
+   RESPONSIVE NAV / HEADER
+   ================================================================ */
+@media (max-width: 1023px) {
+  .q-tab   { font-size: 0.85rem !important; padding: 8px 10px !important; }
+  .q-header { padding-left: 12px !important; padding-right: 12px !important; }
+  .q-drawer { width: 220px !important; }
+  .nav-btn { font-size: 0.78rem !important; padding: 3px 8px !important; }
+  .nav-sub-btn { font-size: 0.73rem !important; padding: 2px 6px !important; }
+}
+@media (max-width: 599px) {
+  .q-tab { font-size: 0.75rem !important; padding: 6px 6px !important; white-space: nowrap !important; }
+  .at-ticker-strip { display: none; }
+  .at-sebi-text { display: none !important; }
+  .header-status-label { display: none !important; }
+}
+
+/* ================================================================
+   ANALOG CLOCK CANVAS
+   (canvas fillStyle is JS-set — use filter to invert in dark mode)
+   ================================================================ */
+#clock-ist, #clock-cest {
+  filter: invert(1) hue-rotate(180deg) saturate(0.8) brightness(0.9);
+}
+
+/* ================================================================
+   ANIMATE-PULSE
+   ================================================================ */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.animate-pulse { animation: pulse 1.4s cubic-bezier(0.4,0,0.6,1) infinite; }
+
+/* ================================================================
+   TICKER BLINK
+   ================================================================ */
+@keyframes ticker-blink {
+  0%   { opacity: 1; }
+  40%  { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+.ticker-blink { animation: ticker-blink 0.6s ease-in-out; }
+
+
+/* ================================================================
+   LIGHT THEME — toggled by body.at-light-theme
+   ================================================================ */
+html body.at-light-theme{
+  --at-bg:       #f5f7fa;
+  --at-bg1:      #ffffff;
+  --at-bg2:      #f0f2f6;
+  --at-bg3:      #e5e9f0;
+  --at-panel:    #ffffff;
+  --at-line:     #e0e4ea;
+  --at-line2:    #c8cdd6;
+  --at-fg:       #0d1117;
+  --at-fg-dim:   #3d4a57;
+  --at-fg-faint: #7a8a99;
+  --at-accent:   #00a86b;
+  --at-up:       #008555;
+  --at-down:     #cc1f2e;
+  --at-warn:     #b87000;
+  --at-info:     #1a5fcc;
+}
+
+html body.at-light-theme{
+  background: var(--at-bg) !important;
+  color: var(--at-fg) !important;
+}
+
+html body.at-light-theme .q-layout,
+html body.at-light-theme .q-page-container,
+html body.at-light-theme .q-page {
+  background: var(--at-bg) !important;
+}
+
+/* Header */
+html body.at-light-theme .q-header,
+html body.at-light-theme .header-bar {
+  background: var(--at-bg1) !important;
+  border-bottom-color: var(--at-line) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07) !important;
+}
+
+/* Drawer / Sidebar */
+html body.at-light-theme .q-drawer,
+html body.at-light-theme .q-drawer .q-drawer__inner {
+  background: var(--at-bg1) !important;
+  border-right: 1px solid var(--at-line) !important;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.07) !important;
+}
+html body.at-light-theme .q-drawer__backdrop {
+  background: rgba(0,0,0,0.2) !important;
+}
+
+/* Cards */
+html body.at-light-theme .q-card {
+  background: var(--at-bg1) !important;
+  border-color: var(--at-line) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.07) !important;
+}
+html body.at-light-theme .q-card:hover {
+  background: var(--at-bg2) !important;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.10) !important;
+}
+
+/* Tables */
+html body.at-light-theme .q-table__container { background: var(--at-bg1) !important; border-color: var(--at-line) !important; }
+html body.at-light-theme .q-table th { background: var(--at-bg2) !important; color: var(--at-fg-dim) !important; border-bottom-color: var(--at-line) !important; }
+html body.at-light-theme .q-table td { background: var(--at-bg1) !important; color: var(--at-fg) !important; border-bottom-color: var(--at-line) !important; }
+html body.at-light-theme .q-table tbody tr:hover td { background: rgba(0,0,0,0.025) !important; }
+
+/* Menus */
+html body.at-light-theme .q-menu {
+  background: var(--at-bg1) !important;
+  border-color: var(--at-line2) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
+}
+html body.at-light-theme .q-item { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .q-item:hover { background: rgba(0,0,0,0.04) !important; color: var(--at-fg) !important; }
+html body.at-light-theme .q-separator { background: var(--at-line) !important; }
+
+/* Expansion */
+html body.at-light-theme .q-expansion-item { background: transparent !important; }
+html body.at-light-theme .q-expansion-item__content { background: var(--at-bg2) !important; }
+
+/* Inputs */
+html body.at-light-theme .q-field--outlined .q-field__control {
+  border-color: var(--at-line2) !important;
+  background: var(--at-bg2) !important;
+}
+html body.at-light-theme .q-field__native,
+html body.at-light-theme .q-field__input { color: var(--at-fg) !important; }
+
+/* Ticker & status bar */
+html body.at-light-theme .at-ticker-strip,
+html body.at-light-theme .at-status-bar {
+  background: var(--at-bg1) !important;
+  border-color: var(--at-line) !important;
+}
+html body.at-light-theme .at-ticker-sym,
+html body.at-light-theme .at-ticker-val { color: var(--at-fg) !important; }
+
+/* Nav buttons */
+html body.at-light-theme .nav-btn,
+html body.at-light-theme .nav-sub-btn { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .nav-btn:hover,
+html body.at-light-theme .nav-sub-btn:hover { background: rgba(0,0,0,0.04) !important; color: var(--at-fg) !important; }
+html body.at-light-theme .nav-btn.nav-btn-active {
+  background: rgba(0,168,107,0.08) !important;
+  border-left-color: var(--at-accent) !important;
+  color: var(--at-fg) !important;
+}
+html body.at-light-theme .nav-btn .q-icon { color: var(--at-fg-faint) !important; }
+html body.at-light-theme .nav-btn.nav-btn-active .q-icon { color: var(--at-accent) !important; }
+html body.at-light-theme .q-btn--flat { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .q-btn--flat:hover { background: rgba(0,0,0,0.04) !important; }
+
+/* Expansion items in light */
+html body.at-light-theme .q-expansion-item { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .q-item__label { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .q-item:hover { background: rgba(0,0,0,0.035) !important; }
+
+/* Tailwind text */
+html body.at-light-theme .text-gray-900,
+html body.at-light-theme .text-gray-800 { color: var(--at-fg) !important; }
+html body.at-light-theme .text-gray-700,
+html body.at-light-theme .text-gray-600,
+html body.at-light-theme .text-slate-600,
+html body.at-light-theme .text-slate-700 { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .text-gray-500,
+html body.at-light-theme .text-gray-400,
+html body.at-light-theme .text-slate-500,
+html body.at-light-theme .text-slate-400 { color: var(--at-fg-faint) !important; }
+html body.at-light-theme .text-white { color: var(--at-fg) !important; }
+html body.at-light-theme .text-emerald-600,
+html body.at-light-theme .text-emerald-700,
+html body.at-light-theme .text-green-700,
+html body.at-light-theme .text-green-600 { color: var(--at-up) !important; }
+html body.at-light-theme .text-red-700,
+html body.at-light-theme .text-red-600,
+html body.at-light-theme .text-red-500   { color: var(--at-down) !important; }
+
+/* Tailwind bg */
+html body.at-light-theme .bg-white { background: var(--at-bg1) !important; }
+html body.at-light-theme .bg-gray-50,
+html body.at-light-theme .bg-gray-100,
+html body.at-light-theme .bg-slate-50 { background: var(--at-bg2) !important; }
+html body.at-light-theme .border-gray-100,
+html body.at-light-theme .border-gray-200,
+html body.at-light-theme .border-b,
+html body.at-light-theme .border { border-color: var(--at-line) !important; }
+
+/* Clock — no inversion in light mode */
+html body.at-light-theme#clock-ist,
+html body.at-light-theme#clock-cest { filter: none; }
+
+html body.at-light-theme::-webkit-scrollbar-thumb { background: var(--at-line2); }
+html body.at-light-theme::-webkit-scrollbar-thumb:hover { background: var(--at-fg-faint); }
+
+/* Shadows in light mode */
+html body.at-light-theme .shadow-sm  { box-shadow: 0 1px 3px rgba(0,0,0,0.10) !important; }
+html body.at-light-theme .shadow     { box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important; }
+html body.at-light-theme .shadow-md  { box-shadow: 0 4px 16px rgba(0,0,0,0.14) !important; }
+
+/* ================================================================
+   QUASAR TABS (dark)
+   ================================================================ */
+.q-tabs { background: var(--at-bg2) !important; border-bottom: 1px solid var(--at-line) !important; }
+.q-tab  { color: var(--at-fg-dim) !important; font-family: var(--at-sans) !important; }
+.q-tab--active { color: var(--at-fg) !important; }
+.q-tab__indicator { background: var(--at-accent) !important; }
+.q-tab-panels { background: var(--at-bg1) !important; }
+.q-tab-panel  { background: var(--at-bg1) !important; }
+
+/* ================================================================
+   QUASAR SELECT (dark)
+   ================================================================ */
+.q-select .q-field__control { background: var(--at-bg2) !important; }
+.q-select__dropdown-icon    { color: var(--at-fg-faint) !important; }
+
+/* ================================================================
+   MISSING TAILWIND COLORS — dark theme
+   ================================================================ */
+.text-orange-500 { color: var(--at-warn) !important; }
+.text-orange-600 { color: #e09000 !important; }
+.text-blue-600,
+.text-blue-500   { color: var(--at-info) !important; }
+.text-purple-600,
+.text-purple-500 { color: #a78bfa !important; }
+.text-yellow-600,
+.text-yellow-500 { color: var(--at-warn) !important; }
+.text-teal-600,
+.text-teal-500   { color: var(--at-accent) !important; }
+
+/* Border overrides */
+.border-orange-200 { border-color: rgba(255,176,32,0.35) !important; }
+.border-blue-200   { border-color: rgba(79,140,255,0.35) !important; }
+.border-green-200  { border-color: rgba(0,208,132,0.35) !important; }
+.border-red-200    { border-color: rgba(255,77,94,0.35) !important; }
+.border-purple-200 { border-color: rgba(167,139,250,0.35) !important; }
+.border-emerald-500 { border-color: var(--at-accent) !important; }
+
+/* Chip/badge backgrounds */
+.bg-blue-100    { background: rgba(79,140,255,0.12) !important; }
+.bg-amber-100,
+.bg-yellow-100  { background: rgba(255,176,32,0.12) !important; }
+.bg-purple-100  { background: rgba(167,139,250,0.12) !important; }
+.bg-orange-100  { background: rgba(255,176,32,0.12) !important; }
+.text-blue-700  { color: var(--at-info) !important; }
+.text-amber-700 { color: var(--at-warn) !important; }
+.text-purple-700 { color: #a78bfa !important; }
+
+/* ================================================================
+   QUASAR TABS — light theme overrides
+   ================================================================ */
+html body.at-light-theme .q-tabs { background: var(--at-bg2) !important; border-bottom-color: var(--at-line) !important; }
+html body.at-light-theme .q-tab  { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .q-tab--active { color: var(--at-fg) !important; }
+html body.at-light-theme .q-tab__indicator { background: var(--at-accent) !important; }
+html body.at-light-theme .q-tab-panels,
+html body.at-light-theme .q-tab-panel { background: var(--at-bg1) !important; }

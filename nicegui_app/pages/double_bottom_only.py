@@ -28,12 +28,12 @@ def render_double_bottom_tab(container):
     with container:
         ui.label("Double Bottom Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-green-50 border border-green-200 rounded-lg px-4 py-2 mb-3"
-        ):
+            "rounded-lg px-4 py-2 mb-3"
+        ).style("background:rgba(0,208,132,0.08); border:1px solid rgba(0,208,132,0.25);"):
             ui.label(
                 "Strategy: Double Bottom bullish reversal | "
                 "Entry: Neckline break close | Target: Neckline + Height | SL: Below 2nd Trough | 5-min candles | 5 days"
-            ).classes("text-sm text-green-700")
+            ).classes("text-sm").style("color:var(--at-up);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")

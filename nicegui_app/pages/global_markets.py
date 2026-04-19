@@ -16,12 +16,6 @@ from pages.dashboard import (
 
 def render_global_markets_tab(container):
     with container:
-        with ui.row().classes("items-center gap-2 mb-1"):
-            ui.icon("public", size="24px").classes("text-emerald-500")
-            ui.label("Global Markets").classes("text-xl font-bold text-gray-800")
-        ui.label("Worldwide indices, commodities & crypto — delayed ~15 min").classes(
-            "text-xs text-gray-400 mb-4"
-        )
         content = ui.element("div").classes("w-full")
         with content:
             _render_global_markets_loading()

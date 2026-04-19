@@ -28,12 +28,12 @@ def render_double_top_tab(container):
     with container:
         ui.label("Double Top Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-3"
-        ):
+            "rounded-lg px-4 py-2 mb-3"
+        ).style("background:rgba(255,77,94,0.08); border:1px solid rgba(255,77,94,0.25);"):
             ui.label(
                 "Strategy: Double Top bearish reversal | "
                 "Entry: Neckline break close | Target: Neckline − Height | SL: Above 2nd Peak | 5-min candles | 5 days"
-            ).classes("text-sm text-red-700")
+            ).classes("text-sm").style("color:var(--at-down);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")

@@ -118,42 +118,61 @@ def build_trade_table(container, rows, pnl_col="PnL"):
 
         columns = list(rows[0].keys())
         with ui.element("div").classes("w-full responsive-table-wrap"):
-            with ui.element("table").classes("w-full border-collapse text-sm"):
+            with ui.element("table").style(
+                "width:100%; border-collapse:collapse; font-size:0.8rem;"
+                "background:var(--at-panel); color:var(--at-fg);"
+            ):
                 with ui.element("thead"):
-                    with ui.element("tr").classes("bg-gray-100"):
+                    with ui.element("tr").style("background:var(--at-bg2);"):
                         for col in columns:
-                            with ui.element("th").classes(
-                                "px-3 py-2 text-left font-semibold border-b"
+                            with ui.element("th").style(
+                                "padding:6px 10px; text-align:left; font-size:0.7rem;"
+                                "font-weight:600; letter-spacing:0.05em; text-transform:uppercase;"
+                                "color:var(--at-fg-dim); border-bottom:1px solid var(--at-line);"
                             ):
-                                ui.label(col).classes("text-xs font-semibold")
+                                ui.label(col)
                 with ui.element("tbody"):
                     for row in rows:
                         pnl_val = row.get(pnl_col, 0)
-                        with ui.element("tr").classes("border-b hover:bg-gray-50"):
+                        with ui.element("tr").style(
+                            "border-bottom:1px solid var(--at-line);"
+                        ):
                             for col in columns:
                                 val = row[col]
-                                cell = ui.element("td").classes("px-3 py-2")
-                                if col == pnl_col:
-                                    if isinstance(pnl_val, (int, float)):
-                                        if pnl_val > 0:
-                                            cell.classes(
-                                                "text-green-700 font-bold bg-green-50"
-                                            )
-                                        elif pnl_val < 0:
-                                            cell.classes(
-                                                "text-red-700 font-bold bg-red-50"
-                                            )
-                                if col == "Status" and isinstance(
-                                    pnl_val, (int, float)
-                                ):
+                                if col == pnl_col and isinstance(pnl_val, (int, float)):
                                     if pnl_val > 0:
-                                        cell.classes("text-green-700 bg-green-50")
+                                        cell_style = (
+                                            "padding:5px 10px; font-weight:700;"
+                                            "color:var(--at-up);"
+                                            "background:rgba(0,208,132,0.08);"
+                                        )
                                     elif pnl_val < 0:
-                                        cell.classes("text-red-700 bg-red-50")
-                                with cell:
+                                        cell_style = (
+                                            "padding:5px 10px; font-weight:700;"
+                                            "color:var(--at-down);"
+                                            "background:rgba(255,77,94,0.08);"
+                                        )
+                                    else:
+                                        cell_style = "padding:5px 10px; color:var(--at-fg-dim);"
+                                elif col == "Status" and isinstance(pnl_val, (int, float)):
+                                    if pnl_val > 0:
+                                        cell_style = (
+                                            "padding:5px 10px; color:var(--at-up);"
+                                            "background:rgba(0,208,132,0.08);"
+                                        )
+                                    elif pnl_val < 0:
+                                        cell_style = (
+                                            "padding:5px 10px; color:var(--at-down);"
+                                            "background:rgba(255,77,94,0.08);"
+                                        )
+                                    else:
+                                        cell_style = "padding:5px 10px; color:var(--at-fg-dim);"
+                                else:
+                                    cell_style = "padding:5px 10px; color:var(--at-fg);"
+                                with ui.element("td").style(cell_style):
                                     ui.label(
                                         _f2(val) if isinstance(val, float) else str(val)
-                                    ).classes("text-xs")
+                                    ).style("font-size:0.75rem;")
 
 
 def render_backtest_pnl_section(completed):

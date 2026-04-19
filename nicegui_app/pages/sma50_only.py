@@ -28,13 +28,13 @@ def render_sma50_tab(container):
     with container:
         ui.label("SMA 50 Crossover Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3"
-        ):
+            "rounded-lg px-4 py-2 mb-3"
+        ).style("background:rgba(255,176,32,0.08); border:1px solid rgba(255,176,32,0.25);"):
             ui.label(
                 "Strategy: BUY when price crosses above SMA(50) | "
                 "SELL when price crosses below SMA(50) | "
                 "Target: 1.5% | SL: 1% | 15-min candles | 5 days"
-            ).classes("text-sm text-amber-700")
+            ).classes("text-sm").style("color:var(--at-warn);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")

@@ -153,7 +153,7 @@ def _stock_card(entry: dict):
     change_cls   = "text-green-600" if is_green else "text-red-600"
     dot_cls      = "bg-green-500" if is_green else "bg-red-500"
     border_color = "#4ade80" if is_green else "#f87171"
-    bg_color     = "#f0fdf4" if is_green else "#fff1f2"
+    bg_color     = "rgba(0,208,132,0.08)" if is_green else "rgba(255,77,94,0.08)"
 
     def on_click(n=name, sid=security_id):
         _show_stock_chart_modal(n, sid)
@@ -161,7 +161,7 @@ def _stock_card(entry: dict):
     with ui.card().classes(
         "rounded-xl shadow-sm cursor-pointer transition-all hover:shadow-md"
     ).style(
-        f"border: 2px solid {border_color} !important; background: {bg_color}; padding: 14px 16px;"
+        f"border: 1px solid {border_color} !important; background: {bg_color}; padding: 14px 16px;"
     ).on("click", on_click):
         with ui.row().classes("items-center gap-2 mb-2"):
             ui.element("div").classes(

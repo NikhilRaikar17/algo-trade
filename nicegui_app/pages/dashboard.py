@@ -102,12 +102,12 @@ def render_dashboard(container):
     var cx = 80, cy = 80, r = 72;
     ctx.clearRect(0, 0, 160, 160);
 
-    // Face
+    // Face — dark terminal style
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, 2*Math.PI);
-    ctx.fillStyle = '#f8fafc';
+    ctx.fillStyle = '#141a1f';
     ctx.fill();
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = '#1f2830';
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -118,7 +118,7 @@ def render_dashboard(container):
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
       ctx.lineTo(cx + Math.cos(ang) * (r - 3), cy + Math.sin(ang) * (r - 3));
-      ctx.strokeStyle = i % 3 === 0 ? '#64748b' : '#cbd5e1';
+      ctx.strokeStyle = i % 3 === 0 ? '#8a97a3' : '#2a353f';
       ctx.lineWidth = i % 3 === 0 ? 2.5 : 1.2;
       ctx.stroke();
     }
@@ -128,7 +128,7 @@ def render_dashboard(container):
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + Math.cos(hAngle) * (r * 0.52), cy + Math.sin(hAngle) * (r * 0.52));
-    ctx.strokeStyle = '#0f172a';
+    ctx.strokeStyle = '#e6edf3';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -138,7 +138,7 @@ def render_dashboard(container):
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + Math.cos(mAngle) * (r * 0.72), cy + Math.sin(mAngle) * (r * 0.72));
-    ctx.strokeStyle = '#334155';
+    ctx.strokeStyle = '#c0cdd6';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -148,7 +148,7 @@ def render_dashboard(container):
     ctx.beginPath();
     ctx.moveTo(cx - Math.cos(sAngle) * 14, cy - Math.sin(sAngle) * 14);
     ctx.lineTo(cx + Math.cos(sAngle) * (r * 0.82), cy + Math.sin(sAngle) * (r * 0.82));
-    ctx.strokeStyle = '#ef4444';
+    ctx.strokeStyle = '#00d084';
     ctx.lineWidth = 1.5;
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -156,11 +156,11 @@ def render_dashboard(container):
     // Center dot
     ctx.beginPath();
     ctx.arc(cx, cy, 4, 0, 2*Math.PI);
-    ctx.fillStyle = '#ef4444';
+    ctx.fillStyle = '#00d084';
     ctx.fill();
     ctx.beginPath();
     ctx.arc(cx, cy, 2, 0, 2*Math.PI);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#0f1317';
     ctx.fill();
   }
 
@@ -216,7 +216,7 @@ def render_dashboard(container):
         # ---- API Connection Status Card ----
         with ui.card().classes(
             "w-full mb-6 !rounded-2xl shadow-sm border border-gray-100"
-        ).style("background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);").props("flat"):
+        ).props("flat"):
             with ui.row().classes("items-center gap-4 px-5 py-4 flex-wrap"):
                 # Section label
                 with ui.row().classes("items-center gap-2 mr-2"):
@@ -264,7 +264,7 @@ def render_dashboard(container):
                     key = f"{name}_{ptype}"
                     with ui.card().classes(
                         f"{card_cls} shadow-sm !rounded-xl"
-                    ).style("min-height: 120px; border: 2px solid #d1d5db !important;") as card:
+                    ).style("min-height: 120px; border: 1px solid #1f2830 !important;") as card:
                         with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
                             with ui.row().classes("items-center gap-2"):
                                 ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
@@ -458,14 +458,14 @@ def _compute_rsi14(closes: list[float]) -> float | None:
 
 
 def _render_global_markets_loading():
-    with ui.card().classes("w-full border border-gray-100 rounded-xl shadow-sm bg-white px-5 py-3").props("flat"):
+    with ui.card().classes("w-full px-5 py-3").props("flat"):
         with ui.row().classes("items-center gap-3"):
             ui.spinner("dots", size="sm").classes("text-gray-400")
             ui.label("Loading global markets…").classes("text-sm text-gray-400")
 
 
 def _render_widgets_loading():
-    with ui.card().classes("w-full border border-gray-100 rounded-xl shadow-sm bg-white px-5 py-3").props("flat"):
+    with ui.card().classes("w-full px-5 py-3").props("flat"):
         with ui.row().classes("items-center gap-3"):
             ui.spinner("dots", size="sm").classes("text-gray-400")
             ui.label("Loading market insights…").classes("text-sm text-gray-400")
@@ -486,8 +486,8 @@ def _render_global_markets_grid(prices: dict):
         ui.label("Global Markets").classes("text-lg font-semibold text-gray-800")
         ui.space()
         with ui.element("div").classes(
-            "text-xs text-gray-400 bg-gray-100 rounded-full px-3 py-0.5"
-        ):
+            "text-xs text-gray-400 px-3 py-0.5"
+        ).style("background:rgba(255,255,255,0.06); border:1px solid #2a353f;"):
             ui.label("Delayed ~15 min")
 
     for group_label, symbols in _GLOBAL_GROUPS:
@@ -566,10 +566,10 @@ def _render_sentiment_gauge(rsi: float | None):
         </linearGradient>
       </defs>
       <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#arcGrad)" stroke-width="14" stroke-linecap="round"/>
-      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#f1f5f9" stroke-width="5" stroke-linecap="round" opacity="0.4"/>
+      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#2a353f" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
       <g transform="rotate({angle}, 100, 100)">
-        <line x1="100" y1="100" x2="100" y2="30" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>
-        <circle cx="100" cy="100" r="5" fill="#0f172a"/>
+        <line x1="100" y1="100" x2="100" y2="30" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="100" cy="100" r="5" fill="#e6edf3"/>
       </g>
     </svg>
     """
@@ -612,12 +612,12 @@ def _render_vix_dial(vix: float | None):
 
     svg = f"""
     <svg viewBox="0 0 120 120" width="110" height="110">
-      <circle cx="60" cy="60" r="45" fill="none" stroke="#f1f5f9" stroke-width="12"/>
+      <circle cx="60" cy="60" r="45" fill="none" stroke="#2a353f" stroke-width="12"/>
       <circle cx="60" cy="60" r="45" fill="none" stroke="{ring_color}" stroke-width="12"
               stroke-dasharray="{dash_len} {circ}" stroke-linecap="round"
               transform="rotate(-90 60 60)"/>
-      <text x="60" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">{display}</text>
-      <text x="60" y="72" text-anchor="middle" font-size="9" fill="#94a3b8">India VIX</text>
+      <text x="60" y="55" text-anchor="middle" font-size="20" font-weight="700" fill="#e6edf3">{display}</text>
+      <text x="60" y="72" text-anchor="middle" font-size="9" fill="#5a6672">India VIX</text>
     </svg>
     """
     with ui.card().classes("border border-gray-200 shadow-sm !rounded-xl p-4").props("flat"):
@@ -692,13 +692,14 @@ def _render_economic_calendar():
         for ev in events:
             delta = (ev["date"] - today).days
             highlight = delta <= 3
-            row_cls = "border-l-4 border-amber-400 bg-amber-50 pl-2" if highlight else "border-l-4 border-gray-200 pl-2"
+            row_cls = "border-l-4 border-amber-400 pl-2" if highlight else "border-l-4 pl-2"
+            row_style = "background:rgba(255,176,32,0.08);" if highlight else "border-left-color:#2a353f;"
             chip_cls, chip_label = type_colors.get(ev["type"], ("bg-gray-100 text-gray-600", ev["type"]))
-            with ui.row().classes(f"w-full items-center gap-3 py-1.5 pr-2 rounded-r-lg {row_cls} mb-1"):
+            with ui.row().classes(f"w-full items-center gap-3 py-1.5 pr-2 {row_cls} mb-1").style(row_style):
                 with ui.element("div").classes(
-                    "text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-lg px-2 py-1 text-center"
-                ).style("min-width: 52px;"):
-                    ui.label(ev["date"].strftime("%d %b")).classes("text-gray-800 font-bold text-xs")
-                ui.label(ev["label"]).classes("text-sm text-gray-700 flex-1")
-                with ui.element("span").classes(f"text-[10px] font-bold px-2 py-0.5 rounded-full {chip_cls}"):
+                    "text-xs font-bold text-gray-400 px-2 py-1 text-center bg-gray-200"
+                ).style("min-width:52px; border:1px solid var(--at-line2);"):
+                    ui.label(ev["date"].strftime("%d %b")).classes("text-gray-300 font-bold text-xs")
+                ui.label(ev["label"]).classes("text-sm text-gray-400 flex-1")
+                with ui.element("span").classes(f"text-[10px] font-bold px-2 py-0.5 {chip_cls}"):
                     ui.label(chip_label)

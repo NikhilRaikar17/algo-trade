@@ -64,12 +64,12 @@ def _build_live_ticker(container, security_id, stock_name, active_timers):
         with ui.element("div").classes("w-full overflow-x-auto mb-3"):
             with ui.element("table").classes("text-sm border-collapse w-full"):
                 with ui.element("thead"):
-                    with ui.element("tr").classes("bg-gray-100"):
+                    with ui.element("tr").style("background:#141a1f;"):
                         for col in ["Stock", "LTP", "Bid (Qty)", "Ask (Qty)", "Spread", "OI", "Volume"]:
                             with ui.element("th").classes("px-3 py-1 text-left font-semibold border-b text-xs"):
                                 ui.label(col)
                 with ui.element("tbody"):
-                    with ui.element("tr").classes("border-b bg-blue-50"):
+                    with ui.element("tr").classes("border-b").style("background:rgba(79,140,255,0.08);"):
                         with ui.element("td").classes("px-3 py-1"):
                             ui.label(stock_name).classes("text-xs text-blue-700 font-bold")
                         for field, cls in [

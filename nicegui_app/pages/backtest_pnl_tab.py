@@ -228,7 +228,7 @@ def render_backtest_pnl_tab(container):
 
             # ── Brokerage breakdown (collapsible) ─────────────────────────
             with ui.expansion("Charges Breakdown", icon="receipt_long").classes(
-                "w-full bg-gray-50 rounded mb-3 text-sm"
+                "w-full rounded mb-3 text-sm"
             ):
                 with ui.row().classes("gap-6 flex-wrap px-4 py-2"):
                     for label, key in [

@@ -10,6 +10,9 @@ from nicegui import ui, context, app
 
 app.storage.SECRET = "algotrade-secret-key"
 
+# Serve static files (CSS, assets)
+app.add_static_files("/static", "static")
+
 # Mount FastAPI auth routes before NiceGUI takes over routing
 from routes.auth_routes import router as _auth_router
 app.include_router(_auth_router)
@@ -153,6 +156,18 @@ async def index():
         return
     ui.page_title("Algo Trading")
 
+    # ---- Fonts + Terminal Theme ----
+    ui.add_head_html(
+        '<link rel="preconnect" href="https://fonts.googleapis.com">'
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+        '<link href="https://fonts.googleapis.com/css2?'
+        'family=Outfit:wght@400;500;600;700;800'
+        '&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400'
+        '&family=JetBrains+Mono:wght@300;400;500;600;700'
+        '&display=swap" rel="stylesheet">'
+    )
+    ui.add_head_html('<link rel="stylesheet" href="/static/terminal_theme.css">')
+
     # ---- Custom CSS + TradingView ----
     ui.add_head_html(
         '<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>'
@@ -161,257 +176,67 @@ async def index():
         """
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        .q-tab { font-size: 1.1rem !important; padding: 12px 20px !important; }
-        .nav-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important;
-                   white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
-                   min-height: 36px !important; padding: 4px 12px !important; font-size: 0.85rem !important; }
-        .nav-btn .q-btn__content { justify-content: flex-start !important; gap: 10px; flex-wrap: nowrap !important; overflow: hidden !important; }
-        .nav-btn .q-icon { color: #6b7280 !important; }
-        .nav-btn-active { background: rgba(16, 185, 129, 0.12) !important; color: #059669 !important; font-weight: 600 !important; }
-        .nav-sub-btn { width: 100%; justify-content: flex-start !important; text-transform: none !important;
-                       white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
-                       min-height: 32px !important; padding: 2px 8px !important; font-size: 0.8rem !important; }
-        .nav-sub-btn .q-btn__content { justify-content: flex-start !important; gap: 6px; flex-wrap: nowrap !important; overflow: hidden !important; }
-        .nav-sub-btn .q-icon { color: #6b7280 !important; }
-        .header-bar { backdrop-filter: blur(8px); }
-        .nav-section-label {
-            font-size: 0.6rem; font-weight: 700; color: #9ca3af;
-            text-transform: uppercase; letter-spacing: 0.08em;
-            padding: 6px 16px 2px 16px;
+      html, body { overflow-x: hidden !important; overflow-y: auto !important; max-width: 100vw !important; }
+      .q-layout, .q-page-container, .q-page { overflow-x: hidden !important; max-width: 100vw !important; }
+    </style>
+    <style>
+        /* ---- NAV BUTTON STRUCTURE (layout, not color — colors in terminal_theme.css) ---- */
+        .nav-btn {
+            width: 100%;
+            justify-content: flex-start !important;
+            text-transform: none !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            min-height: 32px !important;
+            padding: 4px 14px !important;
+            font-size: 0.8rem !important;
+            border-radius: 0 !important;
         }
-        .q-expansion-item { font-size: 0.82rem !important; color: #111827 !important; }
-        .q-expansion-item .q-icon { color: #10b981 !important; }
-        /* Per-section icon colors */
-        .icon-gray .q-icon    { color: #6b7280 !important; }
-        .icon-orange .q-icon  { color: #f97316 !important; }
-        .icon-blue .q-icon    { color: #10b981 !important; }
-        .icon-purple .q-icon  { color: #059669 !important; }
-        .icon-green .q-icon   { color: #10b981 !important; }
-        .icon-amber .q-icon   { color: #f59e0b !important; }
-        .icon-rose .q-icon    { color: #f43f5e !important; }
+        .nav-btn .q-btn__content {
+            justify-content: flex-start !important;
+            gap: 10px;
+            flex-wrap: nowrap !important;
+            overflow: hidden !important;
+        }
+        .nav-sub-btn {
+            width: 100%;
+            justify-content: flex-start !important;
+            text-transform: none !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            min-height: 28px !important;
+            padding: 2px 14px !important;
+            font-size: 0.75rem !important;
+            border-radius: 0 !important;
+        }
+        .nav-sub-btn .q-btn__content {
+            justify-content: flex-start !important;
+            gap: 6px;
+            flex-wrap: nowrap !important;
+            overflow: hidden !important;
+        }
         .q-expansion-item .q-item__label { white-space: nowrap !important; }
 
-        /* ---- Dashboard clock cards ---- */
-        .clock-card-ist {
-            background: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        }
-        .clock-card-cest {
-            background: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        }
-        .clock-country-label {
-            font-size: 0.7rem;
-            font-weight: 800;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: #475569;
-            margin-bottom: 0;
-        }
-        .clock-time {
-            font-size: 1.6rem;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            color: #0f172a;
-            font-variant-numeric: tabular-nums;
-            line-height: 1.2;
-            margin-top: 2px;
-        }
-        .clock-date {
-            font-size: 0.7rem;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
-        .clock-tz-badge-ist {
-            background: #f0fdf4;
-            color: #15803d;
-            border: 1px solid #bbf7d0;
-            border-radius: 6px;
-            font-size: 0.6rem;
-            font-weight: 700;
-            padding: 1px 7px;
-            letter-spacing: 0.08em;
-            margin-top: 6px;
-        }
-        .clock-tz-badge-cest {
-            background: #ecfdf5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-            border-radius: 6px;
-            font-size: 0.6rem;
-            font-weight: 700;
-            padding: 1px 7px;
-            letter-spacing: 0.08em;
-            margin-top: 6px;
-        }
-
-        /* ---- Dashboard price cards ---- */
-        .price-card-nifty {
-            background: #ffffff !important;
-            border-left: 3px solid #10b981 !important;
-            border-top: 1px solid #e2e8f0 !important;
-            border-right: 1px solid #e2e8f0 !important;
-            border-bottom: 1px solid #e2e8f0 !important;
-            transition: box-shadow 0.2s, transform 0.2s;
-        }
-        .price-card-nifty:hover { box-shadow: 0 6px 24px rgba(16,185,129,0.15) !important; transform: translateY(-2px); }
-        .price-card-bnf {
-            background: #ffffff !important;
-            border-left: 3px solid #059669 !important;
-            border-top: 1px solid #e2e8f0 !important;
-            border-right: 1px solid #e2e8f0 !important;
-            border-bottom: 1px solid #e2e8f0 !important;
-            transition: box-shadow 0.2s, transform 0.2s;
-        }
-        .price-card-bnf:hover { box-shadow: 0 6px 24px rgba(5,150,105,0.15) !important; transform: translateY(-2px); }
-
-        /* ---- Responsive grid for price cards ---- */
-        .responsive-price-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1.25rem;
-        }
-        @media (max-width: 1024px) {
-            .responsive-price-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 0.75rem;
-            }
-        }
-        @media (max-width: 480px) {
-            .responsive-price-grid {
-                grid-template-columns: 1fr;
-                gap: 0.5rem;
-            }
-        }
-
-        /* ---- Global markets grids ---- */
-        /* 3-col group: US / Europe / Asia */
-        .global-grid-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.75rem;
-        }
-        @media (max-width: 640px) {
-            .global-grid-3 { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 380px) {
-            .global-grid-3 { grid-template-columns: 1fr; }
-        }
-
-        /* 4-col group: Commodities & Crypto */
-        .global-grid-4 {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0.75rem;
-        }
-        @media (max-width: 900px) {
-            .global-grid-4 { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 380px) {
-            .global-grid-4 { grid-template-columns: 1fr; }
-        }
-
-        /* ---- Widgets / Market Insights grid ---- */
-        .widgets-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-        }
-        @media (max-width: 900px) {
-            .widgets-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 480px) {
-            .widgets-grid { grid-template-columns: 1fr; }
-        }
-
-        /* ---- Header ticker (spot prices) ---- */
-        .ticker-badge {
-            display: flex; align-items: center; gap: 6px;
-            border-radius: 8px; padding: 4px 10px;
-            font-size: 0.78rem; font-weight: 700;
-            transition: background 0.3s;
-            cursor: default; user-select: none;
-        }
-        .ticker-badge.up   { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-        .ticker-badge.down { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-        .ticker-badge.flat { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        /* ---- Ticker blink animation ---- */
         @keyframes ticker-blink {
             0%   { opacity: 1; }
             40%  { opacity: 0.25; }
             100% { opacity: 1; }
         }
         .ticker-blink { animation: ticker-blink 0.6s ease-in-out; }
-        @media (max-width: 599px) {
-            .header-tickers { display: none !important; }
-        }
-        /* Profile avatar — always visible, never pushed off-screen */
-        .profile-avatar-btn {
-            flex-shrink: 0 !important;
-            margin-left: auto;
-        }
-        @media (max-width: 599px) {
-            .header-status-label { display: none !important; }
-        }
 
-        /* ---- Responsive tabs & header ---- */
-        .q-drawer { background: #fff !important; overflow-y: auto !important; }
-        .q-drawer .q-scrollarea { overflow: visible !important; }
-        @media (max-width: 1023px) {
-            .q-tab { font-size: 0.85rem !important; padding: 8px 10px !important; }
-            .q-header { padding-left: 12px !important; padding-right: 12px !important; }
-            .q-drawer { width: 200px !important; }
-            .nav-btn { font-size: 0.78rem !important; padding: 3px 8px !important; }
-            .nav-sub-btn { font-size: 0.73rem !important; padding: 2px 6px !important; }
-            .nav-section-label { font-size: 0.55rem; padding: 4px 12px 2px 12px; }
+        /* ---- Header ticker sizing ---- */
+        .ticker-badge {
+            display: flex; align-items: center; gap: 6px;
+            cursor: default; user-select: none;
         }
-        @media (max-width: 599px) {
-            .q-tab { font-size: 0.75rem !important; padding: 6px 6px !important; white-space: nowrap !important; }
-            .q-drawer { width: 220px !important; }
-        }
+        @media (max-width: 599px) { .header-tickers { display: none !important; } }
+        .profile-avatar-btn { flex-shrink: 0 !important; margin-left: auto; }
 
-        /* ---- Markets grid ---- */
-        .markets-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0.75rem;
-        }
-        @media (max-width: 1024px) {
-            .markets-grid { grid-template-columns: repeat(3, 1fr); }
-        }
-        @media (max-width: 768px) {
-            .markets-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 480px) {
-            .markets-grid { grid-template-columns: 1fr; }
-        }
-
-        /* ---- News grid ---- */
-        .news-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-        }
-        @media (max-width: 1024px) {
-            .news-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 600px) {
-            .news-grid { grid-template-columns: 1fr; }
-        }
-
-        /* ---- Responsive tables ---- */
-        .responsive-table-wrap {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        .responsive-table-wrap table {
-            min-width: 500px;
-        }
-        .q-table__container { overflow-x: auto !important; }
-        @media (max-width: 768px) {
-            .q-table th, .q-table td { padding: 4px 6px !important; font-size: 0.75rem !important; }
-        }
+        /* ---- Page body bottom padding (for fixed status bar) ---- */
+        .q-page-container { padding-bottom: 22px !important; }
     </style>
     """
     )
@@ -428,82 +253,146 @@ async def index():
     # ---- Header ----
     with (
         ui.header()
-        .classes("header-bar bg-white shadow-sm border-b items-center px-6 py-0")
-        .style("height: 56px")
+        .classes("header-bar items-center px-4 py-0")
+        .style("height: 56px;")
     ):
-        with ui.row().classes("items-center w-full").style("gap: 8px; flex-wrap: nowrap;"):
+        with ui.row().classes("items-center w-full").style("gap: 0; flex-wrap: nowrap; height: 100%;"):
+            # Menu button
             menu_btn = (
                 ui.button(icon="menu", on_click=lambda: drawer.toggle())
                 .props("flat dense round")
-                .classes("text-gray-600")
+                .style("color: #5a6672; margin-right: 12px;")
             )
 
-            ui.icon("trending_up", size="28px").classes("text-emerald-600 flex-shrink-0")
-            ui.label("Algo Trade").classes(
-                "text-xl font-bold text-gray-800 tracking-tight flex-shrink-0"
-            )
+            # Brand logo block
+            with ui.element("div").classes("at-header-brand").style("gap: 10px; flex-shrink: 0;"):
+                with ui.element("div").classes("at-header-logo"):
+                    ui.label("A")
+                with ui.element("div").style("line-height: 1.1;"):
+                    ui.label("ALGO TRADE").classes("at-header-title")
+                    ui.label("TERMINAL · PRO").classes("at-header-ver")
 
-            # ---- Live spot price tickers (hidden on mobile) ----
-            _header_tickers = {}
-            with ui.element("div").classes("header-tickers flex items-center gap-2").style("flex: 1; justify-content: center;"):
-                for _idx in ["NIFTY", "BANKNIFTY"]:
-                    _badge = ui.element("div").classes("ticker-badge flat")
-                    with _badge:
-                        _lbl = ui.label(f"{_idx}  --").classes("font-bold text-sm")
-                    _header_tickers[_idx] = {"badge": _badge, "label": _lbl, "prev": None}
+            _header_tickers = {}  # kept for timer compatibility, no UI rendered
 
-            # Right-side cluster — always pinned to the right
-            with ui.element("div").style("margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0;"):
-                # Refresh status (hidden on mobile)
-                status_label = ui.label("").classes("text-xs text-gray-400 hidden sm:block")
+            # Right cluster
+            with ui.element("div").style(
+                "margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0;"
+            ):
+                # Live clock
+                _clock_lbl = ui.label("").style(
+                    "font-family: 'JetBrains Mono', monospace; font-size: 11px;"
+                    "color: var(--at-fg) !important; letter-spacing: 0.02em;"
+                )
+                ui.timer(1, lambda: _clock_lbl.set_text(
+                    now_ist().strftime("%H:%M:%S") + " IST"
+                ))
+
+                # Divider
+                ui.element("div").style(
+                    "width: 1px; height: 16px; background: var(--at-line); flex-shrink: 0;"
+                )
+
+                # Refresh status
+                status_label = ui.label("").style(
+                    "font-family: 'JetBrains Mono', monospace; font-size: 10px;"
+                    "color: #5a6672; letter-spacing: 0.04em;"
+                ).classes("hidden sm:block")
+
+                # Divider
+                ui.element("div").style(
+                    "width: 1px; height: 16px; background: var(--at-line); flex-shrink: 0;"
+                )
 
                 # Market status badge
                 market_open = is_market_open()
-                if market_open:
-                    with ui.element("div").classes(
-                        "flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1"
-                    ):
-                        ui.element("div").classes("w-2 h-2 rounded-full bg-green-500")
-                        market_badge_label = ui.label("Market Open").classes(
-                            "text-sm font-semibold text-green-700 header-status-label"
-                        )
-                else:
-                    with ui.element("div").classes(
-                        "flex items-center gap-2 bg-red-50 border border-red-200 rounded-full px-3 py-1"
-                    ):
-                        ui.element("div").classes("w-2 h-2 rounded-full bg-red-500")
-                        market_badge_label = ui.label("Market Closed").classes(
-                            "text-sm font-semibold text-red-700 header-status-label"
-                        )
+                _mkt_dot_color = "#00d084" if market_open else "#ff4d5e"
+                _mkt_bg = "rgba(0,208,132,0.10)" if market_open else "rgba(255,77,94,0.10)"
+                _mkt_border = "rgba(0,208,132,0.35)" if market_open else "rgba(255,77,94,0.35)"
+                _mkt_txt = "Market Open" if market_open else "Market Closed"
+                _mkt_txt_color = "#00d084" if market_open else "#ff4d5e"
+                with ui.element("div").style(
+                    f"display:flex; align-items:center; gap:6px; background:{_mkt_bg};"
+                    f"border:1px solid {_mkt_border}; padding:3px 10px; border-radius:20px;"
+                ):
+                    ui.element("div").style(
+                        f"width:6px; height:6px; border-radius:3px; background:{_mkt_dot_color};"
+                        f"box-shadow: 0 0 6px {_mkt_dot_color};"
+                        + (" animation: at-pulse 1.6s ease-in-out infinite;" if market_open else "")
+                    )
+                    market_badge_label = ui.label(_mkt_txt).style(
+                        f"font-family:'JetBrains Mono',monospace; font-size:10px;"
+                        f"font-weight:600; letter-spacing:0.08em; color:{_mkt_txt_color};"
+                    ).classes("header-status-label")
 
-                # ---- Profile avatar with logout dropdown ----
+                # Divider
+                ui.element("div").style(
+                    "width: 1px; height: 16px; background: var(--at-line); flex-shrink: 0;"
+                )
+
+                # Theme toggle button
+                with ui.element("div").style(
+                    "display:flex; align-items:center; justify-content:center;"
+                    "width:28px; height:28px; border-radius:8px; cursor:pointer;"
+                    "background:rgba(255,255,255,0.06); border:1px solid var(--at-line2);"
+                    "transition: background 0.2s, border-color 0.2s;"
+                ).tooltip("Toggle light/dark theme") as _toggle_wrap:
+                    _theme_icon = ui.icon("light_mode").style(
+                        "font-size: 16px; color: #8a97a3; pointer-events:none;"
+                    )
+
+                def _toggle_theme():
+                    icon_id = _theme_icon.id
+                    wrap_id = _toggle_wrap.id
+                    ui.run_javascript(
+                        "(function(){"
+                        "var body=document.body;"
+                        "var isLight=body.classList.toggle('at-light-theme');"
+                        f"var ic=document.getElementById('c{icon_id}');"
+                        f"var wr=document.getElementById('c{wrap_id}');"
+                        "if(ic){ic.textContent=isLight?'dark_mode':'light_mode';"
+                        "ic.style.color=isLight?'#ffb020':'#8a97a3';}"
+                        "if(wr){wr.style.background=isLight?'rgba(255,176,32,0.12)':'rgba(255,255,255,0.06)';"
+                        "wr.style.borderColor=isLight?'rgba(255,176,32,0.4)':'var(--at-line2)';}"
+                        "})()"
+                    )
+
+                _toggle_wrap.on("click", _toggle_theme)
+
+                # Divider
+                ui.element("div").style(
+                    "width: 1px; height: 16px; background: var(--at-line); flex-shrink: 0;"
+                )
+
+                # Profile avatar with logout dropdown
                 _username = app.storage.user.get("username", "")
                 _initials = (
                     "".join(w[0].upper() for w in _username.split()[:2])
                     if _username else "?"
                 )
-
-                with ui.button(_initials).props("round flat").style(
-                    "background: linear-gradient(135deg, #10b981, #059669) !important;"
-                    "color: #fff !important;"
-                    "font-weight: 700 !important;"
+                with ui.button(_initials).props("round flat").classes("profile-avatar-btn").style(
+                    "background: var(--at-accent) !important;"
+                    "color: #001a10 !important; font-weight: 700 !important;"
+                    "font-family: 'JetBrains Mono',monospace !important;"
                     "font-size: 0.75rem !important;"
-                    "width: 34px !important; height: 34px !important;"
-                    "min-width: 34px !important; border-radius: 50% !important;"
+                    "width: 30px !important; height: 30px !important;"
+                    "min-width: 30px !important; border-radius: 50% !important;"
                     "flex-shrink: 0 !important;"
                 ):
                     with ui.menu().props("anchor='bottom end' self='top end'").style(
-                        "border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);"
-                        "border: 1px solid #e2e8f0; overflow: hidden;"
+                        "border-radius: 0; box-shadow: 0 8px 32px rgba(0,0,0,0.6);"
+                        "border: 1px solid var(--at-line2); background: var(--at-bg2); overflow: hidden;"
                     ):
                         with ui.element("div").style(
-                            "min-width: 180px; padding: 10px 16px 8px; border-bottom: 1px solid #f1f5f9;"
+                            "min-width: 180px; padding: 10px 16px 8px; border-bottom: 1px solid #1f2830;"
                         ):
-                            ui.label(_username.capitalize() if _username else "User").style(
-                                "font-weight: 700; font-size: 0.9rem; color: #0f172a;"
+                            ui.label(_username.upper() if _username else "USER").style(
+                                "font-family: 'Outfit',sans-serif;"
+                                "font-weight: 700; font-size: 0.85rem; color: #e6edf3;"
+                                "letter-spacing: 0.06em;"
                             )
-                            ui.label("Logged in").style(
-                                "font-size: 0.75rem; color: #94a3b8;"
+                            ui.label("AUTHENTICATED SESSION").style(
+                                "font-family: 'JetBrains Mono',monospace;"
+                                "font-size: 0.65rem; color: #5a6672; letter-spacing: 0.08em;"
                             )
 
                         def _do_logout():
@@ -518,23 +407,67 @@ async def index():
                         ui.menu_item(
                             "Logout",
                             on_click=_do_logout,
-                        ).style("color: #ef4444; font-size: 0.85rem;")
+                        ).style(
+                            "color: #ff4d5e; font-family: 'JetBrains Mono',monospace;"
+                            "font-size: 0.8rem; letter-spacing: 0.06em;"
+                        )
 
     # ---- Sidebar ----
     with (
         ui.left_drawer(value=True, bordered=False)
         .props("breakpoint=1023")
-        .classes("bg-white")
-        .style("width: 240px; padding-top: 8px; box-shadow: 2px 0 12px rgba(0,0,0,0.06); overflow-y: auto; max-height: 100vh;") as drawer
+        .style(
+            "width: 240px; padding: 0;"
+        ) as drawer
     ):
         pass  # content built after page_containers exist
 
+    # ---- Market Ticker Marquee Strip ----
+    _ticker_indices = [
+        ("NIFTY 50", 24812.45, +142.30, +0.58),
+        ("BANK NIFTY", 52418.90, -186.15, -0.35),
+        ("SENSEX", 81234.67, +412.88, +0.51),
+        ("NIFTY IT", 42187.55, -124.60, -0.29),
+        ("NIFTY AUTO", 26441.15, +312.70, +1.20),
+        ("INDIA VIX", 13.82, -0.41, -2.88),
+        ("USD/INR", 83.4150, +0.0725, +0.09),
+        ("GOLD MCX", 74218.00, +182.00, +0.25),
+        ("CRUDE MCX", 6482.50, -38.50, -0.59),
+    ]
+    def _ticker_html():
+        items = _ticker_indices * 2  # duplicate for seamless loop
+        parts = []
+        for sym, last, chg, pct in items:
+            dp = 4 if ("VIX" in sym or "INR" in sym) else 2
+            val = f"{last:,.{dp}f}"
+            sign = "▲" if chg >= 0 else "▼"
+            cls = "up" if chg >= 0 else "down"
+            chg_str = f"{sign} {abs(chg):.2f} ({abs(pct):.2f}%)"
+            parts.append(
+                f'<span class="at-ticker-item">'
+                f'<span class="at-ticker-sym">{sym}</span>'
+                f'<span class="at-ticker-val">{val}</span>'
+                f'<span class="at-ticker-chg {cls}">{chg_str}</span>'
+                f'</span>'
+            )
+        inner = "".join(parts)
+        return (
+            f'<div class="at-ticker-strip">'
+            f'<div class="at-ticker-inner">{inner}</div>'
+            f'</div>'
+        )
+    ui.html(_ticker_html())
+
     # ---- Main Content Area ----
-    with ui.element("div").classes("w-full p-3 sm:p-6"):
+    with ui.element("div").style(
+        "width: 100%; max-width: 100%; box-sizing: border-box; overflow-x: hidden;"
+    ):
         page_containers = {}
 
         for pid in ALL_PAGE_IDS:
-            cont = ui.element("div").classes("w-full")
+            cont = ui.element("div").style(
+                "width: 100%; max-width: 100%; box-sizing: border-box; padding: 10px 12px; overflow-x: hidden;"
+            )
             cont.set_visibility(pid == active_page["value"])
             page_containers[pid] = cont
 
@@ -702,6 +635,44 @@ async def index():
             )
 
     ui.timer(5, _update_header_tickers)
+
+    # ---- Terminal Status Bar ---- (pinned at page bottom via HTML)
+    ui.html("""
+    <div class="at-status-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:100;">
+      <div class="at-status-item">
+        <span class="at-status-dot live"></span>
+        <span class="at-status-key">NSE</span>
+        <span class="at-status-val">LIVE</span>
+      </div>
+      <div class="at-status-item">
+        <span class="at-status-dot live"></span>
+        <span class="at-status-key">BSE</span>
+        <span class="at-status-val">LIVE</span>
+      </div>
+      <div class="at-status-item">
+        <span class="at-status-dot live"></span>
+        <span class="at-status-key">MCX</span>
+        <span class="at-status-val">LIVE</span>
+      </div>
+      <div class="at-status-item">
+        <span class="at-status-dot live"></span>
+        <span class="at-status-key">ENGINE</span>
+        <span class="at-status-val">ACTIVE</span>
+      </div>
+      <span class="at-sebi-text">
+        SEBI REG INB231408731 &middot; MEMBER NSE &middot; BSE &middot; MCX
+        &middot; INVESTMENT IN SECURITIES MARKET ARE SUBJECT TO MARKET RISKS
+      </span>
+      <div class="at-shortcuts">
+        <span class="at-shortcut-key">⌘K</span>
+        <span class="at-shortcut-lbl">SEARCH</span>
+      </div>
+    </div>
+    <style>
+      /* Push content above the fixed status bar */
+      .q-page-container { padding-bottom: 22px !important; }
+    </style>
+    """)
 
 
 # ================= RUN =================
