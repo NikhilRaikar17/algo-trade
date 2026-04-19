@@ -19,7 +19,7 @@ from passlib.context import CryptContext
 from sqlalchemy import text
 
 from db import Base, SessionLocal, engine
-from models import User, UserSession, Strategy, TopStock, UserActivityLog  # noqa: F401
+from models import User, UserSession, Strategy, TopStock, UserActivityLog  # noqa: F401 — imported for side-effect: ensures all tables are created by Base.metadata.create_all
 
 # ── Password context ──────────────────────────────────────────────────────────
 # sha256_crypt avoids bcrypt/passlib version incompatibilities on Windows
@@ -133,16 +133,14 @@ def create_session(username: str) -> str:
         if user:
             user.last_login = now
 
-        s.commit()
-
-    with SessionLocal() as s2:
-        s2.add(UserActivityLog(
+        s.add(UserActivityLog(
             username=username,
             session_key=key,
             login_at=now,
             logout_at=None,
         ))
-        s2.commit()
+
+        s.commit()
 
     return key
 
@@ -161,6 +159,11 @@ def validate_session(session_key: str) -> str | None:
         if row is None:
             return None
         if datetime.utcnow() > row.expires_at:
+            log_row = s.query(UserActivityLog).filter(
+                UserActivityLog.session_key == session_key
+            ).first()
+            if log_row and log_row.logout_at is None:
+                log_row.logout_at = row.expires_at
             s.delete(row)
             s.commit()
             return None

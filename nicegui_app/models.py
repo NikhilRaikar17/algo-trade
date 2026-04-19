@@ -49,7 +49,7 @@ class UserActivityLog(Base):
 
     id          = Column(Integer, primary_key=True, autoincrement=True)
     username    = Column(String, ForeignKey("users.username"), nullable=False)
-    session_key = Column(String, nullable=False)
+    session_key = Column(String, unique=True, nullable=False)
     login_at    = Column(DateTime, nullable=False)
     logout_at   = Column(DateTime, nullable=True)
 
