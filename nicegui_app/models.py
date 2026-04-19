@@ -43,6 +43,17 @@ class UserSession(Base):
     expires_at  = Column(DateTime, nullable=False)
 
 
+class UserActivityLog(Base):
+    """One row per login session — records login and logout time."""
+    __tablename__ = "user_activity_log"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    username    = Column(String, ForeignKey("users.username"), nullable=False)
+    session_key = Column(String, nullable=False)
+    login_at    = Column(DateTime, nullable=False)
+    logout_at   = Column(DateTime, nullable=True)
+
+
 class TopStock(Base):
     """
     Persistent rolling list of top NIFTY 50 movers (capped at 20 active rows).
