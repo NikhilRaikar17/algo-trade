@@ -106,44 +106,6 @@ def _delete_user(username: str) -> None:
 def render_admin_tab(container):
     """Render the admin settings page. Returns an async refresh() closure."""
 
-    def _build_table_html(stats: list[dict]) -> str:
-        header_style = (
-            "font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700;"
-            "letter-spacing:0.1em; text-transform:uppercase; color:var(--at-fg-faint);"
-            "padding:8px 16px; border-bottom:1px solid var(--at-line); text-align:left;"
-        )
-        cell_style = (
-            "font-family:'JetBrains Mono',monospace; font-size:12px;"
-            "color:var(--at-fg); padding:10px 16px; border-bottom:1px solid var(--at-line2);"
-        )
-        name_style = (
-            "font-family:'Outfit',sans-serif; font-size:13px; font-weight:600;"
-            "color:var(--at-accent); padding:10px 16px; border-bottom:1px solid var(--at-line2);"
-        )
-
-        rows_html = ""
-        for row in stats:
-            rows_html += (
-                f'<tr>'
-                f'<td style="{name_style}">{row["username"].upper()}</td>'
-                f'<td style="{cell_style}">{row["last_login"]}</td>'
-                f'<td style="{cell_style}; text-align:center;">{row["sessions_today"]}</td>'
-                f'<td style="{cell_style}; text-align:center;">{row["minutes_today"]} min</td>'
-                f'</tr>'
-            )
-
-        return (
-            f'<table style="width:100%; border-collapse:collapse; background:var(--at-bg2);">'
-            f'<thead><tr>'
-            f'<th style="{header_style}">Username</th>'
-            f'<th style="{header_style}">Last Login</th>'
-            f'<th style="{header_style}; text-align:center;">Sessions Today</th>'
-            f'<th style="{header_style}; text-align:center;">Minutes Today</th>'
-            f'</tr></thead>'
-            f'<tbody>{rows_html}</tbody>'
-            f'</table>'
-        )
-
     def _build():
         container.clear()
         with container:
@@ -205,8 +167,70 @@ def render_admin_tab(container):
 
             stats = _get_admin_stats()
 
-            with ui.element("div").style("width: 100%; overflow-x: auto;"):
-                ui.html(_build_table_html(stats))
+            header_style = (
+                "font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700;"
+                "letter-spacing:0.1em; text-transform:uppercase; color:var(--at-fg-faint);"
+                "padding:8px 16px; border-bottom:1px solid var(--at-line); text-align:left;"
+            )
+            cell_style = (
+                "font-family:'JetBrains Mono',monospace; font-size:12px;"
+                "color:var(--at-fg); padding:10px 16px; border-bottom:1px solid var(--at-line2);"
+            )
+            name_style = (
+                "font-family:'Outfit',sans-serif; font-size:13px; font-weight:600;"
+                "color:var(--at-accent); padding:10px 16px; border-bottom:1px solid var(--at-line2);"
+            )
+
+            with ui.element("div").style("width:100%; overflow-x:auto;"):
+                with ui.element("table").style(
+                    "width:100%; border-collapse:collapse; background:var(--at-bg2);"
+                ):
+                    # Header row
+                    with ui.element("thead"):
+                        with ui.element("tr"):
+                            for label, extra in [
+                                ("Username", ""),
+                                ("Last Login", ""),
+                                ("Sessions Today", " text-align:center;"),
+                                ("Minutes Today", " text-align:center;"),
+                                ("", ""),  # delete column — no label
+                            ]:
+                                with ui.element("th").style(header_style + extra):
+                                    ui.label(label)
+
+                    # Body rows
+                    with ui.element("tbody"):
+                        for row in stats:
+                            uname = row["username"]
+                            with ui.element("tr"):
+                                with ui.element("td").style(name_style):
+                                    ui.label(uname.upper())
+                                with ui.element("td").style(cell_style):
+                                    ui.label(row["last_login"])
+                                with ui.element("td").style(cell_style + " text-align:center;"):
+                                    ui.label(str(row["sessions_today"]))
+                                with ui.element("td").style(cell_style + " text-align:center;"):
+                                    ui.label(f"{row['minutes_today']} min")
+                                with ui.element("td").style(
+                                    cell_style + " text-align:center; width:48px;"
+                                ):
+                                    if uname == "nikhil":
+                                        ui.label("—").style("color:var(--at-fg-faint);")
+                                    else:
+                                        def make_delete(u: str):
+                                            def on_delete():
+                                                _delete_user(u)
+                                                ui.notify(
+                                                    f"User '{u}' deleted.",
+                                                    type="warning",
+                                                )
+                                                _build()
+                                            return on_delete
+
+                                        ui.button(
+                                            icon="delete",
+                                            on_click=make_delete(uname),
+                                        ).props("flat dense color=negative size=sm")
 
     _build()
 
