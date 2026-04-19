@@ -44,6 +44,7 @@ from pages import (
     render_top_stocks_tab,
     render_swing_trades_tab,
     render_global_markets_tab,
+    render_admin_tab,
 )
 
 
@@ -66,6 +67,7 @@ ALL_PAGE_IDS = [
     "ema10",
     "backtest_pnl",
     "pnl",
+    "admin",
 ]
 
 
@@ -558,6 +560,7 @@ async def index():
     build_sidebar(
         drawer, active_page, nav_btn_refs, page_containers,
         on_navigate=_on_navigate,
+        username=username_from_session,
     )
 
     # ---- Build Page Content ----
@@ -594,6 +597,7 @@ async def index():
         refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
         refresh_fns["ema10"]         = render_ema10_tab(page_containers["ema10"])
         refresh_fns["backtest_pnl"]  = render_backtest_pnl_tab(page_containers["backtest_pnl"])
+        refresh_fns["admin"] = render_admin_tab(page_containers["admin"])
 
         # Live algo tab — countdown when closed, live data when open
         if market_open:
