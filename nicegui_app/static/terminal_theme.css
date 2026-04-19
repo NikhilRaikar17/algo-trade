@@ -526,6 +526,24 @@ h1, h2, h3, h4, h5, h6 {
 /* ================================================================
    BOTTOM STATUS BAR
    ================================================================ */
+/* Strip Quasar q-footer defaults so our status bar controls all styling */
+.q-footer,
+.q-footer[style] {
+  background: #0f1317 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  height: 22px !important;
+}
+html body.at-light-theme .q-footer,
+html body.at-light-theme .q-footer[style] {
+  background: #ffffff !important;
+}
+/* Make the ui.html() wrapper div fill the footer fully */
+.q-footer > div {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+}
 .at-status-bar {
   display: flex; align-items: center;
   height: 22px;
@@ -876,6 +894,35 @@ html body.at-light-theme .shadow-md  { box-shadow: 0 4px 16px rgba(0,0,0,0.14) !
 .text-blue-700  { color: var(--at-info) !important; }
 .text-amber-700 { color: var(--at-warn) !important; }
 .text-purple-700 { color: #a78bfa !important; }
+
+/* ================================================================
+   HEADER RESPONSIVE BREAKPOINTS
+   ================================================================ */
+
+/* Hide clock + its divider below 640px */
+@media (max-width: 639px) {
+  .header-clock-hide { display: none !important; }
+}
+
+/* Hide refresh status label + its divider below 768px */
+@media (max-width: 767px) {
+  .header-status-hide { display: none !important; }
+}
+
+/* Collapse market badge to dot-only below 480px */
+@media (max-width: 479px) {
+  .header-mkt-text-hide { display: none !important; }
+}
+
+/* Hide brand subtitle ("TERMINAL · PRO") below 480px */
+@media (max-width: 479px) {
+  .header-subtitle-hide { display: none !important; }
+}
+
+/* Hide brand title ("ALGO TRADE") below 380px — logo "A" stays */
+@media (max-width: 379px) {
+  .header-title-hide { display: none !important; }
+}
 
 /* ================================================================
    QUASAR TABS — light theme overrides

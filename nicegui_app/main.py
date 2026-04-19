@@ -235,8 +235,7 @@ async def index():
         @media (max-width: 599px) { .header-tickers { display: none !important; } }
         .profile-avatar-btn { flex-shrink: 0 !important; margin-left: auto; }
 
-        /* ---- Page body bottom padding (for fixed status bar) ---- */
-        .q-page-container { padding-bottom: 22px !important; }
+        /* padding-bottom no longer needed — status bar uses ui.footer() layout element */
     </style>
     """
     )
@@ -256,54 +255,54 @@ async def index():
         .classes("header-bar items-center px-4 py-0")
         .style("height: 56px;")
     ):
-        with ui.row().classes("items-center w-full").style("gap: 0; flex-wrap: nowrap; height: 100%;"):
+        with ui.row().classes("items-center w-full").style("gap: 0; flex-wrap: nowrap; height: 100%; min-width: 0;"):
             # Menu button
             menu_btn = (
                 ui.button(icon="menu", on_click=lambda: drawer.toggle())
                 .props("flat dense round")
-                .style("color: #5a6672; margin-right: 12px;")
+                .style("color: #5a6672; margin-right: 8px; flex-shrink: 0;")
             )
 
-            # Brand logo block
-            with ui.element("div").classes("at-header-brand").style("gap: 10px; flex-shrink: 0;"):
+            # Brand logo block — text collapses progressively on small screens
+            with ui.element("div").classes("at-header-brand").style("gap: 8px; min-width: 0; overflow: hidden;"):
                 with ui.element("div").classes("at-header-logo"):
                     ui.label("A")
-                with ui.element("div").style("line-height: 1.1;"):
-                    ui.label("ALGO TRADE").classes("at-header-title")
-                    ui.label("TERMINAL · PRO").classes("at-header-ver")
+                with ui.element("div").style("line-height: 1.1; min-width: 0; overflow: hidden;"):
+                    ui.label("ALGO TRADE").classes("at-header-title header-title-hide")
+                    ui.label("TERMINAL · PRO").classes("at-header-ver header-subtitle-hide")
 
             _header_tickers = {}  # kept for timer compatibility, no UI rendered
 
-            # Right cluster
+            # Right cluster — flex-shrink: 0 keeps it always fully visible
             with ui.element("div").style(
-                "margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0;"
+                "margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; min-width: 0;"
             ):
-                # Live clock
+                # Live clock — hidden on very small screens
                 _clock_lbl = ui.label("").style(
                     "font-family: 'JetBrains Mono', monospace; font-size: 11px;"
-                    "color: var(--at-fg) !important; letter-spacing: 0.02em;"
-                )
+                    "color: var(--at-fg) !important; letter-spacing: 0.02em; white-space: nowrap;"
+                ).classes("header-clock-hide")
                 ui.timer(1, lambda: _clock_lbl.set_text(
                     now_ist().strftime("%H:%M:%S") + " IST"
                 ))
 
-                # Divider
-                ui.element("div").style(
+                # Divider — hidden with clock
+                ui.element("div").classes("header-clock-hide").style(
                     "width: 1px; height: 16px; background: var(--at-line); flex-shrink: 0;"
                 )
 
-                # Refresh status
+                # Refresh status — hidden on small screens
                 status_label = ui.label("").style(
                     "font-family: 'JetBrains Mono', monospace; font-size: 10px;"
-                    "color: #5a6672; letter-spacing: 0.04em;"
-                ).classes("hidden sm:block")
+                    "color: #5a6672; letter-spacing: 0.04em; white-space: nowrap;"
+                ).classes("header-status-hide")
 
-                # Divider
-                ui.element("div").style(
+                # Divider — hidden with status
+                ui.element("div").classes("header-status-hide").style(
                     "width: 1px; height: 16px; background: var(--at-line); flex-shrink: 0;"
                 )
 
-                # Market status badge
+                # Market status badge — text label hidden on small screens
                 market_open = is_market_open()
                 _mkt_dot_color = "#00d084" if market_open else "#ff4d5e"
                 _mkt_bg = "rgba(0,208,132,0.10)" if market_open else "rgba(255,77,94,0.10)"
@@ -312,17 +311,17 @@ async def index():
                 _mkt_txt_color = "#00d084" if market_open else "#ff4d5e"
                 with ui.element("div").style(
                     f"display:flex; align-items:center; gap:6px; background:{_mkt_bg};"
-                    f"border:1px solid {_mkt_border}; padding:3px 10px; border-radius:20px;"
+                    f"border:1px solid {_mkt_border}; padding:3px 8px; border-radius:20px; flex-shrink:0;"
                 ):
                     ui.element("div").style(
-                        f"width:6px; height:6px; border-radius:3px; background:{_mkt_dot_color};"
+                        f"width:6px; height:6px; border-radius:3px; background:{_mkt_dot_color}; flex-shrink:0;"
                         f"box-shadow: 0 0 6px {_mkt_dot_color};"
                         + (" animation: at-pulse 1.6s ease-in-out infinite;" if market_open else "")
                     )
                     market_badge_label = ui.label(_mkt_txt).style(
                         f"font-family:'JetBrains Mono',monospace; font-size:10px;"
-                        f"font-weight:600; letter-spacing:0.08em; color:{_mkt_txt_color};"
-                    ).classes("header-status-label")
+                        f"font-weight:600; letter-spacing:0.08em; color:{_mkt_txt_color}; white-space:nowrap;"
+                    ).classes("header-status-label header-mkt-text-hide")
 
                 # Divider
                 ui.element("div").style(
@@ -332,7 +331,7 @@ async def index():
                 # Theme toggle button
                 with ui.element("div").style(
                     "display:flex; align-items:center; justify-content:center;"
-                    "width:28px; height:28px; border-radius:8px; cursor:pointer;"
+                    "width:28px; height:28px; border-radius:8px; cursor:pointer; flex-shrink:0;"
                     "background:rgba(255,255,255,0.06); border:1px solid var(--at-line2);"
                     "transition: background 0.2s, border-color 0.2s;"
                 ).tooltip("Toggle light/dark theme") as _toggle_wrap:
@@ -721,43 +720,40 @@ async def index():
 
     ui.timer(5, _update_header_tickers)
 
-    # ---- Terminal Status Bar ---- (pinned at page bottom via HTML)
-    ui.html("""
-    <div class="at-status-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:100;">
-      <div class="at-status-item">
-        <span class="at-status-dot live"></span>
-        <span class="at-status-key">NSE</span>
-        <span class="at-status-val">LIVE</span>
-      </div>
-      <div class="at-status-item">
-        <span class="at-status-dot live"></span>
-        <span class="at-status-key">BSE</span>
-        <span class="at-status-val">LIVE</span>
-      </div>
-      <div class="at-status-item">
-        <span class="at-status-dot live"></span>
-        <span class="at-status-key">MCX</span>
-        <span class="at-status-val">LIVE</span>
-      </div>
-      <div class="at-status-item">
-        <span class="at-status-dot live"></span>
-        <span class="at-status-key">ENGINE</span>
-        <span class="at-status-val">ACTIVE</span>
-      </div>
-      <span class="at-sebi-text">
-        SEBI REG INB231408731 &middot; MEMBER NSE &middot; BSE &middot; MCX
-        &middot; INVESTMENT IN SECURITIES MARKET ARE SUBJECT TO MARKET RISKS
-      </span>
-      <div class="at-shortcuts">
-        <span class="at-shortcut-key">⌘K</span>
-        <span class="at-shortcut-lbl">SEARCH</span>
-      </div>
-    </div>
-    <style>
-      /* Push content above the fixed status bar */
-      .q-page-container { padding-bottom: 22px !important; }
-    </style>
-    """)
+    # ---- Terminal Status Bar ---- (Quasar footer — layout-aware, respects sidebar)
+    with ui.footer().style("min-height:0; padding:0; height:22px;"):
+        ui.html("""
+        <div class="at-status-bar" style="width:100%; height:22px;">
+          <div class="at-status-item">
+            <span class="at-status-dot live"></span>
+            <span class="at-status-key">NSE</span>
+            <span class="at-status-val">LIVE</span>
+          </div>
+          <div class="at-status-item">
+            <span class="at-status-dot live"></span>
+            <span class="at-status-key">BSE</span>
+            <span class="at-status-val">LIVE</span>
+          </div>
+          <div class="at-status-item">
+            <span class="at-status-dot live"></span>
+            <span class="at-status-key">MCX</span>
+            <span class="at-status-val">LIVE</span>
+          </div>
+          <div class="at-status-item">
+            <span class="at-status-dot live"></span>
+            <span class="at-status-key">ENGINE</span>
+            <span class="at-status-val">ACTIVE</span>
+          </div>
+          <span class="at-sebi-text">
+            SEBI REG INB231408731 &middot; MEMBER NSE &middot; BSE &middot; MCX
+            &middot; INVESTMENT IN SECURITIES MARKET ARE SUBJECT TO MARKET RISKS
+          </span>
+          <div class="at-shortcuts">
+            <span class="at-shortcut-key">⌘K</span>
+            <span class="at-shortcut-lbl">SEARCH</span>
+          </div>
+        </div>
+        """)
 
 
 # ================= RUN =================
