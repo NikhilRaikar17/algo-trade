@@ -3,6 +3,7 @@ Admin Settings page — visible to nikhil only.
 Shows all users' last login, sessions today, and minutes spent today.
 """
 
+import re
 from datetime import datetime, timezone, timedelta
 
 from nicegui import ui
@@ -74,8 +75,12 @@ def _add_user(username: str, password: str) -> str | None:
     username = username.strip().lower()
     if not username:
         return "Username must not be empty."
+    if not re.fullmatch(r"[a-z0-9_]{1,32}", username):
+        return "Username must be 1–32 characters: letters, digits, or underscores only."
     if not password:
         return "Password must not be empty."
+    if len(password) < 8:
+        return "Password must be at least 8 characters."
 
     with SessionLocal() as s:
         exists = s.query(User).filter(User.username == username).first()
@@ -88,11 +93,14 @@ def _add_user(username: str, password: str) -> str | None:
 
 def _delete_user(username: str) -> None:
     """Delete a user row by username. Does nothing if the user does not exist."""
+    if username == "nikhil":
+        return
     with SessionLocal() as s:
+        s.query(UserActivityLog).filter(UserActivityLog.username == username).delete()
         user = s.query(User).filter(User.username == username).first()
         if user:
             s.delete(user)
-            s.commit()
+        s.commit()
 
 
 def render_admin_tab(container):
