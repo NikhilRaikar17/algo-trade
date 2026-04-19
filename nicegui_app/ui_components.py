@@ -63,7 +63,7 @@ def _f2(v):
 
 
 def build_option_chain_table(container, df, atm):
-    """Build a NiceGUI table for option chain data inside a container."""
+    """Build a styled option chain table for the dark terminal theme."""
     container.clear()
     with container:
         if df.empty:
@@ -82,30 +82,99 @@ def build_option_chain_table(container, df, atm):
                     lambda x: round(x, 4) if pd.notna(x) else x
                 )
 
-        columns = [
-            {"name": col, "label": col, "field": col, "sortable": True, "align": "left"}
-            for col in display_df.columns
-        ]
-        # to_dict("records") returns numpy types — convert to native Python for orjson
+        columns = list(display_df.columns)
         rows = [
             {k: (v.item() if hasattr(v, "item") else v) for k, v in row.items()}
             for row in display_df.to_dict("records")
         ]
 
-        table = ui.table(columns=columns, rows=rows, row_key="Strike").classes("w-full")
-        table.props("dense flat bordered")
+        _RIGHT_ALIGN = {"LTP", "IV", "Delta", "Gamma", "Theta", "Vega", "OI", "Volume",
+                        "Strike", "Bid", "Ask", "BidQty", "AskQty"}
 
-        table.add_slot(
-            "body-cell",
-            """
-            <q-td :props="props"
-                   :style="props.row.Strike == """
-            + str(atm)
-            + """ ? 'background: #ffffb3; font-weight: bold' : ''">
-                {{ props.value }}
-            </q-td>
-        """,
-        )
+        with ui.element("div").style(
+            "width:100%; overflow-x:auto; border-radius:6px; "
+            "border:1px solid var(--at-line2);"
+        ):
+            with ui.element("table").style(
+                "width:100%; border-collapse:collapse; "
+                "font-family:var(--at-mono); font-size:0.72rem; "
+                "background:var(--at-panel); color:var(--at-fg);"
+            ):
+                # ── Header ────────────────────────────────────────────────────
+                with ui.element("thead"):
+                    with ui.element("tr").style(
+                        "background:var(--at-bg2); border-bottom:2px solid var(--at-line2);"
+                    ):
+                        for col in columns:
+                            align = "right" if col in _RIGHT_ALIGN else "left"
+                            with ui.element("th").style(
+                                f"padding:7px 10px; text-align:{align}; "
+                                "font-size:0.65rem; font-weight:700; letter-spacing:0.08em; "
+                                "text-transform:uppercase; color:var(--at-fg-faint); "
+                                "white-space:nowrap;"
+                            ):
+                                ui.label(col)
+
+                # ── Body ──────────────────────────────────────────────────────
+                with ui.element("tbody"):
+                    for i, row in enumerate(rows):
+                        is_atm = row.get("Strike") == atm
+                        stripe = "background:rgba(255,255,255,0.02);" if i % 2 == 1 else ""
+                        atm_style = (
+                            "background:rgba(255,176,32,0.10) !important; "
+                            "border-left:3px solid var(--at-warn);"
+                            if is_atm else "border-left:3px solid transparent;"
+                        )
+                        with ui.element("tr").style(
+                            f"{stripe}{atm_style} border-bottom:1px solid var(--at-line); "
+                            "transition:background 0.12s;"
+                        ):
+                            for col in columns:
+                                val = row[col]
+                                align = "right" if col in _RIGHT_ALIGN else "left"
+
+                                # Format value
+                                if col == "Trend":
+                                    if str(val) == "UP":
+                                        cell_style = (
+                                            "padding:5px 10px; color:var(--at-up); "
+                                            "font-weight:700; letter-spacing:0.04em;"
+                                        )
+                                        display_val = "▲ UP"
+                                    elif str(val) == "DOWN":
+                                        cell_style = (
+                                            "padding:5px 10px; color:var(--at-down); "
+                                            "font-weight:700; letter-spacing:0.04em;"
+                                        )
+                                        display_val = "▼ DOWN"
+                                    else:
+                                        cell_style = (
+                                            "padding:5px 10px; color:var(--at-fg-faint); "
+                                            "letter-spacing:0.04em;"
+                                        )
+                                        display_val = "— FLAT"
+                                elif col == "Strike":
+                                    cell_style = (
+                                        f"padding:5px 10px; text-align:{align}; "
+                                        "font-weight:700; color:var(--at-fg); "
+                                        + ("color:var(--at-warn);" if is_atm else "")
+                                    )
+                                    display_val = str(int(val)) if isinstance(val, float) and val == int(val) else str(val)
+                                elif isinstance(val, float):
+                                    cell_style = (
+                                        f"padding:5px 10px; text-align:{align}; "
+                                        "color:var(--at-fg-dim);"
+                                    )
+                                    display_val = _f2(val)
+                                else:
+                                    cell_style = (
+                                        f"padding:5px 10px; text-align:{align}; "
+                                        "color:var(--at-fg);"
+                                    )
+                                    display_val = str(val)
+
+                                with ui.element("td").style(cell_style):
+                                    ui.label(display_val)
 
 
 def build_trade_table(container, rows, pnl_col="PnL"):

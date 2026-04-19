@@ -19,10 +19,30 @@ def render_index_tab(container, index_name, cfg):
     prefix = cfg["name_prefix"]
 
     with container:
-        with ui.row().classes("w-full items-center gap-4 mb-2"):
-            spot_label = ui.label("Loading...").classes("text-2xl font-bold")
-            atm_label = ui.label("").classes("text-lg text-gray-500")
-            time_label = ui.label("").classes("text-sm text-gray-400 ml-auto")
+        with ui.row().classes("w-full items-center gap-4 mb-2").style(
+            "border-bottom:1px solid var(--at-line2); padding-bottom:10px;"
+        ):
+            spot_label = ui.label("Loading...").style(
+                "font-family:var(--at-mono); font-size:1.35rem; font-weight:700; "
+                "color:var(--at-fg); letter-spacing:0.02em;"
+            )
+            with ui.element("div").style(
+                "display:flex; align-items:center; gap:6px; "
+                "background:rgba(255,176,32,0.12); border:1px solid rgba(255,176,32,0.3); "
+                "border-radius:4px; padding:2px 8px;"
+            ):
+                ui.label("ATM").style(
+                    "font-size:0.6rem; font-weight:700; letter-spacing:0.1em; "
+                    "color:var(--at-warn); text-transform:uppercase;"
+                )
+                atm_label = ui.label("").style(
+                    "font-family:var(--at-mono); font-size:0.85rem; font-weight:700; "
+                    "color:var(--at-warn);"
+                )
+            time_label = ui.label("").style(
+                "font-size:0.7rem; color:var(--at-fg-faint); "
+                "font-family:var(--at-mono); margin-left:auto;"
+            )
 
         expiry_tabs_container = ui.element("div").classes("w-full")
 
@@ -70,8 +90,8 @@ def render_index_tab(container, index_name, cfg):
             f"{index_name}: {spot_val:,.2f}" if spot_val else f"{index_name}: N/A"
         )
         atm_val = round(spot_val / strike_step) * strike_step if spot_val else "N/A"
-        atm_label.text = f"ATM: {atm_val:,}" if spot_val else "ATM: N/A"
-        time_label.text = f"Updated: {now_ist().strftime('%H:%M:%S')}"
+        atm_label.text = f"{atm_val:,}" if spot_val else "N/A"
+        time_label.text = f"⟳  {now_ist().strftime('%H:%M:%S')} IST"
 
         expiry_tabs_container.clear()
         with expiry_tabs_container:
@@ -109,16 +129,46 @@ def render_index_tab(container, index_name, cfg):
                                 "w-full gap-4 flex-wrap items-start"
                             ):
                                 with ui.column().classes("flex-1 min-w-[300px]"):
-                                    ui.label("CALL (CE)").classes(
-                                        "text-lg font-bold text-green-600"
-                                    )
+                                    with ui.row().style(
+                                        "align-items:center; gap:8px; margin-bottom:8px;"
+                                    ):
+                                        ui.element("div").style(
+                                            "width:3px; height:16px; border-radius:2px; "
+                                            "background:var(--at-up);"
+                                        )
+                                        ui.label("CALL").style(
+                                            "font-family:var(--at-mono); font-size:0.7rem; "
+                                            "font-weight:700; letter-spacing:0.12em; "
+                                            "color:var(--at-up); text-transform:uppercase;"
+                                        )
+                                        ui.label("CE").style(
+                                            "font-size:0.6rem; font-weight:700; "
+                                            "letter-spacing:0.1em; color:var(--at-fg-faint); "
+                                            "background:var(--at-bg2); padding:1px 5px; "
+                                            "border-radius:3px;"
+                                        )
                                     ce_container = ui.element("div").classes("w-full overflow-x-auto")
                                     build_option_chain_table(ce_container, ce, atm)
 
                                 with ui.column().classes("flex-1 min-w-[300px]"):
-                                    ui.label("PUT (PE)").classes(
-                                        "text-lg font-bold text-red-600"
-                                    )
+                                    with ui.row().style(
+                                        "align-items:center; gap:8px; margin-bottom:8px;"
+                                    ):
+                                        ui.element("div").style(
+                                            "width:3px; height:16px; border-radius:2px; "
+                                            "background:var(--at-down);"
+                                        )
+                                        ui.label("PUT").style(
+                                            "font-family:var(--at-mono); font-size:0.7rem; "
+                                            "font-weight:700; letter-spacing:0.12em; "
+                                            "color:var(--at-down); text-transform:uppercase;"
+                                        )
+                                        ui.label("PE").style(
+                                            "font-size:0.6rem; font-weight:700; "
+                                            "letter-spacing:0.1em; color:var(--at-fg-faint); "
+                                            "background:var(--at-bg2); padding:1px 5px; "
+                                            "border-radius:3px;"
+                                        )
                                     pe_container = ui.element("div").classes("w-full overflow-x-auto")
                                     build_option_chain_table(pe_container, pe, atm)
 
