@@ -597,7 +597,8 @@ async def index():
         refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
         refresh_fns["ema10"]         = render_ema10_tab(page_containers["ema10"])
         refresh_fns["backtest_pnl"]  = render_backtest_pnl_tab(page_containers["backtest_pnl"])
-        refresh_fns["admin"] = render_admin_tab(page_containers["admin"])
+        if username_from_session == "nikhil":
+            refresh_fns["admin"] = render_admin_tab(page_containers["admin"])
 
         # Live algo tab — countdown when closed, live data when open
         if market_open:
