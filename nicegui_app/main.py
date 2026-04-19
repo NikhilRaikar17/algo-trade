@@ -630,11 +630,22 @@ async def index():
         if active in _BACKTEST_PAGES:
             _backtest_loaded.add(active)
 
+        # Option chain pages: refresh live during market hours, load once after close (LTP snapshot).
+        _OPTION_CHAIN_PAGES = {"nifty", "banknifty"}
+        if active in _OPTION_CHAIN_PAGES and not is_market_open() and active in _backtest_loaded:
+            return
+        if active in _OPTION_CHAIN_PAGES:
+            _backtest_loaded.add(active)
+
         status_label.text = f"Refreshing... {now_ist().strftime('%H:%M:%S')}"
         try:
             await fn()
             if not page_client._deleted:
-                status_label.text = f"Last refresh: {now_ist().strftime('%H:%M:%S')} | Next in {REFRESH_SECONDS}s"
+                _OPTION_CHAIN_PAGES = {"nifty", "banknifty"}
+                if active in _OPTION_CHAIN_PAGES and not is_market_open():
+                    status_label.text = f"LTP snapshot: {now_ist().strftime('%H:%M:%S')} | Market closed — no live refresh"
+                else:
+                    status_label.text = f"Last refresh: {now_ist().strftime('%H:%M:%S')} | Next in {REFRESH_SECONDS}s"
         except Exception as e:
             if not page_client._deleted:
                 status_label.text = f"Refresh error: {e}"
