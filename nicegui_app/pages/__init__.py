@@ -14,3 +14,4 @@ from pages.market_news import render_market_news_tab
 from pages.top_stocks import render_top_stocks_tab
 from pages.swing_trades import render_swing_trades_tab
 from pages.global_markets import render_global_markets_tab
+from pages.admin import render_admin_tab
