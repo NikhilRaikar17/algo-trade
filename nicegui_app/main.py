@@ -423,26 +423,36 @@ async def index():
         pass  # content built after page_containers exist
 
     # ---- Market Ticker Marquee Strip ----
-    _ticker_indices = [
-        ("NIFTY 50", 24812.45, +142.30, +0.58),
-        ("BANK NIFTY", 52418.90, -186.15, -0.35),
-        ("SENSEX", 81234.67, +412.88, +0.51),
-        ("NIFTY IT", 42187.55, -124.60, -0.29),
-        ("NIFTY AUTO", 26441.15, +312.70, +1.20),
-        ("INDIA VIX", 13.82, -0.41, -2.88),
-        ("USD/INR", 83.4150, +0.0725, +0.09),
-        ("GOLD MCX", 74218.00, +182.00, +0.25),
-        ("CRUDE MCX", 6482.50, -38.50, -0.59),
+    # Static fallback data shown until real data loads
+    _ticker_fallback = [
+        ("NIFTY 50",   None, None, None),
+        ("BANK NIFTY", None, None, None),
+        ("NIFTY IT",   None, None, None),
+        ("NIFTY AUTO", None, None, None),
+        ("INDIA VIX",  None, None, None),
     ]
-    def _ticker_html():
-        items = _ticker_indices * 2  # duplicate for seamless loop
+
+    def _build_ticker_items(items):
         parts = []
         for sym, last, chg, pct in items:
+            if last is None:
+                parts.append(
+                    f'<span class="at-ticker-item">'
+                    f'<span class="at-ticker-sym">{sym}</span>'
+                    f'<span class="at-ticker-val">—</span>'
+                    f'</span>'
+                )
+                continue
             dp = 4 if ("VIX" in sym or "INR" in sym) else 2
             val = f"{last:,.{dp}f}"
-            sign = "▲" if chg >= 0 else "▼"
-            cls = "up" if chg >= 0 else "down"
-            chg_str = f"{sign} {abs(chg):.2f} ({abs(pct):.2f}%)"
+            _pct = pct if pct is not None else 0.0
+            _chg = chg if chg is not None else 0.0
+            sign = "▲" if _pct >= 0 else "▼"
+            cls = "up" if _pct >= 0 else "down"
+            if chg is not None:
+                chg_str = f"{sign} {abs(_chg):.2f} ({abs(_pct):.2f}%)"
+            else:
+                chg_str = f"{sign} {abs(_pct):.2f}%"
             parts.append(
                 f'<span class="at-ticker-item">'
                 f'<span class="at-ticker-sym">{sym}</span>'
@@ -450,13 +460,77 @@ async def index():
                 f'<span class="at-ticker-chg {cls}">{chg_str}</span>'
                 f'</span>'
             )
-        inner = "".join(parts)
+        return parts
+
+    def _ticker_html(items=None):
+        src = items if items is not None else _ticker_fallback
+        parts = _build_ticker_items(src)
+        inner = "".join(parts * 2)  # duplicate for seamless loop
         return (
             f'<div class="at-ticker-strip">'
             f'<div class="at-ticker-inner">{inner}</div>'
             f'</div>'
         )
-    ui.html(_ticker_html())
+
+    _ticker_el = ui.html(_ticker_html())
+
+    def _refresh_ticker():
+        """Update ticker with real data from caches (no extra API calls)."""
+        if page_client._deleted:
+            return
+        from state import _cache_get as _scache, get_live_price, get_all_global_prices
+        items = []
+
+        # NIFTY / BANKNIFTY — prefer live WS price, fall back to dashboard_prices cache
+        rest_prices = _scache("dashboard_prices") or {}
+        for idx_name, sym_label in [("NIFTY", "NIFTY 50"), ("BANKNIFTY", "BANK NIFTY")]:
+            ws = get_live_price(idx_name)
+            if ws:
+                items.append((sym_label, ws["ltp"], ws["change"], ws["change_pct"]))
+            else:
+                d = rest_prices.get(idx_name, {})
+                spot = d.get("spot")
+                if spot is not None:
+                    items.append((sym_label, spot, d.get("spot_change"), d.get("spot_change_pct")))
+                else:
+                    items.append((sym_label, None, None, None))
+
+        # Sector indices — from market_overview cache
+        mo_key = f"market_overview:{now_ist().strftime('%Y-%m-%d %H')}"
+        market_data = _scache(mo_key) or []
+        # Build a flat lookup name→data
+        idx_lookup: dict = {}
+        for grp in market_data:
+            for entry in grp.get("indices", []):
+                if entry.get("data"):
+                    idx_lookup[entry["name"]] = entry["data"]
+
+        for name in ["NIFTY IT", "NIFTY AUTO", "NIFTY BANK"]:
+            d = idx_lookup.get(name)
+            if d:
+                items.append((name, d["current"], d["change"], d["change_pct"]))
+            else:
+                items.append((name, None, None, None))
+
+        # India VIX from live WS
+        vix = get_live_price("VIX")
+        if vix:
+            items.append(("INDIA VIX", vix["ltp"], vix["change"], vix["change_pct"]))
+        else:
+            items.append(("INDIA VIX", None, None, None))
+
+        # Global: USD/INR and Gold from global prices cache
+        global_prices = get_all_global_prices()
+        for sym, label in [("GC=F_INR", "GOLD INR"), ("GC=F", "GOLD USD")]:
+            entry = global_prices.get(sym)
+            if entry:
+                items.append((label, entry["price"], None, entry["change_pct"]))
+                break
+
+        if not page_client._deleted:
+            _ticker_el.set_content(_ticker_html(items))
+
+    ui.timer(30, _refresh_ticker)
 
     # ---- Main Content Area ----
     with ui.element("div").style(
