@@ -19,7 +19,7 @@ def _get_admin_stats() -> list[dict]:
     Return one dict per user with keys:
       username, last_login (str, IST), sessions_today (int), minutes_today (float)
     """
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC for DB arithmetic
     today_ist = datetime.now(_IST).date()
 
     with SessionLocal() as s:
@@ -48,6 +48,7 @@ def _get_admin_stats() -> list[dict]:
 
             total_seconds = 0.0
             for lg in today_logs:
+                # login_at / logout_at are stored as naive UTC by auth.py — arithmetic is safe
                 end = lg.logout_at if lg.logout_at else now_utc
                 delta = (end - lg.login_at).total_seconds()
                 if delta > 0:
@@ -67,26 +68,6 @@ def _get_admin_stats() -> list[dict]:
 
 def render_admin_tab(container):
     """Render the admin settings page. Returns an async refresh() closure."""
-
-    def _build():
-        container.clear()
-        with container:
-            ui.html("""
-            <div style="
-                font-family: 'Outfit', sans-serif;
-                font-size: 11px; font-weight: 700;
-                letter-spacing: 0.14em; text-transform: uppercase;
-                color: var(--at-fg-faint); margin-bottom: 12px;
-            ">ADMIN · USER ACTIVITY</div>
-            """)
-
-            stats = _get_admin_stats()
-
-            # Table wrapper
-            with ui.element("div").style(
-                "width: 100%; overflow-x: auto;"
-            ):
-                ui.html(_build_table_html(stats))
 
     def _build_table_html(stats: list[dict]) -> str:
         header_style = (
@@ -125,6 +106,26 @@ def render_admin_tab(container):
             f'<tbody>{rows_html}</tbody>'
             f'</table>'
         )
+
+    def _build():
+        container.clear()
+        with container:
+            ui.html("""
+            <div style="
+                font-family: 'Outfit', sans-serif;
+                font-size: 11px; font-weight: 700;
+                letter-spacing: 0.14em; text-transform: uppercase;
+                color: var(--at-fg-faint); margin-bottom: 12px;
+            ">ADMIN · USER ACTIVITY</div>
+            """)
+
+            stats = _get_admin_stats()
+
+            # Table wrapper
+            with ui.element("div").style(
+                "width: 100%; overflow-x: auto;"
+            ):
+                ui.html(_build_table_html(stats))
 
     _build()
 
