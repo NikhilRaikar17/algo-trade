@@ -9,6 +9,7 @@ from nicegui import ui
 
 from db import SessionLocal
 from models import User, UserActivityLog
+from auth import pwd_ctx
 
 # IST = UTC+5:30
 _IST = timezone(timedelta(hours=5, minutes=30))
@@ -64,6 +65,34 @@ def _get_admin_stats() -> list[dict]:
             })
 
     return rows
+
+
+def _add_user(username: str, password: str) -> str | None:
+    """
+    Insert a new user. Returns an error string on failure, None on success.
+    """
+    username = username.strip().lower()
+    if not username:
+        return "Username must not be empty."
+    if not password:
+        return "Password must not be empty."
+
+    with SessionLocal() as s:
+        exists = s.query(User).filter(User.username == username).first()
+        if exists is not None:
+            return f"User '{username}' already exists."
+        s.add(User(username=username, hashed_password=pwd_ctx.hash(password)))
+        s.commit()
+    return None
+
+
+def _delete_user(username: str) -> None:
+    """Delete a user row by username. Does nothing if the user does not exist."""
+    with SessionLocal() as s:
+        user = s.query(User).filter(User.username == username).first()
+        if user:
+            s.delete(user)
+            s.commit()
 
 
 def render_admin_tab(container):
