@@ -30,7 +30,7 @@ _S = {
 }
 
 
-def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigate=None):
+def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigate=None, username: str = ""):
     """Build the sidebar navigation inside the given drawer."""
 
     async def set_active_page(page_id):
@@ -122,6 +122,12 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             _section_label("LIVE TRADING")
             _nav_button("algo", "Live Algos", "insights",               icon_color="icon-green")
             _nav_button("pnl",  "Live P&L",   "account_balance_wallet", icon_color="icon-rose")
+
+            # ADMIN (nikhil only)
+            if username == "nikhil":
+                ui.separator().style(_S["sep"])
+                _section_label("ADMIN")
+                _nav_button("admin", "Admin Settings", "admin_panel_settings", icon_color="icon-rose")
 
             ui.separator().style(_S["sep"])
 
