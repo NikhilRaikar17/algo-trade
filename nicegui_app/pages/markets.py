@@ -136,7 +136,7 @@ def _index_card(name, security_id, d):
 
     if d is None:
         with ui.card().classes(
-            "rounded-lg shadow-sm px-3 py-2 bg-white cursor-pointer"
+            "rounded-lg shadow-sm px-3 py-2 cursor-pointer"
         ).style("border: 1px solid #2a353f !important;").on("click", on_click):
             ui.label(name).classes("text-[10px] font-bold text-gray-400 uppercase tracking-wide")
             ui.label("—").classes("text-sm text-gray-300")
@@ -150,7 +150,7 @@ def _index_card(name, security_id, d):
     border_color = "#4ade80" if is_green else "#f87171"
 
     with ui.card().classes(
-        "rounded-lg shadow-sm px-3 py-2 bg-white cursor-pointer"
+        "rounded-lg shadow-sm px-3 py-2 cursor-pointer"
     ).style(f"border: 1px solid {border_color} !important;").on("click", on_click):
         with ui.row().classes("items-center gap-1.5 w-full mb-0.5"):
             ui.element("div").classes(f"w-1.5 h-1.5 rounded-full {dot_cls}")
