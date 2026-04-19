@@ -817,6 +817,36 @@ html body.at-light-theme .text-gray-400,
 html body.at-light-theme .text-slate-500,
 html body.at-light-theme .text-slate-400 { color: var(--at-fg-faint) !important; }
 html body.at-light-theme .text-white { color: var(--at-fg) !important; }
+
+/* ================================================================
+   CHART WRAPPERS & TOOLTIPS
+   ================================================================ */
+.at-chart-wrap {
+  border: 1px solid var(--at-line2);
+  border-radius: var(--at-radius);
+  overflow: hidden;
+}
+
+/* OHLC tooltip overlay — themed via CSS variables */
+.tv-ohlc-tip {
+  position: absolute;
+  top: 8px; left: 8px; z-index: 10;
+  background: rgba(20, 26, 31, 0.92);
+  border: 1px solid var(--at-line2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: monospace;
+  line-height: 1.6;
+  pointer-events: none;
+  display: none;
+  color: var(--at-fg-dim);
+}
+html body.at-light-theme .tv-ohlc-tip {
+  background: rgba(255, 255, 255, 0.93);
+  border-color: var(--at-line2);
+  color: var(--at-fg-dim);
+}
 html body.at-light-theme .text-emerald-600,
 html body.at-light-theme .text-emerald-700,
 html body.at-light-theme .text-green-700,

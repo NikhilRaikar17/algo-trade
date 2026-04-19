@@ -114,7 +114,7 @@ def _show_stock_chart_modal(name: str, security_id: str):
 
             chart_id = f"tv_{uuid.uuid4().hex[:10]}"
             ui.html(
-                f'<div id="{chart_id}" style="width:100%;height:420px;"></div>',
+                f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%;height:420px;"></div></div>',
                 sanitize=False,
             )
 
@@ -129,6 +129,10 @@ def _show_stock_chart_modal(name: str, security_id: str):
                 var opts = {json.dumps(opts)};
                 opts.width = _tvElWidth(el);
                 var chart = LightweightCharts.createChart(el, opts);
+                window._tvChartInstances = window._tvChartInstances || [];
+                window._tvThemeOpts = window._tvThemeOpts || function(l) {{ return l ? {{layout:{{background:{{type:'solid',color:'#f5f7fa'}},textColor:'#3d4a57'}},grid:{{vertLines:{{color:'#e0e4ea'}},horzLines:{{color:'#e0e4ea'}}}}}} : {{layout:{{background:{{type:'solid',color:'#0a0d10'}},textColor:'#8a97a3'}},grid:{{vertLines:{{color:'#1a2128'}},horzLines:{{color:'#1a2128'}}}}}}; }};
+                window._tvChartInstances.push(chart);
+                chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
                 var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
                 cs.setData({json.dumps(ohlc)});
                 {_ohlc_tooltip_js("chart", "cs", "el")}

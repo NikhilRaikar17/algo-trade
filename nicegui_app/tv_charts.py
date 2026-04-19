@@ -83,12 +83,12 @@ def _dedup_markers(markers: list[dict]) -> list[dict]:
 
 _BASE_OPTS = {
     "layout": {
-        "background": {"type": "solid", "color": "#ffffff"},
-        "textColor": "#374151",
+        "background": {"type": "solid", "color": "#0a0d10"},
+        "textColor": "#8a97a3",
     },
     "grid": {
-        "vertLines": {"color": "#f3f4f6"},
-        "horzLines": {"color": "#f3f4f6"},
+        "vertLines": {"color": "#1a2128"},
+        "horzLines": {"color": "#1a2128"},
     },
     "crosshair": {"mode": 1},          # CrosshairMode.Normal
     "rightPriceScale": {"borderVisible": False},
@@ -139,6 +139,25 @@ if (!window._tvInitWhenVisible) {
         ro.observe(el);
     };
 }
+if (!window._tvChartInstances) {
+    window._tvChartInstances = [];
+    window._tvThemeOpts = function(isLight) {
+        return isLight ? {
+            layout: { background: { type: 'solid', color: '#f5f7fa' }, textColor: '#3d4a57' },
+            grid: { vertLines: { color: '#e0e4ea' }, horzLines: { color: '#e0e4ea' } }
+        } : {
+            layout: { background: { type: 'solid', color: '#0a0d10' }, textColor: '#8a97a3' },
+            grid: { vertLines: { color: '#1a2128' }, horzLines: { color: '#1a2128' } }
+        };
+    };
+    window._tvApplyTheme = function(isLight) {
+        var opts = window._tvThemeOpts(isLight);
+        window._tvChartInstances.forEach(function(c) { try { c.applyOptions(opts); } catch(e) {} });
+    };
+    (new MutationObserver(function() {
+        window._tvApplyTheme(document.body.classList.contains('at-light-theme'));
+    })).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+}
 """
 
 def _schedule_js(js_code: str) -> None:
@@ -179,13 +198,7 @@ def _ohlc_tooltip_js(chart_var: str, cs_var: str, el_var: str) -> str:
     return f"""
     (function() {{
         var _tip = document.createElement('div');
-        _tip.style.cssText = [
-            'position:absolute', 'top:8px', 'left:8px', 'z-index:10',
-            'background:rgba(255,255,255,0.88)', 'border:1px solid #e5e7eb',
-            'border-radius:4px', 'padding:4px 8px', 'font-size:11px',
-            'font-family:monospace', 'line-height:1.6', 'pointer-events:none',
-            'display:none',
-        ].join(';');
+        _tip.className = 'tv-ohlc-tip';
         {el_var}.style.position = 'relative';
         {el_var}.appendChild(_tip);
 
@@ -198,10 +211,10 @@ def _ohlc_tooltip_js(chart_var: str, cs_var: str, el_var: str) -> str:
             if (!bar) {{ _tip.style.display = 'none'; return; }}
             var clr = bar.close >= bar.open ? '#26a69a' : '#ef5350';
             _tip.innerHTML =
-                '<span style="color:#374151">O</span> <b style="color:' + clr + '">' + bar.open.toFixed(2) + '</b>  ' +
-                '<span style="color:#374151">H</span> <b style="color:' + clr + '">' + bar.high.toFixed(2) + '</b>  ' +
-                '<span style="color:#374151">L</span> <b style="color:' + clr + '">' + bar.low.toFixed(2) + '</b>  ' +
-                '<span style="color:#374151">C</span> <b style="color:' + clr + '">' + bar.close.toFixed(2) + '</b>';
+                '<span>O</span> <b style="color:' + clr + '">' + bar.open.toFixed(2) + '</b>  ' +
+                '<span>H</span> <b style="color:' + clr + '">' + bar.high.toFixed(2) + '</b>  ' +
+                '<span>L</span> <b style="color:' + clr + '">' + bar.low.toFixed(2) + '</b>  ' +
+                '<span>C</span> <b style="color:' + clr + '">' + bar.close.toFixed(2) + '</b>';
             _tip.style.display = 'block';
         }});
     }})();
@@ -257,7 +270,7 @@ def render_tv_abcd_chart(
             "sl_lbl":     f"SL {float(p['stop_loss']):.0f}",
         })
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -269,6 +282,8 @@ def render_tv_abcd_chart(
         var opts = {json.dumps(opts)};
         opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
         cs.setData({json.dumps(ohlc)});
@@ -386,8 +401,8 @@ def render_tv_rsi_sma_chart(
             if v is not None:
                 rsi_data.append({"time": ts, "value": v})
 
-    ui.html(f'<div id="{price_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
-    ui.html(f'<div id="{rsi_id}" style="width:100%; height:{rsi_height}px; margin-top:4px;"></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap"><div id="{price_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap" style="margin-top:6px;"><div id="{rsi_id}" style="width:100%; height:{rsi_height}px;"></div></div>', sanitize=False)
 
     price_opts = dict(_BASE_OPTS)
     price_opts["height"] = height
@@ -404,6 +419,8 @@ def render_tv_rsi_sma_chart(
         var opts = {json.dumps(price_opts)};
         opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
         cs.setData({json.dumps(ohlc)});
@@ -433,6 +450,8 @@ def render_tv_rsi_sma_chart(
             var opts2 = {json.dumps(rsi_opts)};
             opts2.width = _tvElWidth(el2);
             var rsiChart = LightweightCharts.createChart(el2, opts2);
+            window._tvChartInstances.push(rsiChart);
+            rsiChart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
             var rsiLine = rsiChart.addLineSeries({{
                 color: '#9c27b0', lineWidth: 1.5,
                 lastValueVisible: true, priceLineVisible: false, title: 'RSI',
@@ -485,7 +504,7 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> str:
             "to_time":   _to_unix(s["time"]) + 7200,
         })
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -497,6 +516,8 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> str:
         var opts = {json.dumps(opts)};
         opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
         cs.setData({json.dumps(ohlc)});
@@ -557,7 +578,7 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
             "to_time":   _to_unix(s["time"]) + 7200,
         })
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -569,6 +590,8 @@ def render_tv_double_bottom_chart(candles, signals, height: int = 500) -> None:
         var opts = {json.dumps(opts)};
         opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
         cs.setData({json.dumps(ohlc)});
@@ -637,7 +660,7 @@ def render_tv_ema10_chart(candles, df_ind, signals, height: int = 500) -> str:
             "to_time":   ts + 7200,
         })
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -649,6 +672,8 @@ def render_tv_ema10_chart(candles, df_ind, signals, height: int = 500) -> str:
         var opts = {json.dumps(opts)};
         opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
         cs.setData({json.dumps(ohlc)});
@@ -721,7 +746,7 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> str:
             "to_time":   ts + 7200,
         })
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -733,6 +758,8 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> str:
         var opts = {json.dumps(opts)};
         opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
         cs.setData({json.dumps(ohlc)});
@@ -776,7 +803,7 @@ def render_tv_simple_candle_chart(candles, height: int = 300) -> None:
     chart_id = f"tv_{uuid.uuid4().hex[:10]}"
     ohlc = _candles_to_tv(candles)
 
-    ui.html(f'<div id="{chart_id}" style="width:100%; height:{height}px;"></div>', sanitize=False)
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
 
     opts = dict(_BASE_OPTS)
     opts["height"] = height
@@ -788,6 +815,8 @@ def render_tv_simple_candle_chart(candles, height: int = 300) -> None:
         var opts = {json.dumps(opts)};
         opts.width = _tvElWidth(el);
         var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
 
         var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
         cs.setData({json.dumps(ohlc)});
