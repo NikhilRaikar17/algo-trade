@@ -127,7 +127,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
         # ---- Market Info footer ----
         with ui.element("div").style(
-            "padding:10px 14px; border-top:1px solid var(--at-line); flex-shrink:0;"
+            "padding:10px 14px 16px; border-top:1px solid var(--at-line); flex-shrink:0; margin-bottom:22px;"
         ):
             ui.html(f'<div style="{_S["info_key"]}">MARKET HOURS</div>')
             ui.html(f'<div style="{_S["info_val"]}">09:15 — 15:30 IST</div>')
