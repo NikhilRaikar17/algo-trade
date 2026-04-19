@@ -147,6 +147,53 @@ def render_admin_tab(container):
     def _build():
         container.clear()
         with container:
+            # ── Section label ──────────────────────────────────────────────
+            ui.html("""
+            <div style="
+                font-family: 'Outfit', sans-serif;
+                font-size: 11px; font-weight: 700;
+                letter-spacing: 0.14em; text-transform: uppercase;
+                color: var(--at-fg-faint); margin-bottom: 12px;
+            ">ADMIN · USER MANAGEMENT</div>
+            """)
+
+            # ── Add User form ──────────────────────────────────────────────
+            with ui.row().style("align-items: flex-end; gap: 8px; margin-bottom: 20px;"):
+                username_input = ui.input(
+                    label="Username",
+                    placeholder="new_user",
+                ).style(
+                    "font-family:'JetBrains Mono',monospace; font-size:12px; width:160px;"
+                )
+                password_input = ui.input(
+                    label="Password",
+                    placeholder="••••••••",
+                    password=True,
+                    password_toggle_button=True,
+                ).style(
+                    "font-family:'JetBrains Mono',monospace; font-size:12px; width:160px;"
+                )
+
+                def on_add_user():
+                    err = _add_user(username_input.value, password_input.value)
+                    if err:
+                        ui.notify(err, type="negative")
+                    else:
+                        ui.notify(
+                            f"User '{username_input.value.strip().lower()}' added.",
+                            type="positive",
+                        )
+                        username_input.value = ""
+                        password_input.value = ""
+                        _build()
+
+                ui.button("Add User", on_click=on_add_user).style(
+                    "font-family:'Outfit',sans-serif; font-size:12px; font-weight:600;"
+                    "background:var(--at-accent); color:#fff; border-radius:6px;"
+                    "padding:6px 14px;"
+                )
+
+            # ── User activity table ────────────────────────────────────────
             ui.html("""
             <div style="
                 font-family: 'Outfit', sans-serif;
@@ -158,10 +205,7 @@ def render_admin_tab(container):
 
             stats = _get_admin_stats()
 
-            # Table wrapper
-            with ui.element("div").style(
-                "width: 100%; overflow-x: auto;"
-            ):
+            with ui.element("div").style("width: 100%; overflow-x: auto;"):
                 ui.html(_build_table_html(stats))
 
     _build()
