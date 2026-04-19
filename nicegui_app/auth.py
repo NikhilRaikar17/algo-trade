@@ -19,7 +19,7 @@ from passlib.context import CryptContext
 from sqlalchemy import text
 
 from db import Base, SessionLocal, engine
-from models import User, UserSession, Strategy, TopStock  # noqa: F401 — ensures TopStock table is created
+from models import User, UserSession, Strategy, TopStock, UserActivityLog  # noqa: F401
 
 # ── Password context ──────────────────────────────────────────────────────────
 # sha256_crypt avoids bcrypt/passlib version incompatibilities on Windows
@@ -135,6 +135,15 @@ def create_session(username: str) -> str:
 
         s.commit()
 
+    with SessionLocal() as s2:
+        s2.add(UserActivityLog(
+            username=username,
+            session_key=key,
+            login_at=now,
+            logout_at=None,
+        ))
+        s2.commit()
+
     return key
 
 
@@ -166,4 +175,9 @@ def invalidate_session(session_key: str) -> None:
         row = s.query(UserSession).filter(UserSession.session_key == session_key).first()
         if row:
             s.delete(row)
+            log_row = s.query(UserActivityLog).filter(
+                UserActivityLog.session_key == session_key
+            ).first()
+            if log_row and log_row.logout_at is None:
+                log_row.logout_at = datetime.utcnow()
             s.commit()
