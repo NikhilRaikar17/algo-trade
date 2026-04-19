@@ -9,7 +9,7 @@ from datetime import datetime, timezone, timedelta
 from nicegui import ui
 
 from db import SessionLocal
-from models import User, UserActivityLog
+from models import User, UserActivityLog, UserSession
 from auth import pwd_ctx
 
 # IST = UTC+5:30
@@ -96,6 +96,7 @@ def _delete_user(username: str) -> None:
     if username == "nikhil":
         return
     with SessionLocal() as s:
+        s.query(UserSession).filter(UserSession.username == username).delete()
         s.query(UserActivityLog).filter(UserActivityLog.username == username).delete()
         user = s.query(User).filter(User.username == username).first()
         if user:
@@ -137,14 +138,12 @@ def render_admin_tab(container):
                 )
 
                 def on_add_user():
-                    err = _add_user(username_input.value, password_input.value)
+                    canonical = username_input.value.strip().lower()
+                    err = _add_user(canonical, password_input.value)
                     if err:
                         ui.notify(err, type="negative")
                     else:
-                        ui.notify(
-                            f"User '{username_input.value.strip().lower()}' added.",
-                            type="positive",
-                        )
+                        ui.notify(f"User '{canonical}' added.", type="positive")
                         username_input.value = ""
                         password_input.value = ""
                         _build()
