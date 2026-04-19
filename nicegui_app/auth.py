@@ -118,6 +118,11 @@ def create_session(username: str) -> str:
         # Remove any stale sessions for this user
         stale = s.query(UserSession).filter(UserSession.username == username).all()
         for row in stale:
+            log_row = s.query(UserActivityLog).filter(
+                UserActivityLog.session_key == row.session_key
+            ).first()
+            if log_row and log_row.logout_at is None:
+                log_row.logout_at = now
             s.delete(row)
         s.flush()
 
