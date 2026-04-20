@@ -325,16 +325,17 @@ STOCK_WATCH_GROUPS = [
 
 def _fetch_any_stock_candles(security_id: str, interval: int = 15) -> pd.DataFrame:
     """Fetch candles for any NSE equity (stock) by security_id."""
-    yesterday = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
-    cache_key = f"eq_candles_{security_id}:{interval}:{from_date}:{yesterday}"
+    today     = now_ist().date()
+    to_date   = pd.Timestamp(today).strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(today) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+    cache_key = f"eq_candles_{security_id}:{interval}:{from_date}:{to_date}"
     cached    = _cache_get(cache_key)
     if cached is not None:
         return cached
     r = api_call(
         dhan.intraday_minute_data,
         security_id, "NSE_EQ", "EQUITY",
-        from_date, yesterday, interval=interval,
+        from_date, to_date, interval=interval,
         retries=1,
     )
     if r.get("status") != "success":
@@ -357,16 +358,17 @@ def _fetch_any_stock_candles(security_id: str, interval: int = 15) -> pd.DataFra
 
 def _fetch_any_index_candles(security_id: str, interval: int = 15) -> pd.DataFrame:
     """Fetch candles for any NSE index by security_id."""
-    yesterday = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-    from_date = (pd.Timestamp(now_ist().date()) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
-    cache_key = f"idx_candles_{security_id}:{interval}:{from_date}:{yesterday}"
+    today     = now_ist().date()
+    to_date   = pd.Timestamp(today).strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(today) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+    cache_key = f"idx_candles_{security_id}:{interval}:{from_date}:{to_date}"
     cached    = _cache_get(cache_key)
     if cached is not None:
         return cached
     r = api_call(
         dhan.intraday_minute_data,
         security_id, "IDX_I", "INDEX",
-        from_date, yesterday, interval=interval,
+        from_date, to_date, interval=interval,
         retries=1,  # no retry — bulk best-effort call
     )
     if r.get("status") != "success":
