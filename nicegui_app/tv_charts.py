@@ -478,7 +478,7 @@ def render_tv_rsi_sma_chart(
 # Double Top chart
 # ---------------------------------------------------------------------------
 
-def render_tv_double_top_chart(candles, signals, height: int = 500) -> str:
+def render_tv_double_top_custom_chart(candles, signals, height: int = 500) -> str:
     """Render a candlestick chart with double top pattern overlays.
 
     Returns chart_id. Chart starts clean; call window._tvShowTrade_<chart_id>(idx)
@@ -511,6 +511,72 @@ def render_tv_double_top_chart(candles, signals, height: int = 500) -> str:
 
     js = f"""
     (function initDT_{chart_id}() {{
+        var el = document.getElementById('{chart_id}');
+        if (!el) {{ return; }}
+        var opts = {json.dumps(opts)};
+        opts.width = _tvElWidth(el);
+        var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
+
+        var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+        cs.setData({json.dumps(ohlc)});
+        cs.setMarkers([]);
+
+        var perSignal = {json.dumps(per_signal)};
+        var _activePriceLines = [];
+
+        window._tvShowTrade_{chart_id} = function(idx) {{
+            cs.setMarkers([]);
+            _activePriceLines.forEach(function(pl) {{ try {{ cs.removePriceLine(pl); }} catch(e) {{}} }});
+            _activePriceLines = [];
+            if (idx < 0 || idx >= perSignal.length) return;
+            var s = perSignal[idx];
+            cs.setMarkers(s.markers);
+            _activePriceLines.push(cs.createPriceLine({{ price: s.neckline,  color: '#f59e0b', lineWidth: 1, lineStyle: {_LS_DASHED}, axisLabelVisible: true, title: 'Neck ' + s.neckline.toFixed(0) }}));
+            _activePriceLines.push(cs.createPriceLine({{ price: s.target,    color: '#26a69a', lineWidth: 1, lineStyle: {_LS_DASHED}, axisLabelVisible: true, title: 'T ' + s.target.toFixed(0) }}));
+            _activePriceLines.push(cs.createPriceLine({{ price: s.stop_loss, color: '#ef5350', lineWidth: 1, lineStyle: {_LS_DASHED}, axisLabelVisible: true, title: 'SL ' + s.stop_loss.toFixed(0) }}));
+            chart.timeScale().setVisibleRange({{ from: s.from_time, to: s.to_time }});
+        }};
+
+        {_ohlc_tooltip_js("chart", "cs", "el")}
+        chart.timeScale().fitContent();
+        {_resize_listener("chart", "el")}
+    }})();
+    """
+    _schedule_js(js)
+    return chart_id
+
+
+def render_tv_double_top_standard_chart(candles, signals, height: int = 500) -> str:
+    """Render a candlestick chart with double top standard pattern overlays."""
+    chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+
+    ohlc = _candles_to_tv(candles)
+
+    per_signal: list[dict] = []
+    for s in signals:
+        mkrs = _dedup_markers([
+            {"time": _to_unix(s["peak1_time"]), "position": "aboveBar", "color": "#ef5350", "shape": "arrowDown", "text": "P1", "size": 1.0},
+            {"time": _to_unix(s["peak2_time"]), "position": "aboveBar", "color": "#ef5350", "shape": "arrowDown", "text": "P2", "size": 1.0},
+            {"time": _to_unix(s["time"]),       "position": "aboveBar", "color": "#b91c1c", "shape": "arrowDown", "text": "S",  "size": 1.4},
+        ])
+        per_signal.append({
+            "markers":   mkrs,
+            "neckline":  float(s["neckline"]),
+            "target":    float(s["target"]),
+            "stop_loss": float(s["stop_loss"]),
+            "from_time": _to_unix(s["peak1_time"]) - 3600,
+            "to_time":   _to_unix(s["time"]) + 7200,
+        })
+
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
+
+    opts = dict(_BASE_OPTS)
+    opts["height"] = height
+
+    js = f"""
+    (function initDTS_{chart_id}() {{
         var el = document.getElementById('{chart_id}');
         if (!el) {{ return; }}
         var opts = {json.dumps(opts)};
