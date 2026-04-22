@@ -21,8 +21,8 @@ from algo_strategies import (
     detect_abcd_patterns,
     classify_trades,
     # Double Top / Bottom
-    detect_double_top_signals,
-    classify_double_top_trades,
+    detect_double_top_custom_signals,
+    classify_double_top_custom_trades,
     detect_double_bottom_signals,
     classify_double_bottom_trades,
     # EMA10 / SMA50
@@ -33,7 +33,7 @@ from algo_strategies import (
 )
 from tv_charts import (
     render_tv_abcd_chart,
-    render_tv_double_top_chart,
+    render_tv_double_top_custom_chart,
     render_tv_double_bottom_chart,
     render_tv_ema10_chart,
     render_tv_sma50_chart,
@@ -211,15 +211,15 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
                     f"| BC:{p['BC_retrace']} CD/AB:{p['CD_AB_ratio']}"
                 ).classes("text-sm")
 
-    elif algo_type == "dt":
-        signals = detect_double_top_signals(candles)
+    elif algo_type == "dtc":
+        signals = detect_double_top_custom_signals(candles)
         ui.label(header).classes("text-md font-semibold")
-        render_tv_double_top_chart(candles, signals)
+        render_tv_double_top_custom_chart(candles, signals)
         if not signals:
-            ui.label("No Double Top signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_double_top_trades(signals, current_price, stock_name)
-        _trade_store[f"dt_trades_{stock_name}"] = {"active": active, "completed": completed}
-        _render_trade_tabs(active, completed, current_price, "dt")
+            ui.label("No Double Top Customized signals detected today.").classes("text-gray-500 italic")
+        active, completed = classify_double_top_custom_trades(signals, current_price, stock_name)
+        _trade_store[f"dtc_trades_{stock_name}"] = {"active": active, "completed": completed}
+        _render_trade_tabs(active, completed, current_price, "dtc")
 
     elif algo_type == "db":
         signals = detect_double_bottom_signals(candles)
