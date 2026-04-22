@@ -33,7 +33,8 @@ from pages import (
     render_index_tab,
     render_algo_tab,
     render_abcd_only_tab,
-    render_double_top_tab,
+    render_double_top_custom_tab,
+    render_double_top_standard_tab,
     render_double_bottom_tab,
     render_sma50_tab,
     render_ema10_tab,
@@ -61,7 +62,8 @@ ALL_PAGE_IDS = [
     "banknifty",
     "algo",
     "abcd_only",
-    "dt_only",
+    "dtc_only",
+    "dts_only",
     "db_only",
     "sma50",
     "ema10",
@@ -585,7 +587,7 @@ async def index():
         # is viewing the page — causing a jarring blank flash.
         _STATIC_ONCE = {
             "markets", "market_news", "top_stocks", "swing_trades", "global_markets",
-            "nifty", "banknifty", "pnl", "abcd_only", "dt_only", "db_only",
+            "nifty", "banknifty", "pnl", "abcd_only", "dtc_only", "dts_only", "db_only",
             "sma50", "ema10", "backtest_pnl", "admin",
         }
         renders = {
@@ -598,7 +600,8 @@ async def index():
             "banknifty":     lambda: render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]),
             "pnl":           lambda: render_pnl_tab(page_containers["pnl"]),
             "abcd_only":     lambda: render_abcd_only_tab(page_containers["abcd_only"]),
-            "dt_only":       lambda: render_double_top_tab(page_containers["dt_only"]),
+            "dtc_only":      lambda: render_double_top_custom_tab(page_containers["dtc_only"]),
+            "dts_only":      lambda: render_double_top_standard_tab(page_containers["dts_only"]),
             "db_only":       lambda: render_double_bottom_tab(page_containers["db_only"]),
             "sma50":         lambda: render_sma50_tab(page_containers["sma50"]),
             "ema10":         lambda: render_ema10_tab(page_containers["ema10"]),
@@ -637,7 +640,7 @@ async def index():
             return
 
         # Backtest pages: load once; skip re-fetch when market is closed (data doesn't change).
-        _BACKTEST_PAGES = {"abcd_only", "dt_only", "db_only", "sma50", "ema10"}
+        _BACKTEST_PAGES = {"abcd_only", "dtc_only", "dts_only", "db_only", "sma50", "ema10"}
         if active in _BACKTEST_PAGES and not is_market_open() and active in _backtest_loaded:
             return
         if active in _BACKTEST_PAGES:
