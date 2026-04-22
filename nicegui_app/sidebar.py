@@ -110,7 +110,8 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                         "font-size:12px !important; color:var(--at-fg-dim) !important;"
                     ):
                 _nav_button("abcd_only", "ABCD Pattern",      "insights",           indent=True, icon_color="icon-purple")
-                _nav_button("dt_only",   "Double Top",        "moving",             indent=True, icon_color="icon-purple")
+                _nav_button("dtc_only",  "Double Top Custom", "moving",             indent=True, icon_color="icon-purple")
+                _nav_button("dts_only",  "Double Top Std",    "moving",             indent=True, icon_color="icon-purple")
                 _nav_button("db_only",   "Double Bottom",     "moving",             indent=True, icon_color="icon-purple")
                 _nav_button("sma50",     "SMA 50 Crossover",  "stacked_line_chart", indent=True, icon_color="icon-purple")
                 _nav_button("ema10",     "EMA 10 Crossover",  "show_chart",         indent=True, icon_color="icon-purple")
