@@ -4,7 +4,7 @@ Sidebar navigation — Bloomberg Terminal dark style.
 
 from nicegui import ui
 
-from config import now_ist, REFRESH_SECONDS, get_next_holiday
+from config import now_ist, get_next_holiday
 
 # ---- Inline styles for terminal sidebar ---- #
 _S = {
@@ -177,5 +177,5 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
             ui.html(
                 f'<div style="{_S["info_faint"]}; margin-top:4px;">'
-                f'AUTO-REFRESH: {REFRESH_SECONDS}s</div>'
+                f'DATA: ON-DEMAND + WS FEED</div>'
             )

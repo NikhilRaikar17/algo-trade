@@ -1,8 +1,14 @@
 """
 Live algo trading tab — all strategies, top-stocks equity selector, 0.5s WS ticker.
+
+Candles are fetched once on initial load (or when stock/strategy changes).
+A 30s timer checks if a new 5-min candle has closed via the WS feed and
+appends it in-place, then re-runs signals without a full page re-render.
+The global 120s refresh is a no-op for this tab.
 """
 
 import asyncio
+import pandas as pd
 from nicegui import ui
 from dhanhq import marketfeed as mf
 
@@ -52,6 +58,11 @@ def _fmt_time(t):
     if t is None:
         return "—"
     return t.strftime("%d %b %H:%M") if hasattr(t, "strftime") else str(t)
+
+
+def _candle_minute(ts) -> int:
+    """Return a monotonic minute-bucket integer for a pandas Timestamp."""
+    return ts.hour * 60 + ts.minute
 
 
 # ── live price ticker ─────────────────────────────────────────────────────────
@@ -244,10 +255,19 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
 # ── tab entry point ───────────────────────────────────────────────────────────
 
 def render_algo_tab(container, algo_type="abcd"):
-    """Build the live algo trading tab. Returns async refresh()."""
-    # Default to first available stock
+    """Build the live algo trading tab. Returns async refresh() (no-op after first load)."""
     _default_sid = _ALL_STOCKS[0]["security_id"] if _ALL_STOCKS else None
-    _sel = {"security_id": _default_sid, "algo": "abcd"}
+
+    # Mutable state shared across closures
+    _state = {
+        "security_id": _default_sid,
+        "algo": "abcd",
+        "candles": None,        # DataFrame of today's 5-min candles
+        "last_candle_min": -1,  # minute-bucket of last candle (HH*60+MM)
+        "loaded": False,        # True after first successful load
+        "ltp_label": None,      # ui.label for the live LTP header
+        "strategy_container": None,  # ui.element holding chart + trades
+    }
     active_timers = []
 
     def _cancel_timers():
@@ -262,14 +282,14 @@ def render_algo_tab(container, algo_type="abcd"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")
             stock_select = ui.select(
                 options=_STOCK_OPTIONS,
-                value=_sel["security_id"],
+                value=_state["security_id"],
                 label="",
             ).props("outlined dense").classes("w-48")
 
             ui.label("Strategy:").classes("text-sm font-medium text-gray-700")
             strategy_select = ui.select(
                 options={k: v for v, k in _STRATEGIES},
-                value=_sel["algo"],
+                value=_state["algo"],
                 label="",
             ).props("outlined dense").classes("w-52")
 
@@ -278,11 +298,14 @@ def render_algo_tab(container, algo_type="abcd"):
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
             ui.label("Loading data…").classes("text-gray-500 text-center w-full")
 
+    # ── full (re)load — called on first render and on dropdown change ──────────
+
     async def _load():
         sid   = stock_select.value or _default_sid
         strat = strategy_select.value or "abcd"
-        _sel["security_id"] = sid
-        _sel["algo"]        = strat
+        _state["security_id"] = sid
+        _state["algo"]        = strat
+        _state["loaded"]      = False
 
         stock = _STOCK_BY_SID.get(sid)
         if not stock:
@@ -301,7 +324,6 @@ def render_algo_tab(container, algo_type="abcd"):
             strat_label = dict(_STRATEGIES).get(strat, strat)
             ui.label(f"Loading {stock_name} — {strat_label}…").classes("text-gray-500 text-center w-full")
 
-        # Fetch 5-min equity candles
         try:
             candles = await loop.run_in_executor(
                 None, lambda: _fetch_any_stock_candles(sid, interval=5)
@@ -316,7 +338,7 @@ def render_algo_tab(container, algo_type="abcd"):
         if content_container.client._deleted:
             return
 
-        # Filter to today's candles
+        # Filter to today
         today_date = now_ist().date()
         if candles is not None and not candles.empty:
             candles = candles[candles["timestamp"].dt.date == today_date].reset_index(drop=True)
@@ -326,31 +348,112 @@ def render_algo_tab(container, algo_type="abcd"):
 
         _cancel_timers()
         content_container.clear()
-        with content_container:
-            if candles is None or candles.empty:
+
+        if candles is None or candles.empty:
+            with content_container:
                 ui.label(f"No candle data for {stock_name} today.").classes("text-orange-500")
-                return
+            return
 
-            current_price = round(float(candles["close"].iloc[-1]), 2)
+        _state["candles"] = candles
+        _state["last_candle_min"] = _candle_minute(candles["timestamp"].iloc[-1])
 
+        current_price = round(float(candles["close"].iloc[-1]), 2)
+
+        with content_container:
             with ui.row().classes("gap-4 sm:gap-8 flex-wrap items-center mb-2"):
                 ui.label(f"{stock_name}").classes("text-sm sm:text-lg font-bold")
-                ui.label(f"LTP: ₹{current_price:,.2f}").classes("text-sm sm:text-lg")
+                ltp_lbl = ui.label(f"LTP: ₹{current_price:,.2f}").classes("text-sm sm:text-lg")
                 ui.label("● LIVE").classes("text-xs font-bold text-green-600 animate-pulse")
+                candle_status = ui.label("").classes("text-xs text-gray-400 ml-2")
+            _state["ltp_label"] = ltp_lbl
 
             ticker_container = ui.element("div").classes("w-full")
             _build_live_ticker(ticker_container, sid, stock_name, active_timers)
 
             ui.separator()
 
+            strat_container = ui.element("div").classes("w-full")
+            _state["strategy_container"] = strat_container
+
+        with strat_container:
             _run_strategy(strat, candles, current_price, stock_name)
 
         await flush_pending_js()
+        _state["loaded"] = True
 
+        # ── candle-close watcher — fires every 30s ─────────────────────────────
+        def _check_new_candle():
+            if content_container.client._deleted:
+                return
+            if not _state["loaded"]:
+                return
+
+            q = ws_feed.get_quote(_state["security_id"])
+            if not q:
+                return
+
+            ltp = q.get("ltp", 0)
+            tick_dt = ws_feed.get_last_tick_time(_state["security_id"])
+            if tick_dt is None:
+                return
+
+            # Update LTP header label
+            if _state["ltp_label"] is not None:
+                _state["ltp_label"].set_text(f"LTP: ₹{ltp:,.2f}")
+
+            # Detect new 5-min candle close: tick is in a different 5-min bucket
+            tick_min_bucket = (tick_dt.hour * 60 + tick_dt.minute) // 5
+            last_candles = _state["candles"]
+            if last_candles is None or last_candles.empty:
+                return
+
+            last_ts = last_candles["timestamp"].iloc[-1]
+            last_min_bucket = (last_ts.hour * 60 + last_ts.minute) // 5
+
+            if tick_min_bucket <= last_min_bucket:
+                return  # same bucket — no new candle yet
+
+            # New 5-min candle has closed — build a synthetic row from WS data
+            # The candle open = last close, high/low/close approximate from LTP
+            prev_close = float(last_candles["close"].iloc[-1])
+            new_ts = pd.Timestamp(tick_dt).tz_localize("Asia/Kolkata") if tick_dt.tzinfo is None else pd.Timestamp(tick_dt).tz_convert("Asia/Kolkata")
+            # Align timestamp to 5-min boundary
+            aligned_min = tick_min_bucket * 5
+            new_ts = new_ts.replace(hour=aligned_min // 60, minute=aligned_min % 60, second=0, microsecond=0)
+
+            new_row = pd.DataFrame([{
+                "timestamp": new_ts,
+                "open":  prev_close,
+                "high":  max(prev_close, ltp),
+                "low":   min(prev_close, ltp),
+                "close": ltp,
+            }])
+            updated = pd.concat([last_candles, new_row], ignore_index=True)
+            _state["candles"] = updated
+            _state["last_candle_min"] = tick_min_bucket * 5
+
+            # Re-render strategy section only
+            sc = _state["strategy_container"]
+            if sc is None:
+                return
+            sc.clear()
+            with sc:
+                _run_strategy(_state["algo"], updated, round(ltp, 2), stock_name)
+
+            candle_status.set_text(f"New candle at {new_ts.strftime('%H:%M')}")
+
+            asyncio.ensure_future(flush_pending_js())
+
+        t = ui.timer(30, _check_new_candle)
+        active_timers.append(t)
+
+    # Dropdown changes trigger a full reload
     stock_select.on_value_change(lambda e: asyncio.ensure_future(_load()))
     strategy_select.on_value_change(lambda e: asyncio.ensure_future(_load()))
 
     async def refresh():
-        await _load()
+        # Skip global 120s re-render if already loaded; only re-load on first visit
+        if not _state["loaded"]:
+            await _load()
 
     return refresh

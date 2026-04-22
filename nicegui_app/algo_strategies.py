@@ -405,16 +405,16 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
 # ================= DOUBLE TOP =================
 
 
-def detect_double_top_signals(candles, max_peak_diff_pct=0.003, min_bars_between=5):
+def detect_double_top_signals(candles, max_peak_diff_pct=0.0015, min_bars_between=5):
     """
     Detect double top bearish reversal patterns in OHLC candle data.
 
     Two swing highs at ~same price level, with a trough (neckline) between them.
     Entry confirmed when price closes below the neckline after the second peak.
-    Signal: SELL | Target: neckline − height | SL: above second peak
+    Signal: SELL | Target: neckline − height | SL: neckline + 70% of height
 
     Strictly intraday: P1 and P2 must be on the same calendar date.
-    max_peak_diff_pct: maximum % difference between P1 and P2 (default 0.3%).
+    max_peak_diff_pct: maximum % difference between P1 and P2 (default 0.15%).
     """
     all_signals = []
 
@@ -459,9 +459,9 @@ def detect_double_top_signals(candles, max_peak_diff_pct=0.003, min_bars_between
                     if float(bar["close"]) < neckline:
                         # Entry is one point below neckline (confirmed breakdown)
                         entry = neckline - 1.0
-                        sl = resistance
-                        height = sl - neckline
-                        target = float(neckline - 2 * height)  # target = 2× SL distance
+                        height = resistance - neckline
+                        sl = neckline + 0.7 * height  # SL at 70% of neckline→peak distance
+                        target = float(neckline - 2 * height)  # target = 2× full height
                         all_signals.append({
                             "time": bar["timestamp"],
                             "signal": "SELL — Double Top neckline break",
@@ -554,16 +554,16 @@ def backtest_double_top(signals, candles):
     return trades
 
 
-def detect_double_bottom_signals(candles, max_trough_diff_pct=0.003, min_bars_between=5):
+def detect_double_bottom_signals(candles, max_trough_diff_pct=0.0015, min_bars_between=5):
     """
     Detect double bottom bullish reversal patterns in OHLC candle data.
 
     Two swing lows at ~same price level, with a peak (neckline) between them.
     Entry confirmed when price closes above the neckline after the second trough.
-    Signal: BUY | Target: neckline + height | SL: below second trough
+    Signal: BUY | Target: neckline + height | SL: neckline − 70% of height
 
     Strictly intraday: T1 and T2 must be on the same calendar date.
-    max_trough_diff_pct: maximum % difference between T1 and T2 (default 0.3%).
+    max_trough_diff_pct: maximum % difference between T1 and T2 (default 0.15%).
     """
     all_signals = []
 
@@ -608,9 +608,9 @@ def detect_double_bottom_signals(candles, max_trough_diff_pct=0.003, min_bars_be
                     if float(bar["close"]) > neckline:
                         # Entry is one point above neckline (confirmed breakout)
                         entry = neckline + 1.0
-                        sl = support
-                        height = neckline - sl
-                        target = float(neckline + 2 * height)  # target = 2× SL distance
+                        height = neckline - support
+                        sl = neckline - 0.7 * height  # SL at 70% of neckline→trough distance
+                        target = float(neckline + 2 * height)  # target = 2× full height
                         all_signals.append({
                             "time": bar["timestamp"],
                             "signal": "BUY — Double Bottom neckline break",

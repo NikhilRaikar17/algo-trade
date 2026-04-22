@@ -31,6 +31,7 @@ _ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID", "")
 # separate credentials read directly from env.
 # {str(security_id): {ltp, bid, ask, bid_qty, ask_qty, oi, volume}}
 _quote_store: dict = {}
+_quote_tick_time: dict = {}   # str(security_id) → datetime of last tick
 _eq_subscribed: frozenset = frozenset()
 _eq_consuming = threading.Event()
 
@@ -38,6 +39,11 @@ _eq_consuming = threading.Event()
 def get_quote(security_id) -> dict:
     """Return latest Full-packet data for an equity security, or {} if not received yet."""
     return dict(_quote_store.get(str(security_id), {}))
+
+
+def get_last_tick_time(security_id) -> datetime | None:
+    """Return the datetime of the last received tick for an equity, or None."""
+    return _quote_tick_time.get(str(security_id))
 
 
 def subscribe(securities: list) -> None:
@@ -88,6 +94,7 @@ def subscribe(securities: list) -> None:
                     "oi":      int(data.get("OI") or 0),
                     "volume":  int(data.get("volume") or 0),
                 }
+                _quote_tick_time[sec_id] = datetime.now()
         except Exception as e:
             print(f"  [ws_feed equity] feed error: {e}")
             _eq_consuming.clear()

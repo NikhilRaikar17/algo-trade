@@ -17,7 +17,7 @@ app.add_static_files("/static", "static")
 from routes.auth_routes import router as _auth_router
 app.include_router(_auth_router)
 
-from config import now_ist, REFRESH_SECONDS, INDICES
+from config import now_ist, INDICES
 from state import is_market_open, get_next_market_open
 from sidebar import build_sidebar
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
@@ -550,12 +550,12 @@ async def index():
     # _refresh_trigger is set after full_refresh is defined below; late-binding via list
     _refresh_trigger = [None]
     async def _on_navigate(pid):
-        if _refresh_trigger[0]:
-            asyncio.ensure_future(_refresh_trigger[0]())
         # Auto-close drawer on mobile when a nav item is tapped
         result = await ui.run_javascript("window.innerWidth")
         if result is not None and result <= 1023:
             drawer.hide()
+        if _refresh_trigger[0]:
+            await _refresh_trigger[0]()
 
     build_sidebar(
         drawer, active_page, nav_btn_refs, page_containers,
@@ -564,9 +564,10 @@ async def index():
     )
 
     # ---- Build Page Content ----
+    _pages_built: set = set()  # tracks which pages have been rendered at least once
+
     async def build_ui():
         nonlocal refresh_fns
-        refresh_fns = {}  # page_id → refresh_fn
         _backtest_loaded.clear()  # force reload when market state changes
 
         market_open = is_market_open()
@@ -576,97 +577,117 @@ async def index():
         if _dashboard_refresh[0] is None:
             page_containers["dashboard"].clear()
             _dashboard_refresh[0] = render_dashboard(page_containers["dashboard"])
+            _pages_built.add("dashboard")
         refresh_fns["dashboard"] = _dashboard_refresh[0]
 
-        # Clear all other pages
-        for pid in ALL_PAGE_IDS:
-            if pid != "dashboard":
-                page_containers[pid].clear()
-
-        refresh_fns["markets"]      = render_markets_tab(page_containers["markets"])
-        refresh_fns["market_news"]  = render_market_news_tab(page_containers["market_news"])
-        refresh_fns["top_stocks"]   = render_top_stocks_tab(page_containers["top_stocks"])
-        refresh_fns["swing_trades"]    = render_swing_trades_tab(page_containers["swing_trades"])
-        refresh_fns["global_markets"]  = render_global_markets_tab(page_containers["global_markets"])
-        refresh_fns["nifty"]     = render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"])
-        refresh_fns["banknifty"] = render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"])
-        refresh_fns["pnl"]       = render_pnl_tab(page_containers["pnl"])
-        refresh_fns["abcd_only"] = render_abcd_only_tab(page_containers["abcd_only"])
-        refresh_fns["dt_only"]   = render_double_top_tab(page_containers["dt_only"])
-        refresh_fns["db_only"]   = render_double_bottom_tab(page_containers["db_only"])
-        refresh_fns["sma50"]         = render_sma50_tab(page_containers["sma50"])
-        refresh_fns["ema10"]         = render_ema10_tab(page_containers["ema10"])
-        refresh_fns["backtest_pnl"]  = render_backtest_pnl_tab(page_containers["backtest_pnl"])
+        # Static pages: render once, then only re-register their refresh_fns.
+        # Clearing them on every market-state change wipes content while the user
+        # is viewing the page — causing a jarring blank flash.
+        _STATIC_ONCE = {
+            "markets", "market_news", "top_stocks", "swing_trades", "global_markets",
+            "nifty", "banknifty", "pnl", "abcd_only", "dt_only", "db_only",
+            "sma50", "ema10", "backtest_pnl", "admin",
+        }
+        renders = {
+            "markets":       lambda: render_markets_tab(page_containers["markets"]),
+            "market_news":   lambda: render_market_news_tab(page_containers["market_news"]),
+            "top_stocks":    lambda: render_top_stocks_tab(page_containers["top_stocks"]),
+            "swing_trades":  lambda: render_swing_trades_tab(page_containers["swing_trades"]),
+            "global_markets":lambda: render_global_markets_tab(page_containers["global_markets"]),
+            "nifty":         lambda: render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"]),
+            "banknifty":     lambda: render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]),
+            "pnl":           lambda: render_pnl_tab(page_containers["pnl"]),
+            "abcd_only":     lambda: render_abcd_only_tab(page_containers["abcd_only"]),
+            "dt_only":       lambda: render_double_top_tab(page_containers["dt_only"]),
+            "db_only":       lambda: render_double_bottom_tab(page_containers["db_only"]),
+            "sma50":         lambda: render_sma50_tab(page_containers["sma50"]),
+            "ema10":         lambda: render_ema10_tab(page_containers["ema10"]),
+            "backtest_pnl":  lambda: render_backtest_pnl_tab(page_containers["backtest_pnl"]),
+        }
         if username_from_session == "nikhil":
-            refresh_fns["admin"] = render_admin_tab(page_containers["admin"])
+            renders["admin"] = lambda: render_admin_tab(page_containers["admin"])
 
-        # Live algo tab — countdown when closed, live data when open
+        for pid, render_fn in renders.items():
+            if pid not in _pages_built:
+                page_containers[pid].clear()
+                try:
+                    refresh_fns[pid] = render_fn()
+                    _pages_built.add(pid)
+                except Exception as e:
+                    print(f"  [build_ui] render error for '{pid}': {e}")
+            # closure already registered from first render — still valid
+
+        # Live algo tab — only this page needs to swap between live UI and market-closed
+        # placeholder, so clear and rebuild it whenever market state changes.
+        page_containers["algo"].clear()
         if market_open:
             refresh_fns["algo"] = render_algo_tab(page_containers["algo"])
         else:
             render_market_closed(page_containers["algo"])
+            refresh_fns.pop("algo", None)
 
     async def full_refresh():
-        """Rebuild UI if market state changed, then refresh active page only."""
+        """Fetch fresh data for the currently active page. Called on navigation and initial load."""
         if page_client._deleted:
             return
 
-        current_open = is_market_open()
-
-        if current_open != _prev_market_open[0]:
-            _prev_market_open[0] = current_open
-            try:
-                await build_ui()
-            except Exception as build_err:
-                print(f"  [build_ui error] {build_err}")
-
-        # Only refresh whichever page the user is currently viewing
         active = active_page["value"]
         fn = refresh_fns.get(active)
         if fn is None:
-            return  # static page (e.g. market-closed placeholder)
+            return
 
-        # Backtest pages use historical candle data that only changes during market hours.
-        # Allow first load always; skip subsequent periodic refreshes when market is closed.
+        # Backtest pages: load once; skip re-fetch when market is closed (data doesn't change).
         _BACKTEST_PAGES = {"abcd_only", "dt_only", "db_only", "sma50", "ema10"}
         if active in _BACKTEST_PAGES and not is_market_open() and active in _backtest_loaded:
             return
         if active in _BACKTEST_PAGES:
             _backtest_loaded.add(active)
 
-        # Option chain pages: refresh live during market hours, load once after close (LTP snapshot).
+        # Option chain: load once after market close (LTP snapshot); live during market hours.
         _OPTION_CHAIN_PAGES = {"nifty", "banknifty"}
         if active in _OPTION_CHAIN_PAGES and not is_market_open() and active in _backtest_loaded:
             return
         if active in _OPTION_CHAIN_PAGES:
             _backtest_loaded.add(active)
 
-        status_label.text = f"Refreshing... {now_ist().strftime('%H:%M:%S')}"
+        status_label.text = f"Loading... {now_ist().strftime('%H:%M:%S')}"
         try:
+            scroll_y = await ui.run_javascript("window.scrollY")
             await fn()
+            if scroll_y:
+                await ui.run_javascript(f"window.scrollTo(0, {scroll_y})")
             if not page_client._deleted:
-                _OPTION_CHAIN_PAGES = {"nifty", "banknifty"}
                 if active in _OPTION_CHAIN_PAGES and not is_market_open():
-                    status_label.text = f"LTP snapshot: {now_ist().strftime('%H:%M:%S')} | Market closed — no live refresh"
+                    status_label.text = f"LTP snapshot: {now_ist().strftime('%H:%M:%S')} | Market closed"
                 else:
-                    status_label.text = f"Last refresh: {now_ist().strftime('%H:%M:%S')} | Next in {REFRESH_SECONDS}s"
+                    status_label.text = f"Loaded: {now_ist().strftime('%H:%M:%S')}"
         except Exception as e:
             if not page_client._deleted:
-                status_label.text = f"Refresh error: {e}"
+                status_label.text = f"Error: {e}"
             print(f"  [refresh error] {e}")
-
-        pass  # scheduled messages sent by background task
 
     # Wire up the navigation trigger (must be set after full_refresh is defined)
     _refresh_trigger[0] = full_refresh
 
-    # Initial build and refresh
+    # Initial build and first data load
     await build_ui()
     _prev_market_open[0] = is_market_open()
     ui.timer(2, lambda: asyncio.ensure_future(full_refresh()), once=True)
 
-    # Periodic data refresh
-    ui.timer(REFRESH_SECONDS, lambda: asyncio.ensure_future(full_refresh()))
+    # Background market-state watcher: only rebuilds UI when market opens/closes.
+    # Does NOT refresh page data — pages fetch data on navigation or manage their own timers.
+    async def _market_state_check():
+        if page_client._deleted:
+            return
+        current_open = is_market_open()
+        if current_open != _prev_market_open[0]:
+            _prev_market_open[0] = current_open
+            try:
+                await build_ui()
+            except Exception as e:
+                print(f"  [market_state_check error] {e}")
+
+    ui.timer(30, lambda: asyncio.ensure_future(_market_state_check()))
 
     # Live countdown updater (every 1s)
     def update_countdown():
