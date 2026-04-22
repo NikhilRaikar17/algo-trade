@@ -13,7 +13,8 @@ from data import _fetch_any_stock_candles
 from db import get_active_top_stocks
 from algo_strategies import (
     find_swing_points, detect_abcd_patterns, backtest_abcd,
-    detect_double_top_signals, backtest_double_top,
+    detect_double_top_custom_signals, backtest_double_top_custom,
+    detect_double_top_standard_signals, backtest_double_top_standard,
     detect_double_bottom_signals, backtest_double_bottom,
     detect_sma50_signals, backtest_sma50,
     detect_ema10_signals, backtest_ema10,
@@ -60,7 +61,8 @@ def _run_all_backtests(candles, stock_name: str = ""):
 
     runners = [
         ("ABCD",             _run_abcd),
-        ("Double Top",       _run_double_top),
+        ("Double Top Customized", _run_double_top_custom),
+        ("Double Top Standard",   _run_double_top_standard),
         ("Double Bottom",    _run_double_bottom),
         ("SMA 50",           _run_sma50),
         ("EMA 10",           _run_ema10),
@@ -80,9 +82,14 @@ def _run_abcd(candles):
     patterns = detect_abcd_patterns(swings)
     return backtest_abcd(patterns, candles)
 
-def _run_double_top(candles):
-    signals = detect_double_top_signals(candles)
-    return backtest_double_top(signals, candles)
+def _run_double_top_custom(candles):
+    signals = detect_double_top_custom_signals(candles)
+    return backtest_double_top_custom(signals, candles)
+
+
+def _run_double_top_standard(candles):
+    signals = detect_double_top_standard_signals(candles)
+    return backtest_double_top_standard(signals, candles)
 
 def _run_double_bottom(candles):
     signals = detect_double_bottom_signals(candles)
