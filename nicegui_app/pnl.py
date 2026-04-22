@@ -68,7 +68,8 @@ def _fetch_market_news(max_items=4):
 
 _STORE_STRATEGY_MAP = [
     ("abcd_",  "ABCD"),
-    ("dt_",    "Double Top"),
+    ("dtc_",   "Double Top Customized"),
+    ("dts_",   "Double Top Standard"),
     ("db_",    "Double Bottom"),
     ("ema10_", "EMA10"),
     ("sma50_", "SMA50"),
@@ -183,7 +184,7 @@ def send_morning_message():
     day_name = now.strftime("%A, %d %b %Y")
     _send_telegram(
         f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
-        f"Strategies: ABCD | Double Top | Double Bottom | EMA10 | SMA50\n"
+        f"Strategies: ABCD | Double Top Custom | Double Top Std | Double Bottom | EMA10 | SMA50\n"
         f"Monitoring: Top Stocks (5-min equity candles)\n"
         f"Stocks ({len(stocks)}): {stock_names}\n"
         f"Refresh interval: {REFRESH_SECONDS}s\n"
