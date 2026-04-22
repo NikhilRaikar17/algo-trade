@@ -17,8 +17,10 @@ from algo_strategies import (
     find_swing_points,
     detect_abcd_patterns,
     classify_trades,
-    detect_double_top_signals,
-    classify_double_top_trades,
+    detect_double_top_custom_signals,
+    classify_double_top_custom_trades,
+    detect_double_top_standard_signals,
+    classify_double_top_standard_trades,
     detect_double_bottom_signals,
     classify_double_bottom_trades,
     detect_ema10_signals,
@@ -40,13 +42,21 @@ def _run_strategies_for_contract(candles, current_price, contract_name):
     except Exception:
         print(f"  [engine:abcd:{contract_name}] {traceback.format_exc()}")
 
-    # Double Top
+    # Double Top Customized
     try:
-        signals = detect_double_top_signals(candles)
-        active, completed = classify_double_top_trades(signals, current_price, contract_name)
-        _trade_store[f"dt_trades_{contract_name}"] = {"active": active, "completed": completed}
+        signals = detect_double_top_custom_signals(candles)
+        active, completed = classify_double_top_custom_trades(signals, current_price, contract_name)
+        _trade_store[f"dtc_trades_{contract_name}"] = {"active": active, "completed": completed}
     except Exception:
-        print(f"  [engine:dt:{contract_name}] {traceback.format_exc()}")
+        print(f"  [engine:dtc:{contract_name}] {traceback.format_exc()}")
+
+    # Double Top Standard
+    try:
+        signals = detect_double_top_standard_signals(candles)
+        active, completed = classify_double_top_standard_trades(signals, current_price, contract_name)
+        _trade_store[f"dts_trades_{contract_name}"] = {"active": active, "completed": completed}
+    except Exception:
+        print(f"  [engine:dts:{contract_name}] {traceback.format_exc()}")
 
     # Double Bottom
     try:
