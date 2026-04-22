@@ -67,11 +67,12 @@ with SessionLocal() as _s:
 # display_name: shown in dropdowns
 # short_name: used in trade["strategy"] field and P&L grouping
 _SEED_STRATEGIES: list[tuple[str, str, str, int]] = [
-    ("abcd",  "ABCD",          "ABCD",         1),
-    ("dt",    "Double Top",    "Double Top",    2),
-    ("db",    "Double Bottom", "Double Bottom", 3),
-    ("ema10", "EMA 10",        "EMA 10",        4),
-    ("sma50", "SMA 50",        "SMA 50",        5),
+    ("abcd",  "ABCD",                    "ABCD",                    1),
+    ("dtc",   "Double Top Customized",   "Double Top Customized",   2),
+    ("dts",   "Double Top Standard",     "Double Top Standard",     3),
+    ("db",    "Double Bottom",           "Double Bottom",           4),
+    ("ema10", "EMA 10",                  "EMA 10",                  5),
+    ("sma50", "SMA 50",                  "SMA 50",                  6),
 ]
 
 with SessionLocal() as _s:
