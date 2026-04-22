@@ -9,8 +9,8 @@ from nicegui import ui
 
 from data import _fetch_any_stock_candles
 from db import get_active_top_stocks
-from algo_strategies import detect_double_top_signals, backtest_double_top
-from tv_charts import render_tv_double_top_chart, flush_pending_js
+from algo_strategies import detect_double_top_custom_signals, backtest_double_top_custom
+from tv_charts import render_tv_double_top_custom_chart, flush_pending_js
 
 
 def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
@@ -20,19 +20,19 @@ def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
     }
 
 
-def render_double_top_tab(container):
+def render_double_top_custom_tab(container):
     """Build the Double Top historical backtester tab. Returns an async refresh() closure."""
 
     selected: dict = {"security_id": None, "label": None}
 
     with container:
-        ui.label("Double Top Scanner").classes("text-xl font-bold mb-2")
+        ui.label("Double Top Customized Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
             "rounded-lg px-4 py-2 mb-3"
         ).style("background:rgba(255,77,94,0.08); border:1px solid rgba(255,77,94,0.25);"):
             ui.label(
-                "Strategy: Double Top bearish reversal | "
-                "Entry: Neckline break close | Target: Neckline − Height | SL: Above 2nd Peak | 5-min candles | 5 days"
+                "Strategy: Double Top Customized bearish reversal | "
+                "Entry: Neckline − 1pt | Target: Neckline − 2×Height | SL: Neckline + 70% Height | 5-min candles | 5 days"
             ).classes("text-sm").style("color:var(--at-down);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
@@ -63,7 +63,7 @@ def render_double_top_tab(container):
         content_container.clear()
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            ui.label(f"Loading {label} Double Top data...").classes(
+            ui.label(f"Loading {label} Double Top Customized data...").classes(
                 "text-gray-500 text-center w-full"
             )
 
@@ -88,7 +88,7 @@ def render_double_top_tab(container):
                     ui.label(f"Error: {e}").classes("text-red-500")
             except RuntimeError:
                 return
-            print(f"  [double_top:{label}] error:\n{traceback.format_exc()}")
+            print(f"  [double_top_custom:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
         top_stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks)
@@ -119,20 +119,20 @@ def _build_double_top_content(container, label, candles):
             )
             return
 
-        signals = detect_double_top_signals(candles)
-        trades = backtest_double_top(signals, candles)
+        signals = detect_double_top_custom_signals(candles)
+        trades = backtest_double_top_custom(signals, candles)
 
         # --- Chart ---
         ui.label(
             f"{label} — Last: {candles['close'].iloc[-1]:,.2f} | "
             f"{len(candles)} candles (5-min, 5 days) | "
-            f"{len(signals)} double top pattern{'s' if len(signals) != 1 else ''}"
+            f"{len(signals)} double top customized pattern{'s' if len(signals) != 1 else ''}"
         ).classes("text-md font-semibold mb-2")
-        chart_id = render_tv_double_top_chart(candles, signals)
+        chart_id = render_tv_double_top_custom_chart(candles, signals)
 
         # --- Summary ---
         if not trades:
-            ui.label("No double top patterns detected in this period.").classes(
+            ui.label("No double top customized patterns detected in this period.").classes(
                 "text-gray-500 italic mt-4"
             )
             return
