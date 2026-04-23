@@ -107,17 +107,21 @@ def subscribe(securities: list) -> None:
 
 # Dhan security IDs for index instruments
 _SECURITY_MAP = {
-    "13": "NIFTY",
-    "25": "BANKNIFTY",
+    "13":     "NIFTY",
+    "25":     "BANKNIFTY",
     "234613": "VIX",
+    "29":     "NIFTY IT",
+    "14":     "NIFTY AUTO",
 }
 
 # Instruments: (exchange_segment, security_id, subscription_type)
 # marketfeed.IDX is the segment constant for NSE index instruments
 _INSTRUMENTS = [
-    (marketfeed.IDX, "13", marketfeed.Ticker),      # NIFTY
-    (marketfeed.IDX, "25", marketfeed.Ticker),      # BANKNIFTY
+    (marketfeed.IDX, "13",     marketfeed.Ticker),  # NIFTY
+    (marketfeed.IDX, "25",     marketfeed.Ticker),  # BANKNIFTY
     (marketfeed.IDX, "234613", marketfeed.Ticker),  # India VIX
+    (marketfeed.IDX, "29",     marketfeed.Ticker),  # NIFTY IT
+    (marketfeed.IDX, "14",     marketfeed.Ticker),  # NIFTY AUTO
 ]
 
 # Re-export for test mocking

@@ -499,22 +499,13 @@ async def index():
                 else:
                     items.append((sym_label, None, None, None))
 
-        # Sector indices — from market_overview cache
-        mo_key = f"market_overview:{now_ist().strftime('%Y-%m-%d %H')}"
-        market_data = _scache(mo_key) or []
-        # Build a flat lookup name→data
-        idx_lookup: dict = {}
-        for grp in market_data:
-            for entry in grp.get("indices", []):
-                if entry.get("data"):
-                    idx_lookup[entry["name"]] = entry["data"]
-
-        for name in ["NIFTY IT", "NIFTY AUTO", "NIFTY BANK"]:
-            d = idx_lookup.get(name)
-            if d:
-                items.append((name, d["current"], d["change"], d["change_pct"]))
+        # Sector indices — live WS feed (BANKNIFTY already in NIFTY/BANKNIFTY block above)
+        for ws_key, label in [("NIFTY IT", "NIFTY IT"), ("NIFTY AUTO", "NIFTY AUTO")]:
+            ws = get_live_price(ws_key)
+            if ws:
+                items.append((label, ws["ltp"], ws["change"], ws["change_pct"]))
             else:
-                items.append((name, None, None, None))
+                items.append((label, None, None, None))
 
         # India VIX from live WS
         vix = get_live_price("VIX")
