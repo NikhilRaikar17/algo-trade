@@ -10,28 +10,32 @@ import uuid
 from nicegui import ui, context
 
 from config import now_ist
-from data import fetch_market_overview, fetch_daily_candles_for_index
+from data import fetch_market_overview, fetch_daily_candles_for_index, _fetch_any_index_candles
 from tv_charts import _BASE_OPTS, _CANDLE_OPTS, _schedule_js, _candles_to_tv, _resize_listener, _ohlc_tooltip_js
 
 
 def _show_chart_modal(name, security_id):
-    """Fetch daily candles in background and show a modal with a Lightweight Chart."""
+    """Fetch 25-min candles (5 days) and show a modal with a Lightweight Chart."""
     with ui.dialog().props("persistent").classes("!max-w-5xl w-full") as dlg:
         dlg.open()
-        with ui.card().classes("w-full !rounded-xl").style("min-width:min(900px,95vw);padding:0;"):
+        with ui.card().classes("w-full !rounded-2xl overflow-hidden").style(
+            "min-width:min(900px,95vw); padding:0; gap:0;"
+        ):
             # Header
-            with ui.row().classes("items-center gap-2 px-5 py-3 border-b border-gray-200"):
+            with ui.row().classes("items-center w-full px-5 py-3 border-b border-gray-200").style("gap:8px;"):
                 ui.icon("candlestick_chart", size="20px").classes("text-emerald-500")
-                ui.label(f"{name} — Daily Chart").classes("text-sm font-bold text-gray-800 flex-1")
-                ui.button(icon="close", on_click=dlg.close).props("flat round dense")
+                ui.label(name).classes("text-sm font-bold text-gray-800")
+                ui.label("25-min · 5 Days").classes("text-xs text-gray-400 font-medium")
+                ui.space()
+                ui.button(icon="close", on_click=dlg.close).props("flat round dense").classes("text-gray-400")
 
-            chart_area = ui.element("div").classes("w-full px-4 py-4")
+            chart_area = ui.element("div").classes("w-full p-4")
             with chart_area:
                 ui.spinner("dots", size="lg").classes("mx-auto my-8 block")
 
     async def _load():
         candles = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: fetch_daily_candles_for_index(security_id)
+            None, lambda: _fetch_any_index_candles(str(security_id), interval=25)
         )
         chart_area.clear()
         with chart_area:
