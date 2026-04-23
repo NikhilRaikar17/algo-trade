@@ -88,9 +88,9 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "D": d,
                         "BC_retrace": round(float(bc_ratio), 3),
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
-                        "entry": float(d["price"]),
+                        "entry": float(d["price"]) - 0.1,  # 0.1pts below D (neckline breakout)
                         "stop_loss": float(c["price"]),
-                        "target": float(d["price"] - 2 * (d["price"] - c["price"])),  # price falls from D; target below D
+                        "target": float(d["price"] - 0.1 - 1.4 * (d["price"] - 0.1 - c["price"])),  # 1:1.4 RR
                         "signal": "SELL CE / BUY PE at D",
                     }
                 )
@@ -119,9 +119,9 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "D": d,
                         "BC_retrace": round(float(bc_ratio), 3),
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
-                        "entry": float(d["price"]),
+                        "entry": float(d["price"]) + 0.1,  # 0.1pts above D (neckline breakout)
                         "stop_loss": float(c["price"]),
-                        "target": float(d["price"] + 2 * (c["price"] - d["price"])),  # price rises from D; target above D
+                        "target": float(d["price"] + 0.1 + 1.4 * (c["price"] - (d["price"] + 0.1))),  # 1:1.4 RR
                         "signal": "BUY CE / SELL PE at D",
                     }
                 )
@@ -457,10 +457,10 @@ def detect_double_top_custom_signals(candles, max_peak_diff_pct=0.0015, min_bars
                     if float(bar["high"]) > resistance:
                         break  # pattern voided
                     if float(bar["close"]) < neckline:
-                        # Entry is one point below neckline (confirmed breakdown)
-                        entry = neckline - 1.0
+                        # Entry 10 cents below neckline (sell limit on confirmed breakdown)
+                        entry = neckline - 0.1
                         height = resistance - neckline
-                        sl = neckline + 0.7 * height  # SL at 70% of neckline→peak distance
+                        sl = entry + 0.7 * height  # SL at 70% of height above entry
                         target = float(neckline - 2 * height)  # target = 2× full height
                         all_signals.append({
                             "time": bar["timestamp"],
@@ -495,13 +495,13 @@ def backtest_double_top_custom(signals, candles):
     """Walk through same-day candles after each double top signal. Force-close at 3:30 PM.
 
     Two-phase simulation:
-      Phase 1 — wait for price to pull back up and touch entry (neckline - 1 pt).
+      Phase 1 — wait for price to pull back up and touch entry (neckline - 0.1).
                  If SL is hit before fill, mark as "No Fill".
       Phase 2 — once filled, track target/SL.
     """
     trades = []
     for s in signals:
-        entry = s["entry"]   # neckline - 1.0 (sell limit)
+        entry = s["entry"]   # neckline - 0.1 (sell limit)
         target = s["target"]
         sl = s["stop_loss"]
         signal_time = s["time"]
@@ -563,7 +563,7 @@ def detect_double_top_standard_signals(candles, max_peak_diff_pct=0.01, min_bars
 
     Two swing highs within 1% of each other, with a trough (neckline) between them.
     Entry confirmed when price closes below the neckline after the second peak.
-    Signal: SELL | Target: neckline − height | SL: above highest peak
+    Signal: SELL | Entry: neckline − 0.1 | Target: neckline − height | SL: entry + 70% height
     No resistance void check (unlike the customized variant).
     Strictly intraday: P1 and P2 must be on the same calendar date.
     """
@@ -601,9 +601,9 @@ def detect_double_top_standard_signals(candles, max_peak_diff_pct=0.01, min_bars
                     if bar["timestamp"].time() >= _NO_NEW_TRADE_AFTER:
                         break
                     if float(bar["close"]) < neckline:
-                        entry = float(neckline)
+                        entry = float(neckline) - 0.1
                         height = resistance - neckline
-                        sl = float(resistance) + 1.0
+                        sl = entry + 0.7 * height  # SL at 70% of height above entry
                         target = float(neckline - height)
                         all_signals.append({
                             "time": bar["timestamp"],
