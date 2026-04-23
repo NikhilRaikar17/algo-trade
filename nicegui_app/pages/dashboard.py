@@ -4,11 +4,76 @@ Dashboard page: clocks (IST / CEST) and market price cards.
 
 import time
 import asyncio
+import json
+import uuid
 from nicegui import ui, context
 
 from config import now_ist, now_cest, INDICES
 from state import _cache_get, _cache_set, get_live_price, get_ws_connected, get_all_global_prices
 from data import get_expiries, fetch_option_chain, _fetch_any_index_candles, _candles_to_daily_change
+from tv_charts import _BASE_OPTS, _CANDLE_OPTS, _schedule_js, _candles_to_tv, _resize_listener, _ohlc_tooltip_js
+
+
+_INDEX_SECURITY_IDS = {"NIFTY": "13", "BANKNIFTY": "25"}
+
+
+def _show_index_chart_modal(name: str, security_id: str):
+    """Open modal with 25-min candles (5 days) for an index."""
+    with ui.dialog().props("persistent").classes("!max-w-5xl w-full") as dlg:
+        dlg.open()
+        with ui.card().classes("w-full !rounded-2xl overflow-hidden").style(
+            "min-width:min(900px,95vw); padding:0; gap:0;"
+        ):
+            with ui.row().classes("items-center w-full px-5 py-3 border-b border-gray-200").style("gap:8px;"):
+                ui.icon("candlestick_chart", size="20px").classes("text-emerald-500")
+                ui.label(name).classes("text-sm font-bold text-gray-800")
+                ui.label("25-min · 5 Days").classes("text-xs text-gray-400 font-medium")
+                ui.space()
+                ui.button(icon="close", on_click=dlg.close).props("flat round dense").classes("text-gray-400")
+
+            chart_area = ui.element("div").classes("w-full p-4")
+            with chart_area:
+                ui.spinner("dots", size="lg").classes("mx-auto my-8 block")
+
+    async def _load():
+        candles = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: _fetch_any_index_candles(security_id, interval=25)
+        )
+        chart_area.clear()
+        with chart_area:
+            if candles is None or candles.empty:
+                ui.label("No data available.").classes("text-gray-400 italic text-sm p-4")
+                return
+
+            chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+            ui.html(
+                f'<div id="{chart_id}" style="width:100%;height:420px;"></div>',
+                sanitize=False,
+            )
+            ohlc = _candles_to_tv(candles)
+            opts = dict(_BASE_OPTS)
+            opts["height"] = 420
+            js = f"""
+            (function initModal_{chart_id}() {{
+                var el = document.getElementById('{chart_id}');
+                if (!el) {{ setTimeout(initModal_{chart_id}, 100); return; }}
+                var opts = {json.dumps(opts)};
+                opts.width = _tvElWidth(el);
+                var chart = LightweightCharts.createChart(el, opts);
+                window._tvChartInstances = window._tvChartInstances || [];
+                window._tvChartInstances.push(chart);
+                window._tvThemeOpts = window._tvThemeOpts || function(l) {{ return l ? {{layout:{{background:{{type:'solid',color:'#f5f7fa'}},textColor:'#3d4a57'}},grid:{{vertLines:{{color:'#e0e4ea'}},horzLines:{{color:'#e0e4ea'}}}}}} : {{layout:{{background:{{type:'solid',color:'#0a0d10'}},textColor:'#8a97a3'}},grid:{{vertLines:{{color:'#1a2128'}},horzLines:{{color:'#1a2128'}}}}}}; }};
+                chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
+                var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+                cs.setData({json.dumps(ohlc)});
+                {_ohlc_tooltip_js("chart", "cs", "el")}
+                chart.timeScale().fitContent();
+                {_resize_listener("chart", "el")}
+            }})();
+            """
+            _schedule_js(js)
+
+    asyncio.ensure_future(_load())
 
 
 def _compute_synthetic_futures(spot, df, strike_step):
@@ -262,9 +327,13 @@ def render_dashboard(container):
                 dot_color = "bg-emerald-500" if name == "NIFTY" else "bg-teal-600"
                 for ptype in ["SPOT", "FUT"]:
                     key = f"{name}_{ptype}"
+                    _sid = _INDEX_SECURITY_IDS[name]
+                    _label = f"{name} {ptype}"
+                    def _on_card_click(n=_label, sid=_sid):
+                        _show_index_chart_modal(n, sid)
                     with ui.card().classes(
-                        f"{card_cls} shadow-sm !rounded-xl"
-                    ).style("min-height: 120px; border: 1px solid #1f2830 !important;") as card:
+                        f"{card_cls} shadow-sm !rounded-xl cursor-pointer"
+                    ).style("min-height: 120px; border: 1px solid #1f2830 !important;").on("click", _on_card_click) as card:
                         with ui.column().classes("w-full h-full justify-center py-4 sm:py-5 pl-4 sm:pl-5"):
                             with ui.row().classes("items-center gap-2"):
                                 ui.element("div").classes(f"w-2 h-2 rounded-full {dot_color}")
