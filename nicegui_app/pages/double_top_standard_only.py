@@ -32,7 +32,7 @@ def render_double_top_standard_tab(container):
         ).style("background:rgba(255,77,94,0.08); border:1px solid rgba(255,77,94,0.25);"):
             ui.label(
                 "Strategy: Double Top Standard bearish reversal | "
-                "Entry: Neckline break close | Target: Neckline − Height | SL: Above highest peak | 5-min candles | 5 days"
+                "Entry: Neckline − 0.1 | Target: Neckline − Height | SL: Entry + 70% Height | 5-min candles | 5 days"
             ).classes("text-sm").style("color:var(--at-down);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
@@ -116,6 +116,12 @@ def _build_double_top_standard_content(container, label, candles):
         if candles.empty:
             ui.label(f"No candle data available for {label}.").classes(
                 "text-orange-500"
+            )
+            return
+
+        if candles["close"].iloc[-1] > 5000:
+            ui.label(f"{label} — Stock price above ₹5,000; skipping double top scan.").classes(
+                "text-orange-500 italic"
             )
             return
 
