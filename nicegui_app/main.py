@@ -245,7 +245,8 @@ async def index():
     )
 
     # ---- State ----
-    active_page = {"value": "dashboard"}
+    _stored_page = app.storage.user.get("active_page", "dashboard")
+    active_page = {"value": _stored_page if _stored_page in ALL_PAGE_IDS else "dashboard"}
     refresh_fns = {}
     _prev_market_open = [None]
     _dashboard_refresh = [None]   # persists across build_ui() calls — avoids re-creating clock timer
@@ -552,6 +553,7 @@ async def index():
     # _refresh_trigger is set after full_refresh is defined below; late-binding via list
     _refresh_trigger = [None]
     async def _on_navigate(pid):
+        app.storage.user["active_page"] = pid
         # Auto-close drawer on mobile when a nav item is tapped
         result = await ui.run_javascript("window.innerWidth")
         if result is not None and result <= 1023:
@@ -655,10 +657,10 @@ async def index():
 
         status_label.text = f"Loading... {now_ist().strftime('%H:%M:%S')}"
         try:
-            scroll_y = await ui.run_javascript("window.scrollY")
+            scroll_y = await page_client.run_javascript("window.scrollY")
             await fn()
             if scroll_y:
-                await ui.run_javascript(f"window.scrollTo(0, {scroll_y})")
+                await page_client.run_javascript(f"window.scrollTo(0, {scroll_y})")
             if not page_client._deleted:
                 if active in _OPTION_CHAIN_PAGES and not is_market_open():
                     status_label.text = f"LTP snapshot: {now_ist().strftime('%H:%M:%S')} | Market closed"
