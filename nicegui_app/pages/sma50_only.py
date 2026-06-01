@@ -8,7 +8,7 @@ import traceback
 from nicegui import ui
 
 from data import _fetch_any_stock_candles
-from pages.top_stocks import _fetch_top_stocks
+from db import get_active_top_stocks
 from algo_strategies import detect_sma50_signals, backtest_sma50
 from tv_charts import render_tv_sma50_chart, flush_pending_js
 
@@ -28,13 +28,13 @@ def render_sma50_tab(container):
     with container:
         ui.label("SMA 50 Crossover Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3"
-        ):
+            "rounded-lg px-4 py-2 mb-3"
+        ).style("background:rgba(255,176,32,0.08); border:1px solid rgba(255,176,32,0.25);"):
             ui.label(
                 "Strategy: BUY when price crosses above SMA(50) | "
                 "SELL when price crosses below SMA(50) | "
                 "Target: 1.5% | SL: 1% | 15-min candles | 5 days"
-            ).classes("text-sm text-amber-700")
+            ).classes("text-sm").style("color:var(--at-warn);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")
@@ -92,9 +92,8 @@ def render_sma50_tab(container):
             print(f"  [sma50:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
-        top_stocks = gainers + losers
-        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        top_stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks)
+        options = _build_stock_options(top_stocks)
         if not select_widget.client._deleted:
             select_widget.options = options
             select_widget.update()
@@ -129,7 +128,7 @@ def _build_sma50_content(container, label, candles):
             f"{label} — Last: {candles['close'].iloc[-1]:,.2f} | "
             f"{len(candles)} candles (15-min, 5 days)"
         ).classes("text-md font-semibold mb-2")
-        render_tv_sma50_chart(candles, df_ind, signals)
+        chart_id = render_tv_sma50_chart(candles, df_ind, signals)
 
         # ---- Summary ----
         if not trades:
@@ -159,10 +158,12 @@ def _build_sma50_content(container, label, candles):
 
         # ---- Trade Log ----
         ui.separator().classes("my-4")
-        ui.label("Trade Log").classes("text-lg font-semibold mb-2")
+        with ui.row().classes("items-center gap-3 mb-2"):
+            ui.label("Trade Log").classes("text-lg font-semibold")
+            ui.label("Click a row to highlight signal on chart").classes("text-xs text-gray-400 italic")
 
         rows = []
-        for t in trades:
+        for i, t in enumerate(trades):
             time_str = (
                 t["time"].strftime("%d %b %H:%M")
                 if hasattr(t["time"], "strftime") else str(t["time"])
@@ -174,6 +175,7 @@ def _build_sma50_content(container, label, candles):
                     if hasattr(t["exit_time"], "strftime") else str(t["exit_time"])
                 )
             rows.append({
+                "_idx":       i,
                 "Entry Time": time_str,
                 "Signal":     t["signal"],
                 "Entry":      t["entry"],
@@ -198,7 +200,15 @@ def _build_sma50_content(container, label, candles):
             {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
             {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
-        table = ui.table(columns=columns, rows=rows, row_key="Entry Time").classes("w-full")
+        _cid = chart_id
+
+        table = ui.table(columns=columns, rows=rows, row_key="Entry Time").classes("w-full cursor-pointer")
+
+        def _on_row_click(e):
+            idx = e.args[1].get("_idx", -1)
+            ui.run_javascript(f"window._tvShowTrade_{_cid}({idx})")
+
+        table.on("rowClick", _on_row_click)
         table.props("dense flat bordered")
 
         table.add_slot(

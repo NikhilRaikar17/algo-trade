@@ -10,8 +10,10 @@ from config import now_ist
 from pnl import collect_all_trades
 from state import load_trade_history
 from ui_components import build_trade_table
+from strategy_registry import get_strategy_short_names
+from brokerage import charges_for_trades
 
-_ALL_STRATEGIES = ["ABCD", "Double Top", "Double Bottom", "EMA10", "SMA50"]
+_ALL_STRATEGIES = get_strategy_short_names()
 
 
 def render_pnl_tab(container):
@@ -23,7 +25,7 @@ def render_pnl_tab(container):
         summary_container = ui.element("div").classes("w-full")
 
     # Mutable filter state shared between refresh() and event handlers
-    _state = {"strategy": "All", "date": "All"}
+    _state = {"strategy": "All", "date": "All", "stock": "All"}
     # Latest fetched data (updated each refresh cycle)
     _data = {"completed": [], "active": []}
 
@@ -61,6 +63,8 @@ def render_pnl_tab(container):
             out = [t for t in out if t.get("strategy") == _state["strategy"]]
         if _state["date"] != "All":
             out = [t for t in out if t.get("trade_date") == _state["date"]]
+        if _state["stock"] != "All":
+            out = [t for t in out if t.get("symbol") == _state["stock"]]
         return out
 
     # ── main render ──────────────────────────────────────────────────────────
@@ -80,11 +84,28 @@ def render_pnl_tab(container):
             losers = sum(1 for t in filtered if t.get("pnl", 0) < 0)
             win_rate = (winners / total_trades * 100) if total_trades else 0
 
+            # Brokerage calculation (equity intraday, 1 share per trade)
+            charges = charges_for_trades(filtered, lot_size=1, quantity=1, segment="equity_intraday")
+            gross_pnl = charges["gross_pnl"]
+            total_charges = charges["total_charges"]
+            net_pnl = charges["net_pnl"]
+
             with ui.row().classes("gap-4 flex-wrap mb-4"):
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
-                    ui.label("Total P&L").classes("text-sm text-gray-500")
-                    color = "text-green-600" if total_pnl >= 0 else "text-red-600"
-                    ui.label(f"{total_pnl:+.2f}").classes(f"text-2xl font-bold {color}")
+                    ui.label("Gross P&L").classes("text-sm text-gray-500")
+                    color = "text-green-600" if gross_pnl >= 0 else "text-red-600"
+                    ui.label(f"₹{gross_pnl:+,.2f}").classes(f"text-2xl font-bold {color}")
+                with ui.card().classes("p-3 min-w-[120px] flex-1 border border-orange-200"):
+                    ui.label("Charges").classes("text-sm text-gray-500")
+                    ui.label(f"₹{total_charges:,.2f}").classes("text-2xl font-bold text-orange-500")
+                    ui.label(
+                        f"Avg ₹{charges['per_trade_avg_charges']:.0f}/trade"
+                    ).classes("text-xs text-gray-400")
+                with ui.card().classes("p-3 min-w-[120px] flex-1 border border-blue-200"):
+                    ui.label("Net P&L").classes("text-sm text-gray-500")
+                    net_color = "text-green-600" if net_pnl >= 0 else "text-red-600"
+                    ui.label(f"₹{net_pnl:+,.2f}").classes(f"text-2xl font-bold {net_color}")
+                    ui.label("After charges").classes("text-xs text-gray-400")
                 with ui.card().classes("p-3 min-w-[120px] flex-1"):
                     ui.label("Trades").classes("text-sm text-gray-500")
                     ui.label(str(total_trades)).classes("text-2xl font-bold")
@@ -173,6 +194,7 @@ def render_pnl_tab(container):
                     {
                         "Date":      t.get("trade_date", ""),
                         "Strategy":  t.get("strategy", ""),
+                        "Stock":     t.get("symbol", ""),
                         "Signal":    t.get("signal", ""),
                         "Entry":     t.get("entry", 0),
                         "Target":    round(t.get("target", 0), 2) if t.get("target") else "—",
@@ -231,6 +253,7 @@ def render_pnl_tab(container):
                 rows = [
                     {
                         "Strategy":   t.get("strategy", ""),
+                        "Stock":      t.get("symbol", ""),
                         "Signal":     t.get("signal", ""),
                         "Entry":      t.get("entry", 0),
                         "Target":     t.get("target", 0),
@@ -244,7 +267,7 @@ def render_pnl_tab(container):
 
     # ── filter row builder ────────────────────────────────────────────────────
 
-    def _build_filter_row(strategies, dates):
+    def _build_filter_row(strategies, dates, stocks):
         filter_row.clear()
         with filter_row:
             with ui.row().classes("gap-4 items-center flex-wrap"):
@@ -254,6 +277,13 @@ def render_pnl_tab(container):
                     value=_state["strategy"],
                     label="Strategy",
                 ).classes("w-36")
+
+                ui.label("Stock:").classes("text-sm font-medium")
+                stock_select = ui.select(
+                    ["All"] + stocks,
+                    value=_state["stock"],
+                    label="Stock",
+                ).classes("w-40")
 
                 ui.label("Date:").classes("text-sm font-medium")
                 date_select = ui.select(
@@ -266,11 +296,16 @@ def render_pnl_tab(container):
             _state["strategy"] = e.value
             _render()
 
+        def on_stock(e):
+            _state["stock"] = e.value
+            _render()
+
         def on_date(e):
             _state["date"] = e.value
             _render()
 
         strat_select.on_value_change(on_strat)
+        stock_select.on_value_change(on_stock)
         date_select.on_value_change(on_date)
 
     # ── refresh (called by main loop) ─────────────────────────────────────────
@@ -283,19 +318,23 @@ def render_pnl_tab(container):
         _data["completed"] = all_completed
         _data["active"] = all_active
 
-        strategies = sorted(set(t.get("strategy", "Unknown") for t in all_completed))
+        trade_strategies = set(t.get("strategy", "Unknown") for t in all_completed)
+        strategies = sorted(set(_ALL_STRATEGIES) | trade_strategies)
         dates = sorted(
             set(t.get("trade_date", "Unknown") for t in all_completed),
             reverse=True,
         )
+        stocks = sorted(s for s in set(t.get("symbol", "") for t in all_completed + all_active) if s)
 
         # Reset stale filter values if they no longer exist in data
         if _state["strategy"] not in (["All"] + strategies):
             _state["strategy"] = "All"
         if _state["date"] not in (["All"] + dates):
             _state["date"] = "All"
+        if _state["stock"] not in (["All"] + stocks):
+            _state["stock"] = "All"
 
-        _build_filter_row(strategies, dates)
+        _build_filter_row(strategies, dates, stocks)
         _render()
 
     return refresh

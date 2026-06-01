@@ -8,9 +8,9 @@ import traceback
 from nicegui import ui
 
 from data import _fetch_any_stock_candles
-from pages.top_stocks import _fetch_top_stocks
-from algo_strategies import detect_double_top_signals, backtest_double_top
-from tv_charts import render_tv_double_top_chart, flush_pending_js
+from db import get_active_top_stocks
+from algo_strategies import detect_double_top_custom_signals, backtest_double_top_custom
+from tv_charts import render_tv_double_top_custom_chart, flush_pending_js
 
 
 def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
@@ -20,20 +20,20 @@ def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
     }
 
 
-def render_double_top_tab(container):
+def render_double_top_custom_tab(container):
     """Build the Double Top historical backtester tab. Returns an async refresh() closure."""
 
     selected: dict = {"security_id": None, "label": None}
 
     with container:
-        ui.label("Double Top Scanner").classes("text-xl font-bold mb-2")
+        ui.label("Double Top Customized Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-3"
-        ):
+            "rounded-lg px-4 py-2 mb-3"
+        ).style("background:rgba(255,77,94,0.08); border:1px solid rgba(255,77,94,0.25);"):
             ui.label(
-                "Strategy: Double Top bearish reversal | "
-                "Entry: Neckline break close | Target: Neckline − Height | SL: Above 2nd Peak | 5-min candles | 5 days"
-            ).classes("text-sm text-red-700")
+                "Strategy: Double Top Customized bearish reversal | "
+                "Entry: Neckline − 0.1 | Target: Neckline − 2×Height | SL: Entry + 70% Height | 5-min candles | 5 days"
+            ).classes("text-sm").style("color:var(--at-down);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")
@@ -63,7 +63,7 @@ def render_double_top_tab(container):
         content_container.clear()
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            ui.label(f"Loading {label} Double Top data...").classes(
+            ui.label(f"Loading {label} Double Top Customized data...").classes(
                 "text-gray-500 text-center w-full"
             )
 
@@ -88,12 +88,11 @@ def render_double_top_tab(container):
                     ui.label(f"Error: {e}").classes("text-red-500")
             except RuntimeError:
                 return
-            print(f"  [double_top:{label}] error:\n{traceback.format_exc()}")
+            print(f"  [double_top_custom:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
-        top_stocks = gainers + losers
-        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        top_stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks)
+        options = _build_stock_options(top_stocks)
         if not select_widget.client._deleted:
             select_widget.options = options
             select_widget.update()
@@ -120,20 +119,26 @@ def _build_double_top_content(container, label, candles):
             )
             return
 
-        signals = detect_double_top_signals(candles)
-        trades = backtest_double_top(signals, candles)
+        if candles["close"].iloc[-1] > 5000:
+            ui.label(f"{label} — Stock price above ₹5,000; skipping double top scan.").classes(
+                "text-orange-500 italic"
+            )
+            return
+
+        signals = detect_double_top_custom_signals(candles)
+        trades = backtest_double_top_custom(signals, candles)
 
         # --- Chart ---
         ui.label(
             f"{label} — Last: {candles['close'].iloc[-1]:,.2f} | "
             f"{len(candles)} candles (5-min, 5 days) | "
-            f"{len(signals)} double top pattern{'s' if len(signals) != 1 else ''}"
+            f"{len(signals)} double top customized pattern{'s' if len(signals) != 1 else ''}"
         ).classes("text-md font-semibold mb-2")
-        render_tv_double_top_chart(candles, signals)
+        chart_id = render_tv_double_top_custom_chart(candles, signals)
 
         # --- Summary ---
         if not trades:
-            ui.label("No double top patterns detected in this period.").classes(
+            ui.label("No double top customized patterns detected in this period.").classes(
                 "text-gray-500 italic mt-4"
             )
             return
@@ -159,10 +164,12 @@ def _build_double_top_content(container, label, candles):
 
         # --- Trade Table ---
         ui.separator().classes("my-4")
-        ui.label("Trade Log").classes("text-lg font-semibold mb-2")
+        with ui.row().classes("items-center gap-3 mb-2"):
+            ui.label("Trade Log").classes("text-lg font-semibold")
+            ui.label("Click a row to highlight pattern on chart").classes("text-xs text-gray-400 italic")
 
         rows = []
-        for t in trades:
+        for i, t in enumerate(trades):
             time_str = (
                 t["time"].strftime("%d %b %H:%M")
                 if hasattr(t["time"], "strftime")
@@ -187,6 +194,7 @@ def _build_double_top_content(container, label, candles):
             )
             rows.append(
                 {
+                    "_idx": i,
                     "Entry Time": time_str,
                     "Signal": t["signal"],
                     "Peak1": t["peak1"],
@@ -220,9 +228,17 @@ def _build_double_top_content(container, label, candles):
             {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
             {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
+        _cid = chart_id
+
         table = ui.table(
-            columns=columns, rows=rows, row_key="Entry Time"
-        ).classes("w-full")
+            columns=columns, rows=rows, row_key="Entry Time",
+        ).classes("w-full cursor-pointer")
+
+        def _on_row_click(e):
+            idx = e.args[1].get("_idx", -1)
+            ui.run_javascript(f"window._tvShowTrade_{_cid}({idx})")
+
+        table.on("rowClick", _on_row_click)
         table.props("dense flat bordered")
 
         table.add_slot(
@@ -242,7 +258,7 @@ def _build_double_top_content(container, label, candles):
             "body-cell-status",
             r"""
             <q-td :props="props">
-                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : 'grey'"
+                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : props.value === 'No Fill' ? 'blue-grey' : 'grey'"
                          :label="props.value" />
             </q-td>
             """,

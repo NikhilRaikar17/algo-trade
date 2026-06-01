@@ -188,7 +188,7 @@ def _news_card(art: dict):
     desc = re.sub(r"<[^>]+>", "", desc).strip()
 
     with ui.card().classes(
-        "rounded-xl shadow-sm bg-white border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer"
+        "p-4 cursor-pointer"
     ).props("flat"):
         # Source + time row
         with ui.row().classes("items-center gap-2 mb-2"):
@@ -202,13 +202,13 @@ def _news_card(art: dict):
         # Title — clickable link
         if link:
             ui.link(title, target=link, new_tab=True).classes(
-                "text-sm font-semibold text-gray-800 leading-snug hover:text-emerald-600 no-underline"
-            )
+                "text-sm font-semibold leading-snug no-underline"
+            ).style("color:var(--at-fg);")
         else:
             ui.label(title).classes(
-                "text-sm font-semibold text-gray-800 leading-snug"
+                "text-sm font-semibold leading-snug"
             )
 
         # Description
         if desc:
-            ui.label(desc).classes("text-xs text-gray-500 mt-1.5 leading-relaxed")
+            ui.label(desc).classes("text-xs mt-1.5 leading-relaxed").style("color:var(--at-fg-dim);")

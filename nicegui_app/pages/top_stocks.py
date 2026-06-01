@@ -1,6 +1,6 @@
 """
 Top Stocks Scanner: top 10 NIFTY 50 movers today, ranked by % change.
-Click a card to open a 15-min intraday chart in a modal.
+Click a card to open a 25-min chart (5 days) in a modal.
 """
 
 import asyncio
@@ -12,6 +12,7 @@ from nicegui import ui, context
 
 from config import now_ist
 from data import STOCK_WATCH_GROUPS, _fetch_any_stock_candles, _candles_to_daily_change
+from db import sync_top_stocks
 from tv_charts import _BASE_OPTS, _CANDLE_OPTS, _schedule_js, _candles_to_tv, _resize_listener, _ohlc_tooltip_js
 
 
@@ -57,32 +58,42 @@ def _fetch_top_stocks(top_n: int = 5) -> tuple[list[dict], list[dict]]:
         key=lambda x: x["data"]["change_pct"],
     )
 
-    return gainers[:top_n], losers[:top_n]
+    top_gainers = gainers[:top_n]
+    top_losers  = losers[:top_n]
+
+    # Persist to DB — updates the rolling 20-stock list
+    try:
+        sync_top_stocks(
+            gainers=[{"name": r["name"], "security_id": r["security_id"]} for r in top_gainers],
+            losers =[{"name": r["name"], "security_id": r["security_id"]} for r in top_losers],
+        )
+    except Exception as e:
+        print(f"  [top_stocks] DB sync error: {e}")
+
+    return top_gainers, top_losers
 
 
 def _show_stock_chart_modal(name: str, security_id: str):
-    """Open a modal with the 15-min intraday candlestick chart for a stock."""
+    """Open a modal with the 25-min candle chart (5 days) for a stock."""
     with ui.dialog().props("persistent").classes("!max-w-5xl w-full") as dlg:
         dlg.open()
-        with ui.card().classes("w-full !rounded-xl").style(
-            "min-width:min(900px,95vw);padding:0;"
+        with ui.card().classes("w-full !rounded-2xl overflow-hidden").style(
+            "min-width:min(900px,95vw); padding:0; gap:0;"
         ):
-            with ui.row().classes(
-                "items-center gap-2 px-5 py-3 border-b border-gray-200"
-            ):
+            with ui.row().classes("items-center w-full px-5 py-3 border-b border-gray-200").style("gap:8px;"):
                 ui.icon("candlestick_chart", size="20px").classes("text-emerald-500")
-                ui.label(f"{name} — Intraday 15-min").classes(
-                    "text-sm font-bold text-gray-800 flex-1"
-                )
-                ui.button(icon="close", on_click=dlg.close).props("flat round dense")
+                ui.label(name).classes("text-sm font-bold text-gray-800")
+                ui.label("25-min · 5 Days").classes("text-xs text-gray-400 font-medium")
+                ui.space()
+                ui.button(icon="close", on_click=dlg.close).props("flat round dense").classes("text-gray-400")
 
-            chart_area = ui.element("div").classes("w-full px-4 py-4")
+            chart_area = ui.element("div").classes("w-full p-4")
             with chart_area:
                 ui.spinner("dots", size="lg").classes("mx-auto my-8 block")
 
     async def _load():
         candles = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: _fetch_any_stock_candles(security_id, interval=15)
+            None, lambda: _fetch_any_stock_candles(security_id, interval=25)
         )
         chart_area.clear()
         with chart_area:
@@ -92,16 +103,9 @@ def _show_stock_chart_modal(name: str, security_id: str):
                 )
                 return
 
-            # Filter to today only for a clean intraday view
-            if not candles.empty:
-                today_date = now_ist().date()
-                today_df   = candles[candles["timestamp"].dt.date == today_date]
-                if not today_df.empty:
-                    candles = today_df
-
             chart_id = f"tv_{uuid.uuid4().hex[:10]}"
             ui.html(
-                f'<div id="{chart_id}" style="width:100%;height:420px;"></div>',
+                f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%;height:420px;"></div></div>',
                 sanitize=False,
             )
 
@@ -116,6 +120,10 @@ def _show_stock_chart_modal(name: str, security_id: str):
                 var opts = {json.dumps(opts)};
                 opts.width = _tvElWidth(el);
                 var chart = LightweightCharts.createChart(el, opts);
+                window._tvChartInstances = window._tvChartInstances || [];
+                window._tvThemeOpts = window._tvThemeOpts || function(l) {{ return l ? {{layout:{{background:{{type:'solid',color:'#f5f7fa'}},textColor:'#3d4a57'}},grid:{{vertLines:{{color:'#e0e4ea'}},horzLines:{{color:'#e0e4ea'}}}}}} : {{layout:{{background:{{type:'solid',color:'#0a0d10'}},textColor:'#8a97a3'}},grid:{{vertLines:{{color:'#1a2128'}},horzLines:{{color:'#1a2128'}}}}}}; }};
+                window._tvChartInstances.push(chart);
+                chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
                 var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
                 cs.setData({json.dumps(ohlc)});
                 {_ohlc_tooltip_js("chart", "cs", "el")}
@@ -140,7 +148,7 @@ def _stock_card(entry: dict):
     change_cls   = "text-green-600" if is_green else "text-red-600"
     dot_cls      = "bg-green-500" if is_green else "bg-red-500"
     border_color = "#4ade80" if is_green else "#f87171"
-    bg_color     = "#f0fdf4" if is_green else "#fff1f2"
+    bg_color     = "rgba(0,208,132,0.08)" if is_green else "rgba(255,77,94,0.08)"
 
     def on_click(n=name, sid=security_id):
         _show_stock_chart_modal(n, sid)
@@ -148,7 +156,7 @@ def _stock_card(entry: dict):
     with ui.card().classes(
         "rounded-xl shadow-sm cursor-pointer transition-all hover:shadow-md"
     ).style(
-        f"border: 2px solid {border_color} !important; background: {bg_color}; padding: 14px 16px;"
+        f"border: 1px solid {border_color} !important; background: {bg_color}; padding: 14px 16px;"
     ).on("click", on_click):
         with ui.row().classes("items-center gap-2 mb-2"):
             ui.element("div").classes(
@@ -188,7 +196,7 @@ def render_top_stocks_tab(container):
             ui.icon("rocket_launch", size="24px").classes("text-amber-500")
             ui.label("Top NIFTY 50 Stocks").classes("text-xl font-bold text-gray-800")
         ui.label(
-            "Top 5 gainers & top 5 losers — ranked by % change vs previous close · click a card for 15-min intraday chart"
+            "Top 5 gainers & top 5 losers — ranked by % change vs previous close · click a card for 25-min chart (5 days)"
         ).classes("text-xs text-gray-400 mb-4")
 
         content = ui.element("div").classes("w-full")
@@ -201,9 +209,20 @@ def render_top_stocks_tab(container):
         if page_client._deleted:
             return
         try:
-            gainers, losers = await asyncio.get_event_loop().run_in_executor(
-                None, _fetch_top_stocks
-            )
+            from state import _cache_get, _cache_get_stable, _cache_set, is_market_open
+            # Outside market hours, use whatever is in cache (ignore TTL) so the
+            # list never changes between refreshes.
+            if not is_market_open():
+                cached = _cache_get_stable("top_stocks_data")
+            else:
+                cached = _cache_get("top_stocks_data")
+            if cached:
+                gainers, losers = cached["gainers"], cached["losers"]
+            else:
+                gainers, losers = await asyncio.get_event_loop().run_in_executor(
+                    None, _fetch_top_stocks
+                )
+                _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
             if page_client._deleted:
                 return
             content.clear()

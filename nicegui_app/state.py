@@ -55,6 +55,20 @@ def _mark_sent(key):
 _trade_store = {}  # key -> {"active": [...], "completed": [...]}
 _ltp_history = {}  # history for SMA trend
 
+# ================= LIVE PRICE STATE (WebSocket feed) =================
+_live_prices: dict = {}
+# Structure per key:
+# {"NIFTY": {"ltp": 22450.5, "prev_close": 22300.0,
+#             "change": 150.5, "change_pct": 0.67, "timestamp": "14:32:05"}}
+# "VIX" key uses same structure; "ltp" holds the VIX value.
+
+_global_prices: dict = {}
+# Structure per key:
+# {"^GSPC": {"name": "S&P 500", "price": 5200.1, "change_pct": 0.34,
+#             "currency": "USD", "flag": "🇺🇸"}}
+
+_ws_connected: bool = False
+
 
 # ================= TRADE HISTORY (PERSISTENT) =================
 _TRADE_HISTORY_FILE = os.path.join(os.path.dirname(__file__), ".trade_history.json")
@@ -79,6 +93,7 @@ def save_completed_trade(key, trade):
             "key": key,
             "trade_date": trade.get("trade_date", now_ist().strftime("%Y-%m-%d")),
             "strategy": str(trade.get("strategy", "Unknown")),
+            "symbol": str(trade.get("symbol", "")),
             "signal": str(trade.get("signal", "")),
             "entry": float(trade.get("entry", 0)),
             "exit_price": float(trade.get("exit_price", 0)),
@@ -217,3 +232,57 @@ def _cache_get(key):
 def _cache_set(key, data):
     with _cache_lock:
         _data_cache[key] = {"data": data, "time": time.time()}
+
+
+def _cache_get_stable(key):
+    """Return cached data regardless of TTL — for data that should not change within a trading day."""
+    with _cache_lock:
+        entry = _data_cache.get(key)
+        if entry:
+            return entry["data"]
+    return None
+
+
+# ================= LIVE PRICE HELPERS =================
+_live_lock = threading.Lock()
+_global_lock = threading.Lock()
+
+
+def set_live_price(key: str, data: dict) -> None:
+    """Thread-safe write to _live_prices. Call from ws_feed background task."""
+    with _live_lock:
+        _live_prices[key] = data
+
+
+def get_live_price(key: str) -> dict | None:
+    """Thread-safe read from _live_prices."""
+    with _live_lock:
+        return _live_prices.get(key)
+
+
+def set_global_price(key: str, data: dict) -> None:
+    """Thread-safe write to _global_prices."""
+    with _global_lock:
+        _global_prices[key] = data
+
+
+def get_all_global_prices() -> dict:
+    """Thread-safe snapshot of _global_prices."""
+    with _global_lock:
+        return dict(_global_prices)
+
+
+_ws_connected_lock = threading.Lock()
+
+
+def set_ws_connected(value: bool) -> None:
+    """Thread-safe write to _ws_connected."""
+    global _ws_connected
+    with _ws_connected_lock:
+        _ws_connected = value
+
+
+def get_ws_connected() -> bool:
+    """Thread-safe read of _ws_connected."""
+    with _ws_connected_lock:
+        return _ws_connected

@@ -8,7 +8,7 @@ import traceback
 from nicegui import ui
 
 from data import _fetch_any_stock_candles
-from pages.top_stocks import _fetch_top_stocks
+from db import get_active_top_stocks
 from algo_strategies import detect_double_bottom_signals, backtest_double_bottom
 from tv_charts import render_tv_double_bottom_chart, flush_pending_js
 
@@ -28,12 +28,12 @@ def render_double_bottom_tab(container):
     with container:
         ui.label("Double Bottom Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
-            "bg-green-50 border border-green-200 rounded-lg px-4 py-2 mb-3"
-        ):
+            "rounded-lg px-4 py-2 mb-3"
+        ).style("background:rgba(0,208,132,0.08); border:1px solid rgba(0,208,132,0.25);"):
             ui.label(
                 "Strategy: Double Bottom bullish reversal | "
                 "Entry: Neckline break close | Target: Neckline + Height | SL: Below 2nd Trough | 5-min candles | 5 days"
-            ).classes("text-sm text-green-700")
+            ).classes("text-sm").style("color:var(--at-up);")
 
         with ui.row().classes("items-center gap-3 mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")
@@ -91,9 +91,8 @@ def render_double_bottom_tab(container):
             print(f"  [double_bottom:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
-        top_stocks = gainers + losers
-        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        top_stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks)
+        options = _build_stock_options(top_stocks)
         if not select_widget.client._deleted:
             select_widget.options = options
             select_widget.update()
@@ -129,7 +128,7 @@ def _build_double_bottom_content(container, label, candles):
             f"{len(candles)} candles (5-min, 5 days) | "
             f"{len(signals)} double bottom pattern{'s' if len(signals) != 1 else ''}"
         ).classes("text-md font-semibold mb-2")
-        render_tv_double_bottom_chart(candles, signals)
+        chart_id = render_tv_double_bottom_chart(candles, signals)
 
         # --- Summary ---
         if not trades:
@@ -159,10 +158,12 @@ def _build_double_bottom_content(container, label, candles):
 
         # --- Trade Table ---
         ui.separator().classes("my-4")
-        ui.label("Trade Log").classes("text-lg font-semibold mb-2")
+        with ui.row().classes("items-center gap-3 mb-2"):
+            ui.label("Trade Log").classes("text-lg font-semibold")
+            ui.label("Click a row to highlight pattern on chart").classes("text-xs text-gray-400 italic")
 
         rows = []
-        for t in trades:
+        for i, t in enumerate(trades):
             time_str = (
                 t["time"].strftime("%d %b %H:%M")
                 if hasattr(t["time"], "strftime")
@@ -187,6 +188,7 @@ def _build_double_bottom_content(container, label, candles):
             )
             rows.append(
                 {
+                    "_idx": i,
                     "Entry Time": time_str,
                     "Signal": t["signal"],
                     "Trough1": t["trough1"],
@@ -220,9 +222,17 @@ def _build_double_bottom_content(container, label, candles):
             {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
             {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
+        _cid = chart_id
+
         table = ui.table(
-            columns=columns, rows=rows, row_key="Entry Time"
-        ).classes("w-full")
+            columns=columns, rows=rows, row_key="Entry Time",
+        ).classes("w-full cursor-pointer")
+
+        def _on_row_click(e):
+            idx = e.args[1].get("_idx", -1)
+            ui.run_javascript(f"window._tvShowTrade_{_cid}({idx})")
+
+        table.on("rowClick", _on_row_click)
         table.props("dense flat bordered")
 
         table.add_slot(
@@ -242,7 +252,7 @@ def _build_double_bottom_content(container, label, candles):
             "body-cell-status",
             r"""
             <q-td :props="props">
-                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : 'grey'"
+                <q-badge :color="props.value === 'Target Hit' ? 'green' : props.value === 'SL Hit' ? 'red' : props.value === 'Day Close' ? 'orange' : props.value === 'No Fill' ? 'blue-grey' : 'grey'"
                          :label="props.value" />
             </q-td>
             """,

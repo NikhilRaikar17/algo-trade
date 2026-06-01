@@ -8,7 +8,7 @@ import traceback
 from nicegui import ui
 
 from data import _fetch_any_stock_candles
-from pages.top_stocks import _fetch_top_stocks
+from db import get_active_top_stocks
 from algo_strategies import find_swing_points, detect_abcd_patterns, backtest_abcd
 from tv_charts import render_tv_abcd_chart
 
@@ -26,7 +26,7 @@ def render_abcd_only_tab(container):
     selected: dict = {"security_id": None, "label": None}
 
     with container:
-        ui.label("ABCD Harmonic Scanner").classes("text-xl font-bold mb-2")
+        ui.label("ABCD Scanner").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
             "bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3"
         ):
@@ -90,9 +90,8 @@ def render_abcd_only_tab(container):
             print(f"  [abcd_hist:{label}] error:\n{traceback.format_exc()}")
 
     async def refresh():
-        gainers, losers = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
-        top_stocks = gainers + losers
-        options = _build_stock_options([{"security_id": s["security_id"], "name": s["name"]} for s in top_stocks])
+        top_stocks = await asyncio.get_event_loop().run_in_executor(None, get_active_top_stocks)
+        options = _build_stock_options(top_stocks)
         if not select_widget.client._deleted:
             select_widget.options = options
             select_widget.update()
@@ -130,7 +129,7 @@ def _build_abcd_content(container, label, candles):
             f"{len(candles)} candles (15-min, 5 days) | "
             f"{len(swings)} swings | {len(patterns)} patterns"
         ).classes("text-md font-semibold mb-2")
-        render_tv_abcd_chart(candles, swings, patterns)
+        chart_id = render_tv_abcd_chart(candles, swings, patterns)
 
         # --- Summary ---
         if not trades:
@@ -160,10 +159,12 @@ def _build_abcd_content(container, label, candles):
 
         # --- Trade Table ---
         ui.separator().classes("my-4")
-        ui.label("Trade Log").classes("text-lg font-semibold mb-2")
+        with ui.row().classes("items-center gap-3 mb-2"):
+            ui.label("Trade Log").classes("text-lg font-semibold")
+            ui.label("Click a row to highlight pattern on chart").classes("text-xs text-gray-400 italic")
 
         rows = []
-        for t in trades:
+        for i, t in enumerate(trades):
             time_str = (
                 t["time"].strftime("%d %b %H:%M")
                 if hasattr(t["time"], "strftime")
@@ -178,6 +179,7 @@ def _build_abcd_content(container, label, candles):
                 )
             rows.append(
                 {
+                    "_idx": i,
                     "Entry Time": time_str,
                     "Type": t["type"],
                     "Signal": t["signal"],
@@ -207,9 +209,17 @@ def _build_abcd_content(container, label, candles):
             {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
             {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
+        _cid = chart_id  # capture for closure
+
         table = ui.table(
-            columns=columns, rows=rows, row_key="Entry Time"
-        ).classes("w-full")
+            columns=columns, rows=rows, row_key="Entry Time",
+        ).classes("w-full cursor-pointer")
+
+        def _on_row_click(e):
+            idx = e.args[1].get("_idx", -1)
+            ui.run_javascript(f"window._tvShowTrade_{_cid}({idx})")
+
+        table.on("rowClick", _on_row_click)
         table.props("dense flat bordered")
 
         table.add_slot(

@@ -68,7 +68,8 @@ def _fetch_market_news(max_items=4):
 
 _STORE_STRATEGY_MAP = [
     ("abcd_",  "ABCD"),
-    ("dt_",    "Double Top"),
+    ("dtc_",   "Double Top Customized"),
+    ("dts_",   "Double Top Standard"),
     ("db_",    "Double Bottom"),
     ("ema10_", "EMA10"),
     ("sma50_", "SMA50"),
@@ -82,17 +83,31 @@ def _strategy_from_key(key):
     return "Unknown"
 
 
+def _symbol_from_key(key):
+    """Extract stock name from trade store key, e.g. 'abcd_trades_RELIANCE' → 'RELIANCE'."""
+    marker = "_trades_"
+    idx = key.find(marker)
+    if idx != -1:
+        return key[idx + len(marker):]
+    return ""
+
+
 def collect_all_trades():
     all_active = []
     all_completed = []
     for key, val in _trade_store.items():
         if isinstance(val, dict) and "active" in val and "completed" in val:
             strategy = _strategy_from_key(key)
+            symbol = _symbol_from_key(key)
             for t in val["active"]:
                 t["strategy"] = strategy
+                if not t.get("symbol"):
+                    t["symbol"] = symbol
                 all_active.append(t)
             for t in val["completed"]:
                 t["strategy"] = strategy
+                if not t.get("symbol"):
+                    t["symbol"] = symbol
                 all_completed.append(t)
     return all_active, all_completed
 
@@ -162,11 +177,16 @@ def send_morning_message():
     if _is_already_sent(morning_key):
         return
 
+    from db import get_active_top_stocks
+    stocks = get_active_top_stocks()
+    stock_names = ", ".join(s["name"] for s in stocks) if stocks else "No stocks loaded yet"
+
     day_name = now.strftime("%A, %d %b %Y")
     _send_telegram(
         f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
-        f"Strategies: ABCD Harmonic | Double Top | Double Bottom | EMA10 | SMA50\n"
-        f"Monitoring: NIFTY / BANKNIFTY ATM options (5-min candles)\n"
+        f"Strategies: ABCD | Double Top Custom | Double Top Std | Double Bottom | EMA10 | SMA50\n"
+        f"Monitoring: Top Stocks (5-min equity candles)\n"
+        f"Stocks ({len(stocks)}): {stock_names}\n"
         f"Refresh interval: {REFRESH_SECONDS}s\n"
         f"Market opens at 9:15 AM IST. Let's go!"
     )
@@ -242,6 +262,10 @@ def send_daily_pnl_summary():
     day_name = now.strftime("%A, %d %b %Y")
     result_emoji = "📈" if total_realized >= 0 else "📉"
 
+    from db import get_active_top_stocks
+    stocks = get_active_top_stocks()
+    stock_names = ", ".join(s["name"] for s in stocks) if stocks else "—"
+
     msg = (
         f"MARKET CLOSED — DAILY SUMMARY {result_emoji}\n"
         f"{day_name}\n{'=' * 30}\n\n"
@@ -249,6 +273,7 @@ def send_daily_pnl_summary():
         f"Unrealized P&L: {total_unrealized:+.2f}\n"
         f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
         f"Winners/Losers: {winners}W / {losers}L\n"
+        f"\nStocks Monitored: {stock_names}\n"
         f"\nStrategy Breakdown:\n{breakdown}\n\n"
         f"Trade Log (last {min(10, len(all_completed))}):\n{trade_log}\n\n"
         f"{'=' * 30}\n"
