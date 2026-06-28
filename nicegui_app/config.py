@@ -102,8 +102,16 @@ ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
 dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 
 BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
-TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "True").strip().lower() not in ("false", "0", "no")
-MAIL_ENABLED = os.getenv("MAIL_ENABLED", "True").strip().lower() not in ("false", "0", "no")
+TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "True").strip().lower() not in (
+    "false",
+    "0",
+    "no",
+)
+MAIL_ENABLED = os.getenv("MAIL_ENABLED", "True").strip().lower() not in (
+    "false",
+    "0",
+    "no",
+)
 
 
 def reinit_dhan():
@@ -113,14 +121,23 @@ def reinit_dhan():
     CLIENT_ID = os.getenv("DHAN_CLIENT_CODE")
     ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
     BOT_TOKEN = os.getenv("DHAN_BOT_TOKEN")
-    TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "True").strip().lower() not in ("false", "0", "no")
-    MAIL_ENABLED = os.getenv("MAIL_ENABLED", "True").strip().lower() not in ("false", "0", "no")
+    TELEGRAM_ENABLED = os.getenv("TELEGRAM_ENABLED", "True").strip().lower() not in (
+        "false",
+        "0",
+        "no",
+    )
+    MAIL_ENABLED = os.getenv("MAIL_ENABLED", "True").strip().lower() not in (
+        "false",
+        "0",
+        "no",
+    )
     dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
 
 
 def _watch_env_file():
     """Background thread: reinit dhan whenever .env is modified."""
     import time
+
     last_mtime = os.path.getmtime(ENV_FILE) if os.path.exists(ENV_FILE) else 0
     while True:
         time.sleep(5)
@@ -135,7 +152,8 @@ def _watch_env_file():
 
 _env_watcher = threading.Thread(target=_watch_env_file, daemon=True)
 _env_watcher.start()
-RECEIVER_CHAT_IDS = ["8272803637", "1623717769", "1354941649"]
+# RECEIVER_CHAT_IDS = ["8272803637", "1623717769", "1354941649"]
+RECEIVER_CHAT_IDS = ["8272803637"]
 
 # ================= CONFIG =================
 REFRESH_SECONDS = 120
@@ -151,8 +169,8 @@ RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 
 # Swing trade momentum thresholds (SMA crossover + RSI filter)
-SWING_RSI_BULL = 55   # RSI must be above this for a bullish swing candidate
-SWING_RSI_BEAR = 45   # RSI must be below this for a bearish swing candidate
+SWING_RSI_BULL = 55  # RSI must be above this for a bullish swing candidate
+SWING_RSI_BEAR = 45  # RSI must be below this for a bearish swing candidate
 
 INDICES = {
     "NIFTY": {
