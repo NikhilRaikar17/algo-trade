@@ -36,7 +36,7 @@ _S = {
     ),
     "menu_empty": (
         "font-family:'JetBrains Mono',monospace;"
-        "font-size:10px; color:var(--at-fg-faint); padding:6px 16px 8px 44px; cursor:pointer;"
+        "font-size:10px; color:var(--at-fg-faint); padding:6px 16px 8px 46px; cursor:pointer;"
     ),
 }
 
@@ -76,7 +76,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                 "font-size:12px !important; font-weight:500 !important;"
                 "color:var(--at-fg-dim) !important; height:32px !important;"
                 "border-left: 2px solid transparent;"
-                + ("padding-left:20px !important;" if indent else "")
+                + ("padding-left:30px !important;" if indent else "")
             )
         )
         if page_id == active_page["value"]:
@@ -135,16 +135,38 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             # STRATEGIES
             _section_label("STRATEGIES")
             _nav_button("strategies", "Strategies", "tune", icon_color="icon-purple")
-            backtest_exp = ui.expansion("Backtest Algos", icon="history_edu") \
-                .classes("mx-2 icon-purple") \
-                .props("dense") \
+            # Backtest Algos: a nav-styled header that folds its sub-list (not a q-expansion,
+            # whose own padding and background never matched the other nav buttons)
+            backtest_open = {"value": active_page["value"] in {pid for pid, _, _ in BACKTEST_PAGES.values()}}
+            backtest_toggle = (
+                ui.button("Backtest Algos", icon="history_edu")
+                .props("flat no-caps align=left")
+                .classes("nav-btn icon-purple mx-2 mb-0")
                 .style(
-                    "background:transparent !important; border-radius:0 !important;"
+                    "border-radius:0 !important;"
                     "font-family:'DM Sans',sans-serif !important;"
-                    "font-size:12px !important; color:var(--at-fg-dim) !important;"
+                    "font-size:12px !important; font-weight:500 !important;"
+                    "color:var(--at-fg-dim) !important; height:32px !important;"
+                    "border-left: 2px solid transparent;"
                 )
-            with backtest_exp:
-                backtest_menu = ui.element("div")
+            )
+            with backtest_toggle:
+                backtest_chevron = ui.icon("expand_more").style(
+                    "margin-left:auto; font-size:16px; color:var(--at-fg-faint);"
+                    "transition:transform .15s;"
+                )
+            backtest_menu = ui.element("div")
+
+            def _apply_backtest_open():
+                backtest_menu.set_visibility(backtest_open["value"])
+                backtest_chevron.style(f"transform:rotate({180 if backtest_open['value'] else 0}deg);")
+
+            def _toggle_backtest():
+                backtest_open["value"] = not backtest_open["value"]
+                _apply_backtest_open()
+
+            backtest_toggle.on_click(_toggle_backtest)
+            _apply_backtest_open()
             _nav_button("backtest_pnl", "Backtest P&L", "analytics", icon_color="icon-amber")
 
             ui.separator().style(_S["sep"])

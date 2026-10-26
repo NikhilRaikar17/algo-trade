@@ -644,6 +644,9 @@ html body.at-light-theme .q-footer[style] {
 /* ================================================================
    RESPONSIVE NAV / HEADER
    ================================================================ */
+@media (max-width: 1199px) {
+  .at-sebi-text { display: none !important; }  /* the 2-line disclaimer squashes the status bar */
+}
 @media (max-width: 1023px) {
   .q-tab   { font-size: 0.85rem !important; padding: 8px 10px !important; }
   .q-header { padding-left: 12px !important; padding-right: 12px !important; }
@@ -963,3 +966,21 @@ html body.at-light-theme .q-tab--active { color: var(--at-fg) !important; }
 html body.at-light-theme .q-tab__indicator { background: var(--at-accent) !important; }
 html body.at-light-theme .q-tab-panels,
 html body.at-light-theme .q-tab-panel { background: var(--at-bg1) !important; }
+
+/* ================================================================
+   FILTER ROWS (P&L pages) — 2 per row on phones, one row on desktop
+   ================================================================ */
+.flt-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+}
+.flt-row > * { min-width: 0; }
+
+/* Admin user table: fit phones without hiding the delete column off-screen */
+@media (max-width: 599px) {
+  .adm-table th, .adm-table td { padding: 8px 5px !important; font-size: 11px !important; }
+  .adm-table th { letter-spacing: 0.04em !important; }
+}

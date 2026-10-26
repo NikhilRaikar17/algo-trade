@@ -47,7 +47,19 @@ _CSS = """
   .td-pass { color:var(--at-up); }
   .td-block { color:var(--at-down); }
   .td-why { font-size:11.5px; color:var(--at-fg-dim); margin-top:3px; }
-  .td-table td:nth-child(7) { min-width:220px; }
+  .td-table td.td-check { min-width:220px; }
+  /* Below 900px each signal becomes a 2-column card with labelled values */
+  @media (max-width: 899px) {
+    .td-wrap { border:none; }
+    .td-table thead { display:none; }
+    .td-table, .td-table tbody { display:block; width:100%; }
+    .td-table tr { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; padding:12px 14px; margin-bottom:10px;
+                   background:var(--at-bg1); border:1px solid var(--at-line); border-radius:var(--at-radius); }
+    .td-table td { display:block; padding:0; border:none !important; text-align:left !important; white-space:normal; min-width:0; }
+    .td-table td::before { content:attr(data-label); display:block; font-family:var(--at-mono); font-size:9.5px;
+                           letter-spacing:.06em; text-transform:uppercase; color:var(--at-fg-faint); margin-bottom:2px; }
+    .td-table td.td-check, .td-table td.td-status { grid-column:1 / -1; min-width:0; }
+  }
   .td-warn { font-size:11.5px; color:var(--at-warn); margin-top:3px; }
   .td-side-buy { color:var(--at-up); font-weight:600; }
   .td-side-sell { color:var(--at-down); font-weight:600; }
@@ -138,15 +150,15 @@ def render_trade_desk_tab(container):
                 status_txt = label if r.current_price is None else f"{label} · ₹{r.current_price:,.2f}"
                 body.append(f"""
                 <tr>
-                  <td class="td-num">{r.signal_time:%H:%M}</td>
-                  <td><b>{r.symbol}</b><div class="td-why">{r.strategy}</div></td>
-                  <td class="td-side-{r.side.lower()}">{r.side}</td>
-                  <td class="td-num">₹{r.entry:,.2f}<div class="td-why">stop ₹{r.stop:,.2f}<br>target ₹{r.target:,.2f}</div></td>
-                  <td class="td-num">{r.reward_risk:.2f}</td>
-                  <td class="td-num">{odds}</td>
-                  <td class="td-num">{f"{r.qty:,} sh" if r.qty else "—"}<div class="td-why">₹{r.capital:,.0f}<br>max loss ₹{r.max_loss:,.0f}</div></td>
-                  <td>{badge}{why}{warn}</td>
-                  <td class="td-dim">{status_txt}</td>
+                  <td class="td-num" data-label="Time">{r.signal_time:%H:%M}</td>
+                  <td data-label="Stock"><b>{r.symbol}</b><div class="td-why">{r.strategy}</div></td>
+                  <td class="td-side-{r.side.lower()}" data-label="Side">{r.side}</td>
+                  <td class="td-num" data-label="Entry / plan">₹{r.entry:,.2f}<div class="td-why">stop ₹{r.stop:,.2f}<br>target ₹{r.target:,.2f}</div></td>
+                  <td class="td-num" data-label="R:R">{r.reward_risk:.2f}</td>
+                  <td class="td-num" data-label="Odds T/S">{odds}</td>
+                  <td class="td-num" data-label="Size">{f"{r.qty:,} sh" if r.qty else "—"}<div class="td-why">₹{r.capital:,.0f}<br>max loss ₹{r.max_loss:,.0f}</div></td>
+                  <td class="td-check" data-label="Risk check">{badge}{why}{warn}</td>
+                  <td class="td-dim td-status" data-label="Status">{status_txt}</td>
                 </tr>""")
             ui.html(f"""
             <div class="td-wrap"><table class="td-table">

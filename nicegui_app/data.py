@@ -326,8 +326,9 @@ STOCK_WATCH_GROUPS = [
 ]
 
 
-def _fetch_any_stock_candles(security_id: str, interval: int = 15) -> pd.DataFrame:
-    """Fetch candles for any NSE equity (stock) by security_id."""
+def _fetch_any_stock_candles(security_id: str, interval: int = 15, retries: int = 1) -> pd.DataFrame:
+    """Fetch candles for any NSE equity (stock) by security_id. retries > 1 backs off on
+    Dhan's rate limit — use it for bulk loops (one call per stock)."""
     today     = now_ist().date()
     to_date   = pd.Timestamp(today).strftime("%Y-%m-%d")
     from_date = (pd.Timestamp(today) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
@@ -339,7 +340,7 @@ def _fetch_any_stock_candles(security_id: str, interval: int = 15) -> pd.DataFra
         dhan.intraday_minute_data,
         security_id, "NSE_EQ", "EQUITY",
         from_date, to_date, interval=interval,
-        retries=1,
+        retries=retries, delay=1,
     )
     if r.get("status") != "success":
         return pd.DataFrame()
@@ -357,6 +358,64 @@ def _fetch_any_stock_candles(security_id: str, interval: int = 15) -> pd.DataFra
         ).dt.tz_convert("Asia/Kolkata")
     _cache_set(cache_key, df)
     return df
+
+
+# NIFTY 50 constituents — the Top Stocks universe. Symbols from NSE's official list
+# (https://niftyindices.com/IndexConstituent/ind_nifty50list.csv), security_id from Dhan's scrip
+# master (NSE / E / EQ), every id checked to return candles — all on 2026-10-26.
+# NSE rebalances the index in March and September: refresh this list then.
+NIFTY50_STOCKS = [
+    {"name": "ADANIENT",     "security_id": "25"},
+    {"name": "ADANIPORTS",   "security_id": "15083"},
+    {"name": "APOLLOHOSP",   "security_id": "157"},
+    {"name": "ASIANPAINT",   "security_id": "236"},
+    {"name": "AXISBANK",     "security_id": "5900"},
+    {"name": "BSE",          "security_id": "19585"},
+    {"name": "BAJAJ-AUTO",   "security_id": "16669"},
+    {"name": "BAJFINANCE",   "security_id": "317"},
+    {"name": "BAJAJFINSV",   "security_id": "16675"},
+    {"name": "BEL",          "security_id": "383"},
+    {"name": "BHARTIARTL",   "security_id": "10604"},
+    {"name": "CIPLA",        "security_id": "694"},
+    {"name": "COALINDIA",    "security_id": "20374"},
+    {"name": "DRREDDY",      "security_id": "881"},
+    {"name": "EICHERMOT",    "security_id": "910"},
+    {"name": "ETERNAL",      "security_id": "5097"},
+    {"name": "GRASIM",       "security_id": "1232"},
+    {"name": "HCLTECH",      "security_id": "7229"},
+    {"name": "HDFCBANK",     "security_id": "1333"},
+    {"name": "HDFCLIFE",     "security_id": "467"},
+    {"name": "HINDALCO",     "security_id": "1363"},
+    {"name": "HINDUNILVR",   "security_id": "1394"},
+    {"name": "ICICIBANK",    "security_id": "4963"},
+    {"name": "ITC",          "security_id": "1660"},
+    {"name": "INFY",         "security_id": "1594"},
+    {"name": "INDIGO",       "security_id": "11195"},
+    {"name": "JSWSTEEL",     "security_id": "11723"},
+    {"name": "JIOFIN",       "security_id": "18143"},
+    {"name": "KOTAKBANK",    "security_id": "1922"},
+    {"name": "LT",           "security_id": "11483"},
+    {"name": "M&M",          "security_id": "2031"},
+    {"name": "MARUTI",       "security_id": "10999"},
+    {"name": "MAXHEALTH",    "security_id": "22377"},
+    {"name": "NTPC",         "security_id": "11630"},
+    {"name": "NESTLEIND",    "security_id": "17963"},
+    {"name": "ONGC",         "security_id": "2475"},
+    {"name": "POWERGRID",    "security_id": "14977"},
+    {"name": "RELIANCE",     "security_id": "2885"},
+    {"name": "SBILIFE",      "security_id": "21808"},
+    {"name": "SHRIRAMFIN",   "security_id": "4306"},
+    {"name": "SBIN",         "security_id": "3045"},
+    {"name": "SUNPHARMA",    "security_id": "3351"},
+    {"name": "TCS",          "security_id": "11536"},
+    {"name": "TATACONSUM",   "security_id": "3432"},
+    {"name": "TMPV",         "security_id": "3456"},
+    {"name": "TATASTEEL",    "security_id": "3499"},
+    {"name": "TECHM",        "security_id": "13538"},
+    {"name": "TITAN",        "security_id": "3506"},
+    {"name": "TRENT",        "security_id": "1964"},
+    {"name": "ULTRACEMCO",   "security_id": "11532"},
+]
 
 
 def fetch_stock_candles_history(security_id: str, interval: int = 5, days: int = 60) -> pd.DataFrame:

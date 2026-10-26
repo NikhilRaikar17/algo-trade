@@ -269,27 +269,24 @@ def render_pnl_tab(container):
     def _build_filter_row(strategies, dates, stocks):
         filter_row.clear()
         with filter_row:
-            with ui.row().classes("gap-4 items-center flex-wrap"):
-                ui.label("Strategy:").classes("text-sm font-medium")
+            with ui.element("div").classes("flt-row"):
                 strat_select = ui.select(
                     ["All"] + strategies,
                     value=_state["strategy"],
                     label="Strategy",
-                ).classes("w-36")
+                ).props("outlined dense")
 
-                ui.label("Stock:").classes("text-sm font-medium")
                 stock_select = ui.select(
                     ["All"] + stocks,
                     value=_state["stock"],
                     label="Stock",
-                ).classes("w-40")
+                ).props("outlined dense")
 
-                ui.label("Date:").classes("text-sm font-medium")
                 date_select = ui.select(
                     ["All"] + dates,
                     value=_state["date"],
                     label="Date",
-                ).classes("w-36")
+                ).props("outlined dense")
 
         def on_strat(e):
             _state["strategy"] = e.value

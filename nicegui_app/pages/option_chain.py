@@ -10,6 +10,16 @@ from data import get_expiries, fetch_option_chain, build_name_column, filter_and
 from ui_components import build_option_chain_table
 
 
+def _friendly_error(e) -> str:
+    """One readable line instead of Dhan's raw error dict (which fills a phone screen)."""
+    msg = str(e)
+    if "808" in msg or "Authentication Failed" in msg:
+        return "Dhan rejected the request: client ID or token invalid. Check DHAN_CLIENT_CODE and DHAN_TOKEN_ID in .env."
+    if "Too many" in msg:
+        return "Dhan rate limit hit. It will retry on the next refresh."
+    return "Couldn't load the option chain: " + (msg[:120] + "…" if len(msg) > 120 else msg)
+
+
 def render_index_tab(container, index_name, cfg):
     """Build the NIFTY or BANKNIFTY option chain tab content inside container."""
     scrip = cfg["scrip"]
@@ -56,7 +66,8 @@ def render_index_tab(container, index_name, cfg):
         except Exception as e:
             print(f"  [{index_name}] expiry error: {e}")
             if not spot_label.client._deleted:
-                spot_label.text = f"Error: {e}"
+                spot_label.text = _friendly_error(e)
+                spot_label.style("font-size:0.85rem; font-weight:500; color:var(--at-down);")
             return
 
         if spot_label.client._deleted:
@@ -89,6 +100,7 @@ def render_index_tab(container, index_name, cfg):
         spot_label.text = (
             f"{index_name}: {spot_val:,.2f}" if spot_val else f"{index_name}: N/A"
         )
+        spot_label.style("font-size:1.35rem; font-weight:700; color:var(--at-fg);")  # undo the error style
         atm_val = round(spot_val / strike_step) * strike_step if spot_val else "N/A"
         atm_label.text = f"{atm_val:,}" if spot_val else "N/A"
         time_label.text = f"⟳  {now_ist().strftime('%H:%M:%S')} IST"
@@ -108,7 +120,7 @@ def render_index_tab(container, index_name, cfg):
                         with ui.tab_panel(tab_item):
                             result = chain_data.get(exp)
                             if isinstance(result, Exception):
-                                ui.label(f"Error: {result}").classes("text-red-500")
+                                ui.label(_friendly_error(result)).classes("text-red-500 text-sm")
                                 continue
                             if result is None:
                                 ui.label("No data").classes("text-grey")

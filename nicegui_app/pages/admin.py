@@ -181,7 +181,7 @@ def render_admin_tab(container):
             )
 
             with ui.element("div").style("width:100%; overflow-x:auto;"):
-                with ui.element("table").style(
+                with ui.element("table").classes("adm-table").style(
                     "width:100%; border-collapse:collapse; background:var(--at-bg2);"
                 ):
                     # Header row

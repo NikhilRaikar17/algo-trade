@@ -353,37 +353,32 @@ def render_backtest_pnl_tab(container):
         filter_row.clear()
         is_all_mode = selected["key"] == _ALL_KEY
         with filter_row:
-            with ui.row().classes("gap-4 items-center flex-wrap"):
-                ui.label("Strategy:").classes("text-sm font-medium")
+            with ui.element("div").classes("flt-row"):
                 strat_select = ui.select(
                     ["All"] + strategies,
                     value=_state["strategy"],
                     label="Strategy",
-                ).classes("w-40")
+                ).props("outlined dense")
 
-                ui.label("Date:").classes("text-sm font-medium")
                 date_select = ui.select(
                     ["All"] + dates,
                     value=_state["date"],
                     label="Date",
-                ).classes("w-36")
+                ).props("outlined dense")
 
                 if is_all_mode and stock_names:
-                    ui.label("Stock:").classes("text-sm font-medium")
                     stock_select = ui.select(
                         ["All"] + stock_names,
                         value=_state["stock"],
                         label="Stock",
-                    ).classes("w-40")
+                    ).props("outlined dense")
                     stock_select.on_value_change(lambda e: (_state.update({"stock": e.value}), _render()))
                 else:
                     _state["stock"] = "All"
 
-                ui.separator().props("vertical").classes("mx-1 h-8")
-
                 qty_input = ui.number(
                     label="Quantity (shares)", value=_state["quantity"], min=1, max=10000, step=1
-                ).classes("w-36").props("dense outlined")
+                ).props("dense outlined")
 
         def on_strat(e):
             _state["strategy"] = e.value

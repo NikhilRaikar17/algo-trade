@@ -166,7 +166,7 @@ def render_trade_replay_tab(container):
             ui.label("From a live signal:").classes("text-sm font-medium text-gray-700")
             signal_select = ui.select({}, value=None, label="").props(
                 'outlined dense clearable options-dense placeholder="Pick one, or enter a plan below"'
-            ).classes("min-w-[420px]")
+            ).classes("w-full max-w-[520px]")
 
         with ui.row().classes("rp-form items-end gap-3 flex-wrap mb-4"):
             stock_select = ui.select(stocks, value=first_sid, label="Stock").props(

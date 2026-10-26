@@ -90,7 +90,7 @@ async def _start_scheduler():
                 print(f"  [scheduler error] {e}")
 
     async def _top_stocks_loop():
-        """Fetch & cache top stocks every 5 minutes during market hours.
+        """Fetch & cache top stocks (NIFTY 50) every 5 minutes during market hours — the only writer.
         Once market closes and data is cached, the loop exits — prices don't
         change after 3:30 PM IST so there's nothing to refresh."""
         from pages.top_stocks import _fetch_top_stocks
@@ -98,19 +98,20 @@ async def _start_scheduler():
         while True:
             try:
                 if is_market_open():
-                    gainers, losers = await asyncio.get_event_loop().run_in_executor(
+                    gainers, losers, meta = await asyncio.get_event_loop().run_in_executor(
                         None, _fetch_top_stocks
                     )
-                    _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
-                    print(f"  [top_stocks_bg] cached {len(gainers)} gainers, {len(losers)} losers")
+                    _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers, "meta": meta})
+                    print(f"  [top_stocks_bg] {meta['fetched']}/{meta['universe']} ranked: "
+                          f"{len(gainers)} gainers, {len(losers)} losers")
                 else:
                     if _cache_get_stable("top_stocks_data") is None:
                         # App started outside market hours — do one fetch so the page has data
-                        gainers, losers = await asyncio.get_event_loop().run_in_executor(
+                        gainers, losers, meta = await asyncio.get_event_loop().run_in_executor(
                             None, _fetch_top_stocks
                         )
-                        _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers})
-                        print(f"  [top_stocks_bg] one-time fetch (market closed): {len(gainers)} gainers, {len(losers)} losers")
+                        _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers, "meta": meta})
+                        print(f"  [top_stocks_bg] one-time fetch (market closed): {meta['fetched']}/{meta['universe']} ranked")
                     else:
                         print("  [top_stocks_bg] market closed & data cached — loop exiting")
                         return  # prices won't change, no point looping further
@@ -380,7 +381,8 @@ async def index():
                     "font-family: 'JetBrains Mono',monospace !important;"
                     "font-size: 0.75rem !important;"
                     "width: 30px !important; height: 30px !important;"
-                    "min-width: 30px !important; border-radius: 50% !important;"
+                    "min-width: 30px !important; min-height: 30px !important;"
+                    "padding: 0 !important; border-radius: 50% !important;"
                     "flex-shrink: 0 !important;"
                 ):
                     with ui.menu().props("anchor='bottom end' self='top end'").style(
@@ -419,7 +421,9 @@ async def index():
 
     # ---- Sidebar ----
     with (
-        ui.left_drawer(value=True, bordered=False)
+        # value=None: open by default only above the 1023px breakpoint; on phones/tablets
+        # it starts closed instead of covering the page on every load
+        ui.left_drawer(value=None, bordered=False)
         .props("breakpoint=1023")
         .style(
             "width: 240px; padding: 0;"
