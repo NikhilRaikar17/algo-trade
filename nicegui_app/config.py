@@ -28,8 +28,8 @@ def now_cest():
 
 
 # ================= LIVE STRATEGIES =================
-# Toggle which strategies trade live and count in live P&L (True = enabled).
-# Backtest pages always run every strategy regardless of these flags.
+# Initial live on/off defaults, applied once when a strategy row is first created in
+# algo.db. After that, toggle strategies from the Strategies page (strategy_registry.py).
 LIVE_STRATEGY_ENABLED = {
     "abcd":  True,
     "dtc":   False,  # Double Top Customized
@@ -48,9 +48,6 @@ STRATEGY_NAMES = {
     "ema10": "EMA10",
     "sma50": "SMA50",
 }
-
-LIVE_STRATEGY_KEYS = tuple(k for k, on in LIVE_STRATEGY_ENABLED.items() if on)
-LIVE_STRATEGY_NAMES = tuple(STRATEGY_NAMES[k] for k in LIVE_STRATEGY_KEYS)
 
 
 # ================= NSE HOLIDAYS (2025-2026) =================

@@ -20,11 +20,9 @@ from algo_strategies import (
     detect_ema10_signals, backtest_ema10,
 )
 from ui_components import build_trade_table
-from strategy_registry import get_strategy_short_names
+from strategy_registry import get_backtest_strategy_keys, get_backtest_strategy_names
 from brokerage import charges_for_trades
 
-
-_ALL_STRATEGIES = get_strategy_short_names()
 
 _ALL_KEY = "ALL:ALL:ALL"
 
@@ -40,10 +38,12 @@ def _build_stock_options(stocks: list[dict]) -> dict[str, str]:
 
 _REQUIRED_COLS = {"timestamp", "open", "high", "low", "close"}
 
-def _run_all_backtests(candles, stock_name: str = ""):
-    """Run every strategy on candles. Returns completed trades tagged with strategy."""
+def _run_all_backtests(candles, stock_name: str = "", enabled_keys=None):
+    """Run every backtest-enabled strategy on candles. Returns completed trades tagged with strategy."""
     if candles is None or candles.empty or not _REQUIRED_COLS.issubset(candles.columns):
         return []
+    if enabled_keys is None:
+        enabled_keys = get_backtest_strategy_keys()
     all_trades = []
 
     def _tag(trades, strategy):
@@ -60,14 +60,16 @@ def _run_all_backtests(candles, stock_name: str = ""):
         return trades
 
     runners = [
-        ("ABCD",             _run_abcd),
-        ("Double Top Customized", _run_double_top_custom),
-        ("Double Top Standard",   _run_double_top_standard),
-        ("Double Bottom",    _run_double_bottom),
-        ("SMA 50",           _run_sma50),
-        ("EMA 10",           _run_ema10),
+        ("abcd",  "ABCD",                  _run_abcd),
+        ("dtc",   "Double Top Customized", _run_double_top_custom),
+        ("dts",   "Double Top Standard",   _run_double_top_standard),
+        ("db",    "Double Bottom",         _run_double_bottom),
+        ("sma50", "SMA 50",                _run_sma50),
+        ("ema10", "EMA 10",                _run_ema10),
     ]
-    for name, fn in runners:
+    for key, name, fn in runners:
+        if key not in enabled_keys:
+            continue
         try:
             trades = fn(candles)
             all_trades.extend(_tag([t for t in trades if t["status"] != "Open"], name))
@@ -107,10 +109,13 @@ def _run_ema10(candles):
 def _fetch_all_stocks_trades(stocks: list[dict]) -> list[dict]:
     """Fetch candles for every stock and run all backtests. Returns merged trade list."""
     all_trades = []
+    enabled_keys = get_backtest_strategy_keys()
+    if not enabled_keys:
+        return all_trades
     for stock in stocks:
         try:
             candles = _fetch_any_stock_candles(stock["security_id"])
-            trades = _run_all_backtests(candles, stock_name=stock["name"])
+            trades = _run_all_backtests(candles, stock_name=stock["name"], enabled_keys=enabled_keys)
             all_trades.extend(trades)
         except Exception as e:
             print(f"  [backtest_pnl ALL] {stock['name']} error: {e}")
@@ -127,12 +132,12 @@ def render_backtest_pnl_tab(container):
     _data = {"trades": [], "stocks": []}
 
     with container:
-        ui.label("Backtest P&L — All Strategies").classes("text-xl font-bold mb-2")
+        ui.label("Backtest P&L — Enabled Strategies").classes("text-xl font-bold mb-2")
         with ui.element("div").classes(
             "bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3"
         ):
             ui.label(
-                "Consolidated backtest P&L · All strategies · "
+                "Consolidated backtest P&L · Strategies enabled for backtest · "
                 "15-min candles · 5 days · Completed trades only"
             ).classes("text-sm text-emerald-700")
 
@@ -255,7 +260,7 @@ def render_backtest_pnl_tab(container):
             date_filter_active = _state["date"] != "All"
             stock_filter_active = _state["stock"] != "All"
             with ui.row().classes("gap-3 flex-wrap mb-4"):
-                for strat in _ALL_STRATEGIES:
+                for strat in get_backtest_strategy_names():
                     strat_trades = [t for t in trades if t.get("strategy") == strat]
                     if date_filter_active:
                         strat_trades = [t for t in strat_trades if t.get("trade_date") == _state["date"]]

@@ -16,3 +16,15 @@ from pages.top_stocks import render_top_stocks_tab
 from pages.swing_trades import render_swing_trades_tab
 from pages.global_markets import render_global_markets_tab
 from pages.admin import render_admin_tab
+from pages.strategies import render_strategies_tab
+
+# Strategy key → its backtest page: (page_id, render_fn(container) -> refresh, sidebar icon).
+# The sidebar lists only backtest-enabled strategies, using their display name from algo.db.
+BACKTEST_PAGES = {
+    "abcd":  ("abcd_only", render_abcd_only_tab,            "insights"),
+    "dtc":   ("dtc_only",  render_double_top_custom_tab,    "moving"),
+    "dts":   ("dts_only",  render_double_top_standard_tab,  "moving"),
+    "db":    ("db_only",   render_double_bottom_tab,        "moving"),
+    "sma50": ("sma50",     render_sma50_tab,                "stacked_line_chart"),
+    "ema10": ("ema10",     render_ema10_tab,                "show_chart"),
+}

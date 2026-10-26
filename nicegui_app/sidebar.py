@@ -5,6 +5,8 @@ Sidebar navigation — Bloomberg Terminal dark style.
 from nicegui import ui
 
 from config import now_ist, get_next_holiday
+from pages import BACKTEST_PAGES
+from strategy_registry import get_strategy_rows
 
 # ---- Inline styles for terminal sidebar ---- #
 _S = {
@@ -27,11 +29,24 @@ _S = {
         "font-family:'JetBrains Mono',monospace;"
         "font-size:9px; color:var(--at-fg-faint);"
     ),
+    "live_dot": (
+        "width:6px; height:6px; border-radius:50%; flex-shrink:0;"
+        "margin-left:auto; background:var(--at-up);"
+        "box-shadow:0 0 0 3px color-mix(in srgb, var(--at-up) 18%, transparent);"
+    ),
+    "menu_empty": (
+        "font-family:'JetBrains Mono',monospace;"
+        "font-size:10px; color:var(--at-fg-faint); padding:6px 16px 8px 44px; cursor:pointer;"
+    ),
 }
 
 
 def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigate=None, username: str = ""):
-    """Build the sidebar navigation inside the given drawer."""
+    """Build the sidebar navigation inside the given drawer.
+
+    Returns refresh_backtest_menu(), which rebuilds the Backtest Algos list from the
+    strategies table — call it after a strategy toggle.
+    """
 
     async def set_active_page(page_id):
         active_page["value"] = page_id
@@ -72,6 +87,25 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
     def _section_label(text):
         ui.html(f'<div style="{_S["section"]}">{text}</div>')
 
+    def refresh_backtest_menu():
+        """Rebuild Backtest Algos from the strategies table: enabled ones only, live ones dotted."""
+        rows = [r for r in get_strategy_rows() if r["backtest_enabled"] and r["key"] in BACKTEST_PAGES]
+        for page_id, _, _ in BACKTEST_PAGES.values():
+            nav_btn_refs.pop(page_id, None)
+        backtest_menu.clear()
+        backtest_exp.set_text(f"Backtest Algos · {len(rows)}")
+        with backtest_menu:
+            if not rows:
+                ui.label("None enabled — manage").style(_S["menu_empty"]).on(
+                    "click", lambda: set_active_page("strategies")
+                )
+            for r in rows:
+                page_id, _, icon = BACKTEST_PAGES[r["key"]]
+                btn = _nav_button(page_id, r["display_name"], icon, indent=True, icon_color="icon-purple")
+                if r["live_enabled"]:
+                    with btn:
+                        ui.element("span").style(_S["live_dot"]).tooltip("Also running live")
+
     with drawer:
         # ---- Nav ----
         with ui.element("div").style("flex:1; padding:8px 0;"):
@@ -101,20 +135,17 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
             # STRATEGIES
             _section_label("STRATEGIES")
-            with ui.expansion("Backtest Algos", icon="history_edu") \
-                    .classes("mx-2 icon-purple") \
-                    .props("dense") \
-                    .style(
-                        "background:transparent !important; border-radius:0 !important;"
-                        "font-family:'DM Sans',sans-serif !important;"
-                        "font-size:12px !important; color:var(--at-fg-dim) !important;"
-                    ):
-                _nav_button("abcd_only", "ABCD Pattern",      "insights",           indent=True, icon_color="icon-purple")
-                _nav_button("dtc_only",  "Double Top Custom", "moving",             indent=True, icon_color="icon-purple")
-                _nav_button("dts_only",  "Double Top Std",    "moving",             indent=True, icon_color="icon-purple")
-                _nav_button("db_only",   "Double Bottom",     "moving",             indent=True, icon_color="icon-purple")
-                _nav_button("sma50",     "SMA 50 Crossover",  "stacked_line_chart", indent=True, icon_color="icon-purple")
-                _nav_button("ema10",     "EMA 10 Crossover",  "show_chart",         indent=True, icon_color="icon-purple")
+            _nav_button("strategies", "Strategies", "tune", icon_color="icon-purple")
+            backtest_exp = ui.expansion("Backtest Algos", icon="history_edu") \
+                .classes("mx-2 icon-purple") \
+                .props("dense") \
+                .style(
+                    "background:transparent !important; border-radius:0 !important;"
+                    "font-family:'DM Sans',sans-serif !important;"
+                    "font-size:12px !important; color:var(--at-fg-dim) !important;"
+                )
+            with backtest_exp:
+                backtest_menu = ui.element("div")
             _nav_button("backtest_pnl", "Backtest P&L", "analytics", icon_color="icon-amber")
 
             ui.separator().style(_S["sep"])
@@ -180,3 +211,6 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                 f'<div style="{_S["info_faint"]}; margin-top:4px;">'
                 f'DATA: ON-DEMAND + WS FEED</div>'
             )
+
+    refresh_backtest_menu()
+    return refresh_backtest_menu

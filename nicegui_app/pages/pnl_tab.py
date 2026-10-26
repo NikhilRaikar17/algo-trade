@@ -6,13 +6,13 @@ from collections import defaultdict
 
 from nicegui import ui
 
-from config import now_ist, LIVE_STRATEGY_NAMES
+from config import now_ist
 from pnl import collect_all_trades
 from state import load_trade_history
 from ui_components import build_trade_table
 from brokerage import charges_for_trades
+from strategy_registry import get_live_strategy_names
 
-_ALL_STRATEGIES = list(LIVE_STRATEGY_NAMES)
 
 
 def render_pnl_tab(container):
@@ -119,7 +119,7 @@ def render_pnl_tab(container):
             ui.label("Strategy Breakdown").classes("text-base font-semibold mb-1")
             date_filter_active = _state["date"] != "All"
             with ui.row().classes("gap-3 flex-wrap mb-4"):
-                for strat in _ALL_STRATEGIES:
+                for strat in get_live_strategy_names():
                     strat_trades = [t for t in completed if t.get("strategy") == strat]
                     if date_filter_active:
                         strat_trades = [t for t in strat_trades if t.get("trade_date") == _state["date"]]
@@ -311,13 +311,14 @@ def render_pnl_tab(container):
 
     async def refresh():
         all_active, mem_completed = collect_all_trades()
-        hist_completed = [t for t in load_trade_history() if t.get("strategy") in LIVE_STRATEGY_NAMES]
+        live_names = get_live_strategy_names()
+        hist_completed = [t for t in load_trade_history() if t.get("strategy") in live_names]
         all_completed = _merge_completed(mem_completed, hist_completed)
 
         _data["completed"] = all_completed
         _data["active"] = all_active
 
-        strategies = list(_ALL_STRATEGIES)
+        strategies = list(live_names)
         dates = sorted(
             set(t.get("trade_date", "Unknown") for t in all_completed),
             reverse=True,

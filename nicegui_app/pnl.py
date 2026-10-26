@@ -6,8 +6,9 @@ import ssl
 import urllib.request
 import xml.etree.ElementTree as ET
 
-from config import now_ist, _is_trading_day, is_nse_holiday, REFRESH_SECONDS, LIVE_STRATEGY_NAMES, STRATEGY_NAMES
+from config import now_ist, _is_trading_day, is_nse_holiday, REFRESH_SECONDS, STRATEGY_NAMES
 from state import _trade_store, _is_already_sent, _mark_sent, _send_telegram
+from strategy_registry import get_live_strategy_names
 
 
 def _fetch_index_summary():
@@ -88,10 +89,11 @@ def _symbol_from_key(key):
 def collect_all_trades():
     all_active = []
     all_completed = []
+    live_names = get_live_strategy_names()
     for key, val in _trade_store.items():
         if isinstance(val, dict) and "active" in val and "completed" in val:
             strategy = _strategy_from_key(key)
-            if strategy not in LIVE_STRATEGY_NAMES:
+            if strategy not in live_names:
                 continue
             symbol = _symbol_from_key(key)
             for t in val["active"]:
@@ -177,9 +179,10 @@ def send_morning_message():
     stock_names = ", ".join(s["name"] for s in stocks) if stocks else "No stocks loaded yet"
 
     day_name = now.strftime("%A, %d %b %Y")
+    live_names = " | ".join(get_live_strategy_names()) or "none enabled"
     _send_telegram(
         f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
-        f"Strategies: ABCD | Double Top Custom | Double Top Std | Double Bottom | EMA10 | SMA50\n"
+        f"Strategies: {live_names}\n"
         f"Monitoring: Top Stocks (5-min equity candles)\n"
         f"Stocks ({len(stocks)}): {stock_names}\n"
         f"Refresh interval: {REFRESH_SECONDS}s\n"
@@ -208,8 +211,9 @@ def send_daily_pnl_summary():
 
     # Merge in-memory trades with today's persisted trades (dedup by entry price + strategy + signal)
     all_active, mem_completed = collect_all_trades()
+    live_names = get_live_strategy_names()
     hist_today = [t for t in load_trade_history()
-                  if t.get("trade_date") == today_str and t.get("strategy") in LIVE_STRATEGY_NAMES]
+                  if t.get("trade_date") == today_str and t.get("strategy") in live_names]
     seen = set()
     all_completed = list(hist_today)
     for t in hist_today:

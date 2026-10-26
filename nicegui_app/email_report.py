@@ -28,7 +28,7 @@ from openpyxl.utils import get_column_letter
 
 from config import now_ist, _is_trading_day
 from state import _is_already_sent, _mark_sent
-from strategy_registry import get_strategy_short_names
+from strategy_registry import get_backtest_strategy_names
 
 # ── Colour palette ─────────────────────────────────────────────────────────────
 _GREEN  = "FF1E8449"
@@ -46,8 +46,6 @@ _PURPLE_FILL  = PatternFill("solid", fgColor="FFE8DAEF")
 
 _THIN   = Side(style="thin", color="FFB2BABB")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
-
-_ALL_STRATEGIES = get_strategy_short_names()
 
 
 # ── Data fetching ──────────────────────────────────────────────────────────────
@@ -133,7 +131,7 @@ def _write_strategy_table(ws, start_row, trades):
         ws.cell(row=start_row, column=c, value=h)
 
     strat_pnl_map = {}
-    for i, strat in enumerate(_ALL_STRATEGIES):
+    for i, strat in enumerate(get_backtest_strategy_names()):
         r = start_row + 1 + i
         ws.row_dimensions[r].height = 16
         st = [t for t in trades if t.get("strategy") == strat]
@@ -155,7 +153,7 @@ def _write_strategy_table(ws, start_row, trades):
             _set_cell(ws, r, c, v, bold=(c == 6), fill=f, color=col,
                       align="left" if c == 1 else "center")
 
-    return start_row + 1 + len(_ALL_STRATEGIES), strat_pnl_map
+    return start_row + 1 + len(get_backtest_strategy_names()), strat_pnl_map
 
 
 def _add_strategy_bar_chart(ws, data_start_row, anchor_cell):
@@ -167,7 +165,7 @@ def _add_strategy_bar_chart(ws, data_start_row, anchor_cell):
     chart.style  = 10
     chart.width  = 22
     chart.height = 12
-    data_end_row = data_start_row + len(_ALL_STRATEGIES) - 1
+    data_end_row = data_start_row + len(get_backtest_strategy_names()) - 1
     chart.add_data(
         Reference(ws, min_col=6, max_col=6, min_row=data_start_row, max_row=data_end_row),
         titles_from_data=False,
@@ -409,7 +407,7 @@ def build_daily_excel(all_trades, today_str, report_date):
     today_trades = [t for t in all_trades if t.get("trade_date") == today_str]
     wb = openpyxl.Workbook()
     _build_daily_summary_sheet(wb, today_trades, report_date)
-    for strat in _ALL_STRATEGIES:
+    for strat in get_backtest_strategy_names():
         _build_daily_strategy_sheet(wb, strat, [t for t in today_trades if t.get("strategy") == strat])
     buf = io.BytesIO()
     wb.save(buf)
@@ -494,7 +492,7 @@ def _build_day_sheet(wb, date_str, day_trades):
     for c, h in enumerate(strat_headers, start=1):
         ws.cell(row=after_stock + 2, column=c, value=h)
 
-    for i, strat in enumerate(_ALL_STRATEGIES):
+    for i, strat in enumerate(get_backtest_strategy_names()):
         r = after_stock + 3 + i
         ws.row_dimensions[r].height = 15
         st = [t for t in day_trades if t.get("strategy") == strat]
@@ -510,7 +508,7 @@ def _build_day_sheet(wb, date_str, day_trades):
                       align="left" if c == 1 else "center")
 
     # Full trade table
-    trade_header_row = after_stock + 3 + len(_ALL_STRATEGIES) + 2
+    trade_header_row = after_stock + 3 + len(get_backtest_strategy_names()) + 2
     _section_header(ws, trade_header_row, 13, "All Trades")
 
     if day_trades:
@@ -607,6 +605,7 @@ def send_backtest_email_report():
             stocks_html += f" + {len(stock_names) - 10} more"
 
         capital = round(sum(float(t.get("entry", 0) or 0) for t in all_trades), 2)
+        strategies_html = ", ".join(get_backtest_strategy_names()) or "None enabled"
 
         if is_friday:
             week_label  = f"Week ending {now.strftime('%d %b %Y')}"
@@ -615,7 +614,7 @@ def send_backtest_email_report():
             total_pnl   = round(sum(t.get("pnl", 0) for t in all_trades), 2)
             sign        = "+" if total_pnl >= 0 else ""
             report_type = "Weekly"
-            extra_note  = "Each sheet covers one trading day (all strategies &amp; stocks)."
+            extra_note  = "Each sheet covers one trading day (enabled strategies &amp; all stocks)."
         else:
             report_date  = now.strftime("%A, %d %b %Y")
             today_trades_list = [t for t in all_trades if t.get("trade_date") == today_str]
@@ -624,7 +623,7 @@ def send_backtest_email_report():
             total_pnl   = round(sum(t.get("pnl", 0) for t in today_trades_list), 2)
             sign        = "+" if total_pnl >= 0 else ""
             report_type = "Daily"
-            extra_note  = "Each sheet covers one strategy (today's trades across all stocks)."
+            extra_note  = "Each sheet covers one enabled strategy (today's trades across all stocks)."
             capital     = round(sum(float(t.get("entry", 0) or 0) for t in today_trades_list), 2)
 
         report_date_label = (
@@ -638,6 +637,7 @@ def send_backtest_email_report():
 <h2 style="color:#1a5276;">{report_type} Backtest P&amp;L Report — Top Stocks</h2>
 <p><strong>Period:</strong> {report_date_label}</p>
 <p><strong>Stocks covered:</strong> {stocks_html}</p>
+<p><strong>Strategies:</strong> {strategies_html}</p>
 <table style="border-collapse:collapse;margin:12px 0;">
   <tr>
     <td style="padding:6px 16px 6px 0;color:#555;">Overall P&amp;L</td>

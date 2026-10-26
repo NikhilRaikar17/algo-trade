@@ -10,9 +10,10 @@ exactly as the live algo tab does, but driven by the server-side scheduler.
 import asyncio
 import traceback
 
-from config import now_ist, REFRESH_SECONDS, LIVE_STRATEGY_KEYS
+from config import now_ist, REFRESH_SECONDS
 from state import _trade_store, is_market_open
 from data import _fetch_any_stock_candles
+from strategy_registry import get_live_strategy_keys
 from algo_strategies import (
     find_swing_points,
     detect_abcd_patterns,
@@ -41,9 +42,9 @@ _STRATEGY_RUNNERS = {
 }
 
 
-def _run_strategies_for_contract(candles, current_price, contract_name):
-    """Run every enabled live strategy (config.LIVE_STRATEGY_ENABLED) for one stock. Updates _trade_store."""
-    for key in LIVE_STRATEGY_KEYS:
+def _run_strategies_for_contract(candles, current_price, contract_name, live_keys):
+    """Run every enabled live strategy (Strategies page) for one stock. Updates _trade_store."""
+    for key in live_keys:
         detect, classify = _STRATEGY_RUNNERS[key]
         try:
             signals = detect(candles)
@@ -59,6 +60,7 @@ def _run_engine_tick():
 
     today_date = now_ist().date()
     stocks = get_active_top_stocks()
+    live_keys = get_live_strategy_keys()
 
     if not stocks:
         print("  [engine] No active top stocks in DB — skipping tick.")
@@ -77,7 +79,7 @@ def _run_engine_tick():
                 print(f"  [engine] {name}: no today candles")
                 continue
             current_price = round(float(candles["close"].iloc[-1]), 2)
-            _run_strategies_for_contract(candles, current_price, name)
+            _run_strategies_for_contract(candles, current_price, name, live_keys)
             print(f"  [engine] {name} @ {current_price:.2f} — strategies updated")
         except Exception as e:
             print(f"  [engine:{name}] candles/classify failed: {e}")

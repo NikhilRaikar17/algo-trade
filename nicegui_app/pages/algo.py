@@ -12,7 +12,7 @@ import pandas as pd
 from nicegui import ui
 from dhanhq import marketfeed as mf
 
-from config import now_ist, LIVE_STRATEGY_KEYS
+from config import now_ist
 from state import _trade_store
 from data import _fetch_any_stock_candles, STOCK_WATCH_GROUPS
 from algo_strategies import (
@@ -40,11 +40,15 @@ from tv_charts import (
     flush_pending_js,
 )
 from ui_components import build_trade_table
-from strategy_registry import get_strategies
+from strategy_registry import get_strategies, get_live_strategy_keys
 import ws_feed
 
-# Only strategies enabled in config.LIVE_STRATEGY_ENABLED appear in the dropdown
-_STRATEGIES = [(name, key) for name, key in get_strategies() if key in LIVE_STRATEGY_KEYS]
+
+def _live_strategies() -> list[tuple[str, str]]:
+    """(display_name, key) for strategies enabled for live trading on the Strategies page."""
+    live = set(get_live_strategy_keys())
+    return [(name, key) for name, key in get_strategies() if key in live]
+
 
 # Flatten all stocks from all groups for the selector
 _ALL_STOCKS: list[dict] = []
@@ -258,11 +262,12 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
 def render_algo_tab(container, algo_type="abcd"):
     """Build the live algo trading tab. Returns async refresh() (no-op after first load)."""
     _default_sid = _ALL_STOCKS[0]["security_id"] if _ALL_STOCKS else None
+    strategies = _live_strategies()
 
     # Mutable state shared across closures
     _state = {
         "security_id": _default_sid,
-        "algo": "abcd",
+        "algo": strategies[0][1] if strategies else None,
         "candles": None,        # DataFrame of today's 5-min candles
         "last_candle_min": -1,  # minute-bucket of last candle (HH*60+MM)
         "loaded": False,        # True after first successful load
@@ -289,7 +294,7 @@ def render_algo_tab(container, algo_type="abcd"):
 
             ui.label("Strategy:").classes("text-sm font-medium text-gray-700")
             strategy_select = ui.select(
-                options={k: v for v, k in _STRATEGIES},
+                options={k: v for v, k in strategies},
                 value=_state["algo"],
                 label="",
             ).props("outlined dense").classes("w-52")
@@ -303,10 +308,19 @@ def render_algo_tab(container, algo_type="abcd"):
 
     async def _load():
         sid   = stock_select.value or _default_sid
-        strat = strategy_select.value or "abcd"
+        strat = strategy_select.value
         _state["security_id"] = sid
         _state["algo"]        = strat
         _state["loaded"]      = False
+
+        if not strat:
+            _cancel_timers()
+            content_container.clear()
+            with content_container:
+                ui.label(
+                    "No strategies are enabled for live trading. Turn one on from the Strategies page."
+                ).classes("text-gray-500 italic")
+            return
 
         stock = _STOCK_BY_SID.get(sid)
         if not stock:
@@ -322,7 +336,7 @@ def render_algo_tab(container, algo_type="abcd"):
         content_container.clear()
         with content_container:
             ui.spinner("dots", size="lg").classes("mx-auto my-8")
-            strat_label = dict(_STRATEGIES).get(strat, strat)
+            strat_label = dict((k, v) for v, k in strategies).get(strat, strat)
             ui.label(f"Loading {stock_name} — {strat_label}…").classes("text-gray-500 text-center w-full")
 
         try:
@@ -453,6 +467,18 @@ def render_algo_tab(container, algo_type="abcd"):
     strategy_select.on_value_change(lambda e: asyncio.ensure_future(_load()))
 
     async def refresh():
+        # Pick up strategy toggles from the Strategies page; reload if the selected one was turned off
+        nonlocal strategies
+        latest = _live_strategies()
+        if latest != strategies:
+            strategies = latest
+            strategy_select.set_options({k: v for v, k in strategies})
+            if strategy_select.value not in dict((k, v) for v, k in strategies):
+                strategy_select.set_value(strategies[0][1] if strategies else None)
+                if not strategies:
+                    await _load()  # set_value(None) on an already-None select fires no change event
+                return  # value change triggers _load()
+
         # Skip global 120s re-render if already loaded; only re-load on first visit
         if not _state["loaded"]:
             await _load()

@@ -47,7 +47,7 @@ def render_login_page():
             font-family: var(--lg-sans);
             -webkit-font-smoothing: antialiased;
         }
-        #q-app, .q-layout, .q-page-container, .q-page {
+        #q-app, .q-layout, .q-page-container, .q-page, .nicegui-content {
             padding: 0 !important;
             margin: 0 !important;
             background: transparent !important;
@@ -57,7 +57,7 @@ def render_login_page():
 
         .lg-root {
             min-height: 100vh;
-            width: 100vw;
+            width: 100%;
             display: flex;
             flex-direction: column;
             background:
@@ -132,6 +132,7 @@ def render_login_page():
             font-family: var(--lg-disp);
             font-size: 1.35rem;
             font-weight: 600;
+            line-height: 1.3;
             color: var(--lg-fg);
             letter-spacing: -0.01em;
             margin: 0 0 6px;
@@ -249,8 +250,8 @@ def render_login_page():
         with ui.element("div").classes("lg-main"):
             with ui.element("div").classes("lg-card"):
                 ui.html("""
-                <h1 class="lg-title">Sign in</h1>
-                <p class="lg-sub">Access the NIFTY &amp; BANKNIFTY trading console.</p>
+                <div class="lg-title">Sign in</div>
+                <div class="lg-sub">Access the NIFTY &amp; BANKNIFTY trading console.</div>
                 """)
 
                 ui.html('<span class="lg-label">Username</span>')
@@ -291,7 +292,7 @@ def render_login_page():
                 username.on("keydown.enter", do_login)
                 password.on("keydown.enter", do_login)
 
-                ui.button("Sign in", on_click=do_login).props("unelevated no-caps").classes("lg-btn")
+                ui.button("Sign in", on_click=do_login, color=None).props("unelevated no-caps").classes("lg-btn")
 
                 ui.html(
                     '<div class="lg-note">Authorised users only. '

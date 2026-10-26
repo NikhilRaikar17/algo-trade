@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from sqlalchemy import text
 
+from config import LIVE_STRATEGY_ENABLED
 from db import Base, SessionLocal, engine
 from models import User, UserSession, Strategy, TopStock, UserActivityLog  # noqa: F401 — imported for side-effect: ensures all tables are created by Base.metadata.create_all
 
@@ -46,6 +47,21 @@ with engine.connect() as _conn:
 
 # ── Schema creation ───────────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
+
+# ── Schema migration: add strategy enable flags to an existing strategies table ─
+# Live defaults come from config.LIVE_STRATEGY_ENABLED so behaviour is unchanged on upgrade.
+with engine.connect() as _conn:
+    _cols = {r[1] for r in _conn.execute(text("PRAGMA table_info(strategies)")).fetchall()}
+    if "backtest_enabled" not in _cols:
+        _conn.execute(text("ALTER TABLE strategies ADD COLUMN backtest_enabled BOOLEAN NOT NULL DEFAULT 1"))
+    if "live_enabled" not in _cols:
+        _conn.execute(text("ALTER TABLE strategies ADD COLUMN live_enabled BOOLEAN NOT NULL DEFAULT 0"))
+        for _key, _on in LIVE_STRATEGY_ENABLED.items():
+            _conn.execute(
+                text("UPDATE strategies SET live_enabled = :on WHERE key = :key"),
+                {"on": _on, "key": _key},
+            )
+    _conn.commit()
 
 # ── Seed users (idempotent) ───────────────────────────────────────────────────
 _SEED: list[tuple[str, str]] = [
@@ -84,6 +100,8 @@ with SessionLocal() as _s:
                 display_name=_display,
                 short_name=_short,
                 sort_order=_order,
+                backtest_enabled=True,
+                live_enabled=LIVE_STRATEGY_ENABLED.get(_key, False),
             ))
         else:
             exists.display_name = _display

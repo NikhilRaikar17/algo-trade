@@ -20,6 +20,7 @@ app.include_router(_auth_router)
 from config import now_ist, INDICES
 from state import is_market_open, get_next_market_open
 from sidebar import build_sidebar
+from strategy_registry import get_backtest_strategy_keys
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
 from trading_engine import run_trading_engine
 from email_report import send_backtest_email_report
@@ -31,12 +32,6 @@ from pages import (
     render_markets_tab,
     render_index_tab,
     render_algo_tab,
-    render_abcd_only_tab,
-    render_double_top_custom_tab,
-    render_double_top_standard_tab,
-    render_double_bottom_tab,
-    render_sma50_tab,
-    render_ema10_tab,
     render_pnl_tab,
     render_backtest_pnl_tab,
     render_market_closed,
@@ -45,7 +40,12 @@ from pages import (
     render_swing_trades_tab,
     render_global_markets_tab,
     render_admin_tab,
+    render_strategies_tab,
+    BACKTEST_PAGES,
 )
+
+# Per-strategy backtest page ids, from the registry in pages/__init__.py
+BACKTEST_PAGE_IDS = {page_id for page_id, _, _ in BACKTEST_PAGES.values()}
 
 
 # ================= PAGE IDS =================
@@ -60,12 +60,8 @@ ALL_PAGE_IDS = [
     "nifty",
     "banknifty",
     "algo",
-    "abcd_only",
-    "dtc_only",
-    "dts_only",
-    "db_only",
-    "sma50",
-    "ema10",
+    "strategies",
+    *(page_id for page_id, _, _ in BACKTEST_PAGES.values()),
     "backtest_pnl",
     "pnl",
     "admin",
@@ -241,7 +237,13 @@ async def index():
 
     # ---- State ----
     _stored_page = app.storage.user.get("active_page", "dashboard")
-    active_page = {"value": _stored_page if _stored_page in ALL_PAGE_IDS else "dashboard"}
+    if _stored_page not in ALL_PAGE_IDS:
+        _stored_page = "dashboard"
+    elif _stored_page in BACKTEST_PAGE_IDS and _stored_page not in {
+        BACKTEST_PAGES[k][0] for k in get_backtest_strategy_keys() if k in BACKTEST_PAGES
+    }:
+        _stored_page = "strategies"  # last-viewed backtest page has since been disabled
+    active_page = {"value": _stored_page}
     refresh_fns = {}
     _prev_market_open = [None]
     _dashboard_refresh = [None]   # persists across build_ui() calls — avoids re-creating clock timer
@@ -547,11 +549,15 @@ async def index():
         if _refresh_trigger[0]:
             await _refresh_trigger[0]()
 
-    build_sidebar(
+    refresh_backtest_menu = build_sidebar(
         drawer, active_page, nav_btn_refs, page_containers,
         on_navigate=_on_navigate,
         username=username_from_session,
     )
+
+    def _on_strategy_change(key, backtest_enabled, live_enabled):
+        """Rebuild Backtest Algos in the sidebar so it lists only enabled strategies."""
+        refresh_backtest_menu()
 
     # ---- Build Page Content ----
     _pages_built: set = set()  # tracks which pages have been rendered at least once
@@ -575,8 +581,8 @@ async def index():
         # is viewing the page — causing a jarring blank flash.
         _STATIC_ONCE = {
             "markets", "market_news", "top_stocks", "swing_trades", "global_markets",
-            "nifty", "banknifty", "pnl", "abcd_only", "dtc_only", "dts_only", "db_only",
-            "sma50", "ema10", "backtest_pnl", "admin",
+            "nifty", "banknifty", "pnl", "backtest_pnl", "admin", "strategies",
+            *BACKTEST_PAGE_IDS,
         }
         renders = {
             "markets":       lambda: render_markets_tab(page_containers["markets"]),
@@ -587,14 +593,15 @@ async def index():
             "nifty":         lambda: render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"]),
             "banknifty":     lambda: render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]),
             "pnl":           lambda: render_pnl_tab(page_containers["pnl"]),
-            "abcd_only":     lambda: render_abcd_only_tab(page_containers["abcd_only"]),
-            "dtc_only":      lambda: render_double_top_custom_tab(page_containers["dtc_only"]),
-            "dts_only":      lambda: render_double_top_standard_tab(page_containers["dts_only"]),
-            "db_only":       lambda: render_double_bottom_tab(page_containers["db_only"]),
-            "sma50":         lambda: render_sma50_tab(page_containers["sma50"]),
-            "ema10":         lambda: render_ema10_tab(page_containers["ema10"]),
             "backtest_pnl":  lambda: render_backtest_pnl_tab(page_containers["backtest_pnl"]),
+            "strategies":    lambda: render_strategies_tab(
+                page_containers["strategies"],
+                can_edit=username_from_session == "nikhil",
+                on_change=_on_strategy_change,
+            ),
         }
+        for page_id, render_fn, _ in BACKTEST_PAGES.values():
+            renders[page_id] = lambda pid=page_id, fn=render_fn: fn(page_containers[pid])
         if username_from_session == "nikhil":
             renders["admin"] = lambda: render_admin_tab(page_containers["admin"])
 
@@ -628,10 +635,9 @@ async def index():
             return
 
         # Backtest pages: load once; skip re-fetch when market is closed (data doesn't change).
-        _BACKTEST_PAGES = {"abcd_only", "dtc_only", "dts_only", "db_only", "sma50", "ema10"}
-        if active in _BACKTEST_PAGES and not is_market_open() and active in _backtest_loaded:
+        if active in BACKTEST_PAGE_IDS and not is_market_open() and active in _backtest_loaded:
             return
-        if active in _BACKTEST_PAGES:
+        if active in BACKTEST_PAGE_IDS:
             _backtest_loaded.add(active)
 
         # Option chain: load once after market close (LTP snapshot); live during market hours.
