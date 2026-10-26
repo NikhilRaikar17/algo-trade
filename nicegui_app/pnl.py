@@ -6,7 +6,7 @@ import ssl
 import urllib.request
 import xml.etree.ElementTree as ET
 
-from config import now_ist, _is_trading_day, is_nse_holiday, REFRESH_SECONDS
+from config import now_ist, _is_trading_day, is_nse_holiday, REFRESH_SECONDS, LIVE_STRATEGY_NAMES, STRATEGY_NAMES
 from state import _trade_store, _is_already_sent, _mark_sent, _send_telegram
 
 
@@ -66,14 +66,7 @@ def _fetch_market_news(max_items=4):
     return []
 
 
-_STORE_STRATEGY_MAP = [
-    ("abcd_",  "ABCD"),
-    ("dtc_",   "Double Top Customized"),
-    ("dts_",   "Double Top Standard"),
-    ("db_",    "Double Bottom"),
-    ("ema10_", "EMA10"),
-    ("sma50_", "SMA50"),
-]
+_STORE_STRATEGY_MAP = [(f"{k}_", name) for k, name in STRATEGY_NAMES.items()]
 
 
 def _strategy_from_key(key):
@@ -98,6 +91,8 @@ def collect_all_trades():
     for key, val in _trade_store.items():
         if isinstance(val, dict) and "active" in val and "completed" in val:
             strategy = _strategy_from_key(key)
+            if strategy not in LIVE_STRATEGY_NAMES:
+                continue
             symbol = _symbol_from_key(key)
             for t in val["active"]:
                 t["strategy"] = strategy
@@ -213,7 +208,8 @@ def send_daily_pnl_summary():
 
     # Merge in-memory trades with today's persisted trades (dedup by entry price + strategy + signal)
     all_active, mem_completed = collect_all_trades()
-    hist_today = [t for t in load_trade_history() if t.get("trade_date") == today_str]
+    hist_today = [t for t in load_trade_history()
+                  if t.get("trade_date") == today_str and t.get("strategy") in LIVE_STRATEGY_NAMES]
     seen = set()
     all_completed = list(hist_today)
     for t in hist_today:

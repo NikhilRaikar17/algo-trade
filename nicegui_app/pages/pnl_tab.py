@@ -6,14 +6,13 @@ from collections import defaultdict
 
 from nicegui import ui
 
-from config import now_ist
+from config import now_ist, LIVE_STRATEGY_NAMES
 from pnl import collect_all_trades
 from state import load_trade_history
 from ui_components import build_trade_table
-from strategy_registry import get_strategy_short_names
 from brokerage import charges_for_trades
 
-_ALL_STRATEGIES = get_strategy_short_names()
+_ALL_STRATEGIES = list(LIVE_STRATEGY_NAMES)
 
 
 def render_pnl_tab(container):
@@ -312,14 +311,13 @@ def render_pnl_tab(container):
 
     async def refresh():
         all_active, mem_completed = collect_all_trades()
-        hist_completed = load_trade_history()
+        hist_completed = [t for t in load_trade_history() if t.get("strategy") in LIVE_STRATEGY_NAMES]
         all_completed = _merge_completed(mem_completed, hist_completed)
 
         _data["completed"] = all_completed
         _data["active"] = all_active
 
-        trade_strategies = set(t.get("strategy", "Unknown") for t in all_completed)
-        strategies = sorted(set(_ALL_STRATEGIES) | trade_strategies)
+        strategies = list(_ALL_STRATEGIES)
         dates = sorted(
             set(t.get("trade_date", "Unknown") for t in all_completed),
             reverse=True,
