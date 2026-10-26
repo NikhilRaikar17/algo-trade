@@ -54,9 +54,10 @@ def test_detect_abcd_bullish_entry_stop_loss_target(sample_ohlcv_df):
     patterns = detect_abcd_patterns(swings, tolerance=0.15)
 
     bullish = [p for p in patterns if p["type"] == "Bullish"][0]
-    # For Bullish: entry=D, stop_loss=C, target=D - 2*(D-C)
-    assert bullish["stop_loss"] == pytest.approx(bullish["C"]["price"], abs=0.01)
-    expected_target = bullish["entry"] - 2 * (bullish["entry"] - bullish["C"]["price"])
+    # Bullish sells at D: the stop sits 1% above the entry (C is below, on the profit side)
+    assert bullish["stop_loss"] > bullish["entry"]
+    assert bullish["stop_loss"] == pytest.approx(bullish["entry"] * 1.01, abs=0.01)
+    expected_target = bullish["entry"] - 1.4 * (bullish["entry"] - bullish["C"]["price"])
     assert bullish["target"] == pytest.approx(expected_target, abs=0.01)
 
 

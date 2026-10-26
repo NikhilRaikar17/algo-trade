@@ -11,22 +11,22 @@ from strategy_registry import get_strategy_rows
 # ---- Inline styles for terminal sidebar ---- #
 _S = {
     "section": (
-        "font-family:'Outfit',sans-serif;"
+        "font-family:var(--at-cond);"
         "font-size:9px; font-weight:700; letter-spacing:0.14em;"
         "text-transform:uppercase; color:var(--at-fg-faint); padding:6px 16px 4px;"
     ),
     "sep": "margin:4px 12px; background:var(--at-line);",
     "info_key": (
-        "font-family:'Outfit',sans-serif;"
+        "font-family:var(--at-cond);"
         "font-size:9px; font-weight:700; letter-spacing:0.12em;"
         "text-transform:uppercase; color:var(--at-fg-faint); margin-bottom:2px;"
     ),
     "info_val": (
-        "font-family:'JetBrains Mono',monospace;"
+        "font-family:var(--at-mono);"
         "font-size:10px; color:var(--at-fg-dim);"
     ),
     "info_faint": (
-        "font-family:'JetBrains Mono',monospace;"
+        "font-family:var(--at-mono);"
         "font-size:9px; color:var(--at-fg-faint);"
     ),
     "live_dot": (
@@ -35,7 +35,7 @@ _S = {
         "box-shadow:0 0 0 3px color-mix(in srgb, var(--at-up) 18%, transparent);"
     ),
     "menu_empty": (
-        "font-family:'JetBrains Mono',monospace;"
+        "font-family:var(--at-mono);"
         "font-size:10px; color:var(--at-fg-faint); padding:6px 16px 8px 46px; cursor:pointer;"
     ),
 }
@@ -72,7 +72,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             .classes(f"{cls} {icon_color} mx-2 mb-0")
             .style(
                 "border-radius:0 !important;"
-                "font-family:'DM Sans',sans-serif !important;"
+                "font-family:var(--at-sans) !important;"
                 "font-size:12px !important; font-weight:500 !important;"
                 "color:var(--at-fg-dim) !important; height:32px !important;"
                 "border-left: 2px solid transparent;"
@@ -144,7 +144,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                 .classes("nav-btn icon-purple mx-2 mb-0")
                 .style(
                     "border-radius:0 !important;"
-                    "font-family:'DM Sans',sans-serif !important;"
+                    "font-family:var(--at-sans) !important;"
                     "font-size:12px !important; font-weight:500 !important;"
                     "color:var(--at-fg-dim) !important; height:32px !important;"
                     "border-left: 2px solid transparent;"

@@ -11,14 +11,15 @@ def render_login_page():
     """Standalone login page — served at / and /login."""
 
     ui.page_title("AlgoTrade — Sign in")
+    if app.storage.user.get("theme", "light") == "light":  # light is the default; matches the app
+        ui.query("body").classes(add="at-light-theme")
 
     ui.add_head_html(
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?'
-        'family=Outfit:wght@500;600;700'
-        '&family=DM+Sans:wght@400;500;600'
-        '&family=JetBrains+Mono:wght@400;500'
+        'family=Manrope:wght@400;500;600;700'
+        '&family=Roboto+Mono:wght@400;500'
         '&display=swap" rel="stylesheet">'
     )
     ui.add_head_html("""
@@ -35,9 +36,22 @@ def render_login_page():
             --lg-faint: #5a6672;
             --lg-accent:#00d084;
             --lg-down:  #ff4d5e;
-            --lg-mono:  'JetBrains Mono', ui-monospace, Menlo, monospace;
-            --lg-sans:  'DM Sans', -apple-system, system-ui, sans-serif;
-            --lg-disp:  'Outfit', var(--lg-sans);
+            --lg-mono:  'Roboto Mono', ui-monospace, Menlo, monospace;
+            --lg-sans:  'Manrope', -apple-system, system-ui, sans-serif;
+            --lg-disp:  var(--lg-sans);
+        }
+        /* Light theme (the default) — same tokens as terminal_theme.css's light theme */
+        body.at-light-theme {
+            --lg-bg:    #f5f7fa;
+            --lg-panel: #ffffff;
+            --lg-field: #f0f2f6;
+            --lg-line:  #e0e4ea;
+            --lg-line2: #c8cdd6;
+            --lg-fg:    #0d1117;
+            --lg-dim:   #3d4a57;
+            --lg-faint: #7a8a99;
+            --lg-accent:#00a86b;
+            --lg-down:  #cc1f2e;
         }
         html, body {
             margin: 0 !important;
@@ -69,7 +83,7 @@ def render_login_page():
             content: '';
             position: fixed;
             inset: 0;
-            background: radial-gradient(ellipse at center, var(--lg-bg) 35%, rgba(10,13,16,0.6) 100%);
+            background: radial-gradient(ellipse at center, var(--lg-bg) 35%, color-mix(in srgb, var(--lg-bg) 60%, transparent) 100%);
             pointer-events: none;
         }
 
@@ -234,7 +248,7 @@ def render_login_page():
         <div class="lg-top">
           <div class="lg-brand">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                 stroke="#00d084" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lg-accent)">
               <polyline points="3 17 9 11 13 15 21 7"/>
               <polyline points="15 7 21 7 21 13"/>
             </svg>

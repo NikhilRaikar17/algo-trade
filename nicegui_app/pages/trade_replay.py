@@ -137,7 +137,7 @@ def _fan_chart(result, plan: Plan) -> go.Figure:
     fig.update_layout(
         height=360, margin=dict(l=8, r=110, t=8, b=8),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="DM Sans, sans-serif", color=_INK, size=11),
+        font=dict(family="Manrope, sans-serif", color=_INK, size=11),
         hovermode="x unified",
         hoverlabel=dict(bgcolor="#141a1f", bordercolor="#2a353f", font=dict(color="#e6edf3", size=12)),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(color=_INK)),

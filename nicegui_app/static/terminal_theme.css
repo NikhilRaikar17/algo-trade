@@ -1,6 +1,6 @@
 /* ================================================================
    ALGO TRADE — TERMINAL THEME
-   Outfit (display) · DM Sans (body) · JetBrains Mono (data)
+   Manrope (display + body) · Roboto Mono (data)
    Dark by default · Light toggled via body.at-light-theme
    ================================================================ */
 
@@ -23,9 +23,9 @@
   --at-info:     #4f8cff;
   --at-radius:   8px;
   --at-radius-sm: 6px;
-  --at-mono:     'JetBrains Mono', ui-monospace, 'Menlo', monospace;
-  --at-sans:     'DM Sans', -apple-system, system-ui, sans-serif;
-  --at-cond:     'Outfit', var(--at-sans);
+  --at-mono:     'Roboto Mono', ui-monospace, 'Menlo', monospace;
+  --at-sans:     'Manrope', -apple-system, system-ui, sans-serif;
+  --at-cond:     var(--at-sans);  /* headings: Manrope at heavier weights */
 }
 
 /* ================================================================

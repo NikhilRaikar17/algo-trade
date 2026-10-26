@@ -113,7 +113,7 @@ def render_admin_tab(container):
             # ── Section label ──────────────────────────────────────────────
             ui.html("""
             <div style="
-                font-family: 'Outfit', sans-serif;
+                font-family: var(--at-cond);
                 font-size: 11px; font-weight: 700;
                 letter-spacing: 0.14em; text-transform: uppercase;
                 color: var(--at-fg-faint); margin-bottom: 12px;
@@ -126,7 +126,7 @@ def render_admin_tab(container):
                     label="Username",
                     placeholder="new_user",
                 ).style(
-                    "font-family:'JetBrains Mono',monospace; font-size:12px; width:160px;"
+                    "font-family:var(--at-mono); font-size:12px; width:160px;"
                 )
                 password_input = ui.input(
                     label="Password",
@@ -134,7 +134,7 @@ def render_admin_tab(container):
                     password=True,
                     password_toggle_button=True,
                 ).style(
-                    "font-family:'JetBrains Mono',monospace; font-size:12px; width:160px;"
+                    "font-family:var(--at-mono); font-size:12px; width:160px;"
                 )
 
                 def on_add_user():
@@ -149,7 +149,7 @@ def render_admin_tab(container):
                         _build()
 
                 ui.button("Add User", on_click=on_add_user).style(
-                    "font-family:'Outfit',sans-serif; font-size:12px; font-weight:600;"
+                    "font-family:var(--at-cond); font-size:12px; font-weight:600;"
                     "background:var(--at-accent); color:#fff; border-radius:6px;"
                     "padding:6px 14px;"
                 )
@@ -157,7 +157,7 @@ def render_admin_tab(container):
             # ── User activity table ────────────────────────────────────────
             ui.html("""
             <div style="
-                font-family: 'Outfit', sans-serif;
+                font-family: var(--at-cond);
                 font-size: 11px; font-weight: 700;
                 letter-spacing: 0.14em; text-transform: uppercase;
                 color: var(--at-fg-faint); margin-bottom: 12px;
@@ -167,16 +167,16 @@ def render_admin_tab(container):
             stats = _get_admin_stats()
 
             header_style = (
-                "font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700;"
+                "font-family:var(--at-mono); font-size:10px; font-weight:700;"
                 "letter-spacing:0.1em; text-transform:uppercase; color:var(--at-fg-faint);"
                 "padding:8px 16px; border-bottom:1px solid var(--at-line); text-align:left;"
             )
             cell_style = (
-                "font-family:'JetBrains Mono',monospace; font-size:12px;"
+                "font-family:var(--at-mono); font-size:12px;"
                 "color:var(--at-fg); padding:10px 16px; border-bottom:1px solid var(--at-line2);"
             )
             name_style = (
-                "font-family:'Outfit',sans-serif; font-size:13px; font-weight:600;"
+                "font-family:var(--at-cond); font-size:13px; font-weight:600;"
                 "color:var(--at-accent); padding:10px 16px; border-bottom:1px solid var(--at-line2);"
             )
 

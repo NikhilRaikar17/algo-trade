@@ -161,9 +161,8 @@ async def index():
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?'
-        'family=Outfit:wght@400;500;600;700;800'
-        '&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400'
-        '&family=JetBrains+Mono:wght@300;400;500;600;700'
+        'family=Manrope:wght@400;500;600;700;800'
+        '&family=Roboto+Mono:wght@400;500;600;700'
         '&display=swap" rel="stylesheet">'
     )
     ui.add_head_html('<link rel="stylesheet" href="/static/terminal_theme.css">')
@@ -286,7 +285,7 @@ async def index():
             ):
                 # Live clock — hidden on very small screens
                 _clock_lbl = ui.label("").style(
-                    "font-family: 'JetBrains Mono', monospace; font-size: 11px;"
+                    "font-family: var(--at-mono); font-size: 11px;"
                     "color: var(--at-fg) !important; letter-spacing: 0.02em; white-space: nowrap;"
                 ).classes("header-clock-hide")
                 ui.timer(1, lambda: _clock_lbl.set_text(
@@ -300,7 +299,7 @@ async def index():
 
                 # Refresh status — hidden on small screens
                 status_label = ui.label("").style(
-                    "font-family: 'JetBrains Mono', monospace; font-size: 10px;"
+                    "font-family: var(--at-mono); font-size: 10px;"
                     "color: #5a6672; letter-spacing: 0.04em; white-space: nowrap;"
                 ).classes("header-status-hide")
 
@@ -326,7 +325,7 @@ async def index():
                         + (" animation: at-pulse 1.6s ease-in-out infinite;" if market_open else "")
                     )
                     market_badge_label = ui.label(_mkt_txt).style(
-                        f"font-family:'JetBrains Mono',monospace; font-size:10px;"
+                        f"font-family:var(--at-mono); font-size:10px;"
                         f"font-weight:600; letter-spacing:0.08em; color:{_mkt_txt_color}; white-space:nowrap;"
                     ).classes("header-status-label header-mkt-text-hide")
 
@@ -346,23 +345,30 @@ async def index():
                         "font-size: 16px; color: #8a97a3; pointer-events:none;"
                     )
 
-                def _toggle_theme():
-                    icon_id = _theme_icon.id
-                    wrap_id = _toggle_wrap.id
-                    ui.run_javascript(
-                        "(function(){"
-                        "var body=document.body;"
-                        "var isLight=body.classList.toggle('at-light-theme');"
-                        f"var ic=document.getElementById('c{icon_id}');"
-                        f"var wr=document.getElementById('c{wrap_id}');"
-                        "if(ic){ic.textContent=isLight?'dark_mode':'light_mode';"
-                        "ic.style.color=isLight?'#ffb020':'#8a97a3';}"
-                        "if(wr){wr.style.background=isLight?'rgba(255,176,32,0.12)':'rgba(255,255,255,0.06)';"
-                        "wr.style.borderColor=isLight?'rgba(255,176,32,0.4)':'var(--at-line2)';}"
-                        "})()"
+                # Light is the default; the choice is remembered per user (app.storage.user).
+                # Charts follow body.at-light-theme through tv_charts' MutationObserver.
+                _theme = {"light": app.storage.user.get("theme", "light") == "light"}
+
+                def _apply_theme():
+                    light = _theme["light"]
+                    if light:
+                        ui.query("body").classes(add="at-light-theme")
+                    else:
+                        ui.query("body").classes(remove="at-light-theme")
+                    _theme_icon.set_name("dark_mode" if light else "light_mode")
+                    _theme_icon.style(f"color: {'#b87000' if light else '#8a97a3'};")
+                    _toggle_wrap.style(
+                        "background:rgba(255,176,32,0.12); border-color:rgba(255,176,32,0.4);" if light
+                        else "background:rgba(255,255,255,0.06); border-color:var(--at-line2);"
                     )
 
+                def _toggle_theme():
+                    _theme["light"] = not _theme["light"]
+                    app.storage.user["theme"] = "light" if _theme["light"] else "dark"
+                    _apply_theme()
+
                 _toggle_wrap.on("click", _toggle_theme)
+                _apply_theme()
 
                 # Divider
                 ui.element("div").style(
@@ -378,7 +384,7 @@ async def index():
                 with ui.button(_initials).props("round flat").classes("profile-avatar-btn").style(
                     "background: var(--at-accent) !important;"
                     "color: #001a10 !important; font-weight: 700 !important;"
-                    "font-family: 'JetBrains Mono',monospace !important;"
+                    "font-family: var(--at-mono) !important;"
                     "font-size: 0.75rem !important;"
                     "width: 30px !important; height: 30px !important;"
                     "min-width: 30px !important; min-height: 30px !important;"
@@ -393,12 +399,12 @@ async def index():
                             "min-width: 180px; padding: 10px 16px 8px; border-bottom: 1px solid #1f2830;"
                         ):
                             ui.label(_username.upper() if _username else "USER").style(
-                                "font-family: 'Outfit',sans-serif;"
+                                "font-family: var(--at-cond);"
                                 "font-weight: 700; font-size: 0.85rem; color: #e6edf3;"
                                 "letter-spacing: 0.06em;"
                             )
                             ui.label("AUTHENTICATED SESSION").style(
-                                "font-family: 'JetBrains Mono',monospace;"
+                                "font-family: var(--at-mono);"
                                 "font-size: 0.65rem; color: #5a6672; letter-spacing: 0.08em;"
                             )
 
@@ -415,7 +421,7 @@ async def index():
                             "Logout",
                             on_click=_do_logout,
                         ).style(
-                            "color: #ff4d5e; font-family: 'JetBrains Mono',monospace;"
+                            "color: #ff4d5e; font-family: var(--at-mono);"
                             "font-size: 0.8rem; letter-spacing: 0.06em;"
                         )
 

@@ -24,6 +24,7 @@ def _same_day_candles(future, signal_time):
 
 RSI_ONLY_TARGET_PCT = 0.02  # 2% target (1:2 R:R with 1% SL)
 RSI_ONLY_SL_PCT = 0.01      # 1% stop loss
+ABCD_SL_PCT = 0.01          # ABCD stop: 1% from entry, or the C level if that is nearer
 
 
 # ================= ABCD PATTERN DETECTION =================
@@ -59,6 +60,15 @@ def find_swing_points(df, order=3):
     return sorted(swings, key=lambda s: s["index"])
 
 
+def _abcd_stop(entry, c_price, short):
+    """1% against the entry, or C if C sits on the losing side and is nearer — whichever hits first."""
+    if short:
+        stop = entry * (1 + ABCD_SL_PCT)
+        return min(stop, c_price) if c_price > entry else stop
+    stop = entry * (1 - ABCD_SL_PCT)
+    return max(stop, c_price) if c_price < entry else stop
+
+
 def detect_abcd_patterns(swings, tolerance=0.15):
     patterns = []
     for i in range(len(swings) - 3):
@@ -89,7 +99,7 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "BC_retrace": round(float(bc_ratio), 3),
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
                         "entry": float(d["price"]) - 0.1,  # 0.1pts below D (neckline breakout)
-                        "stop_loss": float(c["price"]),
+                        "stop_loss": round(float(_abcd_stop(d["price"] - 0.1, c["price"], short=True)), 2),
                         "target": float(d["price"] - 0.1 - 1.4 * (d["price"] - 0.1 - c["price"])),  # 1:1.4 RR
                         "signal": "SELL CE / BUY PE at D",
                     }
@@ -120,7 +130,7 @@ def detect_abcd_patterns(swings, tolerance=0.15):
                         "BC_retrace": round(float(bc_ratio), 3),
                         "CD_AB_ratio": round(float(cd_ab_ratio), 3),
                         "entry": float(d["price"]) + 0.1,  # 0.1pts above D (neckline breakout)
-                        "stop_loss": float(c["price"]),
+                        "stop_loss": round(float(_abcd_stop(d["price"] + 0.1, c["price"], short=False)), 2),
                         "target": float(d["price"] + 0.1 + 1.4 * (c["price"] - (d["price"] + 0.1))),  # 1:1.4 RR
                         "signal": "BUY CE / SELL PE at D",
                     }
@@ -212,6 +222,14 @@ def backtest_abcd(patterns, candles):
             last_bar = bar
             if p["type"] == "Bullish":
                 # Bullish ABCD: price expected to drop from D → sell CE / buy PE
+                if float(bar["high"]) >= sl:  # stop first: a bar spanning both counts as a loss
+                    result = {
+                        "status": "SL Hit",
+                        "exit_price": round(float(sl), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - sl), 2),
+                    }
+                    break
                 if float(bar["low"]) <= target:
                     result = {
                         "status": "Target Hit",
@@ -220,30 +238,22 @@ def backtest_abcd(patterns, candles):
                         "pnl": round(float(entry - target), 2),
                     }
                     break
-                if float(bar["high"]) >= sl:
-                    result = {
-                        "status": "SL Hit",
-                        "exit_price": round(float(sl), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(entry - sl), 2),
-                    }
-                    break
             else:
                 # Bearish ABCD: price expected to rise from D → buy CE / sell PE
-                if float(bar["high"]) >= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(target - entry), 2),
-                    }
-                    break
                 if float(bar["low"]) <= sl:
                     result = {
                         "status": "SL Hit",
                         "exit_price": round(float(sl), 2),
                         "exit_time": bar["timestamp"],
                         "pnl": round(float(sl - entry), 2),
+                    }
+                    break
+                if float(bar["high"]) >= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(target - entry), 2),
                     }
                     break
         # Force-close any trade still open at end of day
