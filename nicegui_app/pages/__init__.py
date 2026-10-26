@@ -17,6 +17,7 @@ from pages.swing_trades import render_swing_trades_tab
 from pages.global_markets import render_global_markets_tab
 from pages.admin import render_admin_tab
 from pages.strategies import render_strategies_tab
+from pages.trade_replay import render_trade_replay_tab
 
 # Strategy key → its backtest page: (page_id, render_fn(container) -> refresh, sidebar icon).
 # The sidebar lists only backtest-enabled strategies, using their display name from algo.db.

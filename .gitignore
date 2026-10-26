@@ -1,6 +1,30 @@
+# Python
 *.pyc*
-launch.json
 __pycache__/
 venv/
+.venv/
+
+# Editor / launch configs
+launch.json
+
+# Secrets
 .env
 *.env_ws
+
+# Databases (users, password hashes, sessions, strategy toggles)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# NiceGUI per-browser storage (login session keys)
+.nicegui/
+
+# Runtime state written by the app
+.telegram_sent.json
+.trade_history.json
+
+# Working files from the trader-* Claude skills
+trader/

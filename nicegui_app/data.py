@@ -266,19 +266,22 @@ def _candles_to_daily_change(df):
     }
 
 
+# security_id = SEM_SMST_SECURITY_ID for the NSE / E / EQ row in Dhan's scrip master
+# (https://images.dhan.co/api-data/api-scrip-master.csv), checked 2026-10-26.
+# A wrong id can silently return ANOTHER company's candles, so look ids up there, never guess.
 STOCK_WATCH_GROUPS = [
     {
         "group": "Large Cap",
         "stocks": [
             {"name": "RELIANCE",    "security_id": "2885"},
             {"name": "TCS",         "security_id": "11536"},
-            {"name": "HDFCBANK",    "security_id": "1330"},
+            {"name": "HDFCBANK",    "security_id": "1333"},
             {"name": "INFY",        "security_id": "1594"},
             {"name": "ICICIBANK",   "security_id": "4963"},
             {"name": "HINDUNILVR",  "security_id": "1394"},
             {"name": "ITC",         "security_id": "1660"},
             {"name": "SBIN",        "security_id": "3045"},
-            {"name": "BHARTIARTL",  "security_id": "317"},
+            {"name": "BHARTIARTL",  "security_id": "10604"},
             {"name": "KOTAKBANK",   "security_id": "1922"},
             {"name": "LT",          "security_id": "11483"},
             {"name": "AXISBANK",    "security_id": "5900"},
@@ -286,7 +289,7 @@ STOCK_WATCH_GROUPS = [
             {"name": "HCLTECH",     "security_id": "7229"},
             {"name": "ASIANPAINT",  "security_id": "236"},
             {"name": "MARUTI",      "security_id": "10999"},
-            {"name": "BAJFINANCE",  "security_id": "16675"},
+            {"name": "BAJFINANCE",  "security_id": "317"},
             {"name": "TITAN",       "security_id": "3506"},
             {"name": "SUNPHARMA",   "security_id": "3351"},
             {"name": "ULTRACEMCO",  "security_id": "11532"},
@@ -295,15 +298,15 @@ STOCK_WATCH_GROUPS = [
     {
         "group": "Mid Cap",
         "stocks": [
-            {"name": "PIIND",       "security_id": "2412"},
-            {"name": "MPHASIS",     "security_id": "4397"},
-            {"name": "PERSISTENT",  "security_id": "2452"},
-            {"name": "COFORGE",     "security_id": "10096"},
-            {"name": "LTIM",        "security_id": "17818"},
-            {"name": "TATACOMM",    "security_id": "14109"},
+            {"name": "PIIND",       "security_id": "24184"},
+            {"name": "MPHASIS",     "security_id": "4503"},
+            {"name": "PERSISTENT",  "security_id": "18365"},
+            {"name": "COFORGE",     "security_id": "11543"},
+            {"name": "LTIM",        "security_id": "17818"},  # trades as "LTM" in Dhan's scrip master
+            {"name": "TATACOMM",    "security_id": "3721"},
             {"name": "ADANIPORTS",  "security_id": "15083"},
             {"name": "GRASIM",      "security_id": "1232"},
-            {"name": "HINDALCO",    "security_id": "1375"},
+            {"name": "HINDALCO",    "security_id": "1363"},
             {"name": "JSWSTEEL",    "security_id": "11723"},
         ],
     },
@@ -312,12 +315,12 @@ STOCK_WATCH_GROUPS = [
         "stocks": [
             {"name": "INDUSINDBK",  "security_id": "5258"},
             {"name": "FEDERALBNK",  "security_id": "1023"},
-            {"name": "BANDHANBNK",  "security_id": "1510"},
-            {"name": "IDFCFIRSTB",  "security_id": "11809"},
-            {"name": "PNB",         "security_id": "2730"},
-            {"name": "BANKBARODA",  "security_id": "1152"},
+            {"name": "BANDHANBNK",  "security_id": "2263"},
+            {"name": "IDFCFIRSTB",  "security_id": "11184"},
+            {"name": "PNB",         "security_id": "10666"},
+            {"name": "BANKBARODA",  "security_id": "4668"},
             {"name": "CANBK",       "security_id": "10794"},
-            {"name": "AUBANK",      "security_id": "3660"},
+            {"name": "AUBANK",      "security_id": "21238"},
         ],
     },
 ]
@@ -349,6 +352,54 @@ def _fetch_any_stock_candles(security_id: str, interval: int = 15) -> pd.DataFra
         "close":     d.get("close", []),
     })
     if not df.empty:
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"], unit="s", utc=True
+        ).dt.tz_convert("Asia/Kolkata")
+    _cache_set(cache_key, df)
+    return df
+
+
+def fetch_stock_candles_history(security_id: str, interval: int = 5, days: int = 60) -> pd.DataFrame:
+    """Fetch `days` calendar days of intraday candles for an NSE equity.
+
+    Dhan caps an intraday request at ~5 trading days, so this walks back in 7-day
+    windows and stitches them together. Requests are paced (~0.35 s apart) because
+    back-to-back calls get rate-limited; a window that still fails is skipped (the
+    caller counts full sessions, so a gap just means fewer sessions)."""
+    import time as _time
+    today = pd.Timestamp(now_ist().date())
+    cache_key = f"eq_history_{security_id}:{interval}:{days}:{today.date()}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    frames = []
+    window_end = today
+    start = today - pd.Timedelta(days=days)
+    while window_end > start:
+        window_start = max(start, window_end - pd.Timedelta(days=7))
+        r = api_call(
+            dhan.intraday_minute_data,
+            security_id, "NSE_EQ", "EQUITY",
+            window_start.strftime("%Y-%m-%d"), window_end.strftime("%Y-%m-%d"),
+            interval=interval,
+            retries=3, delay=1,
+        )
+        _time.sleep(0.35)
+        if r.get("status") == "success":
+            d = r["data"]
+            frames.append(pd.DataFrame({
+                "timestamp": d.get("timestamp", []),
+                "open":      d.get("open", []),
+                "high":      d.get("high", []),
+                "low":       d.get("low", []),
+                "close":     d.get("close", []),
+            }))
+        window_end = window_start - pd.Timedelta(days=1)
+
+    df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    if not df.empty:
+        df = df.drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
         df["timestamp"] = pd.to_datetime(
             df["timestamp"], unit="s", utc=True
         ).dt.tz_convert("Asia/Kolkata")

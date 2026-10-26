@@ -147,6 +147,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             with backtest_exp:
                 backtest_menu = ui.element("div")
             _nav_button("backtest_pnl", "Backtest P&L", "analytics", icon_color="icon-amber")
+            _nav_button("trade_replay", "Trade Replay", "replay",    icon_color="icon-blue")
 
             ui.separator().style(_S["sep"])
 
