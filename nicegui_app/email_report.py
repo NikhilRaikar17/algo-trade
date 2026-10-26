@@ -28,6 +28,7 @@ from openpyxl.utils import get_column_letter
 
 from config import now_ist, _is_trading_day
 from state import _is_already_sent, _mark_sent
+from backtest_metrics import inr, rupees_text
 from strategy_registry import get_backtest_strategy_names
 
 # ── Colour palette ─────────────────────────────────────────────────────────────
@@ -57,7 +58,26 @@ def _fetch_all_stocks_for_report():
     stocks = get_active_top_stocks()
     if not stocks:
         return []
-    return _fetch_all_stocks_trades(stocks)
+    return _to_rupees(_fetch_all_stocks_trades(stocks))
+
+
+def _to_rupees(trades):
+    """Size every trade at ₹1,00,000 (as the P&L pages do) and make "pnl" its net ₹ after charges.
+    The original points move to "pnl_pts"; qty, charges and capital come along from size_trades()."""
+    from backtest_metrics import DEFAULT_SIZING, size_trades   # noqa: PLC0415
+    sized = size_trades(trades, "capital", DEFAULT_SIZING["capital"])
+    for t in sized:
+        t["pnl_pts"] = t["pnl"]
+        t["pnl"] = round(t["net"], 2)
+    return sized
+
+
+def _capital_per_trade(trades):
+    return round(sum(t["capital"] for t in trades) / len(trades), 0) if trades else 0
+
+
+def _charges(trades):
+    return round(sum(t["charges"] for t in trades), 2)
 
 
 # ── Cell / sheet helpers ───────────────────────────────────────────────────────
@@ -124,7 +144,7 @@ def _kpi_row(ws, row, kpi_list):
 def _write_strategy_table(ws, start_row, trades):
     headers = [
         "Strategy", "Trades", "Winners", "Losers",
-        "Win Rate %", "Total P&L", "Avg Win", "Avg Loss", "Best Trade",
+        "Win Rate %", "Net P&L ₹", "Avg Win ₹", "Avg Loss ₹", "Best Trade ₹",
     ]
     _style_header_row(ws, start_row, len(headers))
     for c, h in enumerate(headers, start=1):
@@ -160,7 +180,7 @@ def _add_strategy_bar_chart(ws, data_start_row, anchor_cell):
     chart = BarChart()
     chart.type  = "col"
     chart.title = "Strategy P&L Comparison"
-    chart.y_axis.title = "P&L"
+    chart.y_axis.title = "Net P&L (₹)"
     chart.x_axis.title = "Strategy"
     chart.style  = 10
     chart.width  = 22
@@ -170,7 +190,7 @@ def _add_strategy_bar_chart(ws, data_start_row, anchor_cell):
         Reference(ws, min_col=6, max_col=6, min_row=data_start_row, max_row=data_end_row),
         titles_from_data=False,
     )
-    chart.series[0].title = SeriesLabel(v="P&L")
+    chart.series[0].title = SeriesLabel(v="Net P&L ₹")
     chart.set_categories(
         Reference(ws, min_col=1, max_col=1, min_row=data_start_row, max_row=data_end_row)
     )
@@ -185,7 +205,7 @@ def _write_stock_table(ws, start_row, trades):
     if not stock_names:
         return start_row
 
-    headers = ["Stock", "Trades", "Winners", "Losers", "Win Rate %", "Total P&L", "Capital Invested"]
+    headers = ["Stock", "Trades", "Winners", "Losers", "Win Rate %", "Net P&L ₹", "Charges ₹"]
     _style_header_row(ws, start_row, len(headers))
     for c, h in enumerate(headers, start=1):
         ws.cell(row=start_row, column=c, value=h)
@@ -198,7 +218,7 @@ def _write_stock_table(ws, start_row, trades):
         sw   = sum(1 for t in st if t["pnl"] > 0)
         sl   = sum(1 for t in st if t["pnl"] < 0)
         swr  = round(sw / len(st) * 100, 1) if st else 0
-        cap  = round(sum(float(t.get("entry", 0) or 0) for t in st), 2)
+        cap  = _charges(st)
         rf   = _ALT_FILL if i % 2 == 0 else _WHITE_FILL
 
         for c, v in enumerate([stock, len(st), sw, sl, swr, spnl, cap], start=1):
@@ -218,8 +238,8 @@ def _write_trade_table(ws, start_row, trades):
     Returns the row after the last data row.
     """
     headers = [
-        "Date", "Time", "Stock", "Strategy", "Signal", "Type",
-        "Entry", "Target", "Stop Loss", "Exit", "Status", "P&L", "Cumulative P&L",
+        "Date", "Time", "Stock", "Strategy", "Signal", "Qty",
+        "Entry", "Target", "Stop Loss", "Exit", "Status", "Net P&L ₹", "Cumulative ₹",
     ]
     ws.row_dimensions[start_row].height = 16
     _style_header_row(ws, start_row, len(headers))
@@ -248,7 +268,7 @@ def _write_trade_table(ws, start_row, trades):
         vals = [
             date_str, time_str,
             trade.get("stock", ""), trade.get("strategy", ""),
-            trade.get("signal", ""), trade.get("type", ""),
+            trade.get("signal", ""), trade.get("qty", ""),
             trade.get("entry"), trade.get("target"), trade.get("stop_loss"),
             trade.get("exit_price"), trade.get("status", ""),
             round(pnl, 2), cumulative,
@@ -269,7 +289,7 @@ def _write_trade_table(ws, start_row, trades):
     if equity_rows:
         chart = LineChart()
         chart.title = "Equity Curve"
-        chart.y_axis.title = "Cumulative P&L"
+        chart.y_axis.title = "Cumulative net P&L (₹)"
         chart.style = 10
         chart.width = 22
         chart.height = 12
@@ -287,7 +307,7 @@ def _write_trade_table(ws, start_row, trades):
 # ── Daily P&L summary table (used in weekly summary) ─────────────────────────
 
 def _write_day_summary_table(ws, start_row, trades_by_date):
-    headers = ["Date", "Trades", "Winners", "Losers", "Win Rate %", "P&L"]
+    headers = ["Date", "Trades", "Winners", "Losers", "Win Rate %", "Net P&L ₹"]
     _style_header_row(ws, start_row, len(headers))
     for c, h in enumerate(headers, start=1):
         ws.cell(row=start_row, column=c, value=h)
@@ -352,13 +372,13 @@ def _build_daily_summary_sheet(wb, today_trades, report_date):
     win_rate     = round(winners / total_trades * 100, 1) if total_trades else 0
     avg_win      = round(sum(t["pnl"] for t in today_trades if t["pnl"] > 0) / winners, 2) if winners else 0
     avg_loss     = round(sum(t["pnl"] for t in today_trades if t["pnl"] < 0) / losers, 2) if losers else 0
-    capital      = round(sum(float(t.get("entry", 0) or 0) for t in today_trades), 2)
+    capital      = _capital_per_trade(today_trades)
 
     _kpi_row(ws, 3, [
-        ("Total P&L", total_pnl), ("Trades", total_trades),
+        ("Net P&L ₹", total_pnl), ("Trades", total_trades),
         ("Winners", winners), ("Losers", losers),
-        ("Win Rate %", win_rate), ("Avg Win", avg_win),
-        ("Avg Loss", avg_loss), ("Capital Invested", capital),
+        ("Win Rate %", win_rate), ("Avg Win ₹", avg_win),
+        ("Avg Loss ₹", avg_loss), ("Capital / Trade", capital),
     ])
 
     # Stock breakdown section
@@ -384,12 +404,12 @@ def _build_daily_strategy_sheet(wb, strat_name, trades):
     winners   = sum(1 for t in trades if t["pnl"] > 0)
     losers    = sum(1 for t in trades if t["pnl"] < 0)
     win_rate  = round(winners / len(trades) * 100, 1) if trades else 0
-    capital   = round(sum(float(t.get("entry", 0) or 0) for t in trades), 2)
+    charges   = _charges(trades)
 
     _kpi_row(ws, 2, [
         ("Trades", len(trades)), ("Winners", winners),
         ("Losers", losers), ("Win Rate %", win_rate),
-        ("Total P&L", pnl_total), ("Capital Invested", capital),
+        ("Net P&L ₹", pnl_total), ("Charges ₹", charges),
     ])
 
     if trades:
@@ -432,13 +452,13 @@ def _build_weekly_summary_sheet(wb, all_trades, week_label):
     win_rate     = round(winners / total_trades * 100, 1) if total_trades else 0
     avg_win      = round(sum(t["pnl"] for t in all_trades if t["pnl"] > 0) / winners, 2) if winners else 0
     avg_loss     = round(sum(t["pnl"] for t in all_trades if t["pnl"] < 0) / losers, 2) if losers else 0
-    capital      = round(sum(float(t.get("entry", 0) or 0) for t in all_trades), 2)
+    capital      = _capital_per_trade(all_trades)
 
     _kpi_row(ws, 3, [
-        ("Total P&L", total_pnl), ("Trades", total_trades),
+        ("Net P&L ₹", total_pnl), ("Trades", total_trades),
         ("Winners", winners), ("Losers", losers),
-        ("Win Rate %", win_rate), ("Avg Win", avg_win),
-        ("Avg Loss", avg_loss), ("Capital Invested", capital),
+        ("Win Rate %", win_rate), ("Avg Win ₹", avg_win),
+        ("Avg Loss ₹", avg_loss), ("Capital / Trade", capital),
     ])
 
     # Stock breakdown
@@ -473,12 +493,12 @@ def _build_day_sheet(wb, date_str, day_trades):
     winners   = sum(1 for t in day_trades if t["pnl"] > 0)
     losers    = sum(1 for t in day_trades if t["pnl"] < 0)
     win_rate  = round(winners / len(day_trades) * 100, 1) if day_trades else 0
-    capital   = round(sum(float(t.get("entry", 0) or 0) for t in day_trades), 2)
+    charges   = _charges(day_trades)
 
     _kpi_row(ws, 2, [
         ("Trades", len(day_trades)), ("Winners", winners),
         ("Losers", losers), ("Win Rate %", win_rate),
-        ("Total P&L", pnl_total), ("Capital Invested", capital),
+        ("Net P&L ₹", pnl_total), ("Charges ₹", charges),
     ])
 
     # Stock breakdown
@@ -487,7 +507,7 @@ def _build_day_sheet(wb, date_str, day_trades):
 
     # Per-strategy mini-summary
     _section_header(ws, after_stock + 1, 6, "Strategy Breakdown")
-    strat_headers = ["Strategy", "Trades", "Winners", "Losers", "Win Rate %", "P&L"]
+    strat_headers = ["Strategy", "Trades", "Winners", "Losers", "Win Rate %", "Net P&L ₹"]
     _style_header_row(ws, after_stock + 2, len(strat_headers))
     for c, h in enumerate(strat_headers, start=1):
         ws.cell(row=after_stock + 2, column=c, value=h)
@@ -604,7 +624,6 @@ def send_backtest_email_report():
         if len(stock_names) > 10:
             stocks_html += f" + {len(stock_names) - 10} more"
 
-        capital = round(sum(float(t.get("entry", 0) or 0) for t in all_trades), 2)
         strategies_html = ", ".join(get_backtest_strategy_names()) or "None enabled"
 
         if is_friday:
@@ -612,7 +631,7 @@ def send_backtest_email_report():
             excel_bytes = build_weekly_excel(all_trades, week_label)
             filename    = f"backtest_weekly_{today_str}.xlsx"
             total_pnl   = round(sum(t.get("pnl", 0) for t in all_trades), 2)
-            sign        = "+" if total_pnl >= 0 else ""
+            charges     = _charges(all_trades)
             report_type = "Weekly"
             extra_note  = "Each sheet covers one trading day (enabled strategies &amp; all stocks)."
         else:
@@ -621,16 +640,16 @@ def send_backtest_email_report():
             excel_bytes, today_trades_list = build_daily_excel(all_trades, today_str, report_date)
             filename    = f"backtest_daily_{today_str}.xlsx"
             total_pnl   = round(sum(t.get("pnl", 0) for t in today_trades_list), 2)
-            sign        = "+" if total_pnl >= 0 else ""
+            charges     = _charges(today_trades_list)
             report_type = "Daily"
             extra_note  = "Each sheet covers one enabled strategy (today's trades across all stocks)."
-            capital     = round(sum(float(t.get("entry", 0) or 0) for t in today_trades_list), 2)
 
         report_date_label = (
             f"Week ending {now.strftime('%d %b %Y')}" if is_friday
             else now.strftime("%A, %d %b %Y")
         )
         pnl_color = "#1e8449" if total_pnl >= 0 else "#c0392b"
+        pnl_text = rupees_text(total_pnl)
 
         body = f"""
 <html><body style="font-family:Arial,sans-serif;color:#2c3e50;">
@@ -640,12 +659,16 @@ def send_backtest_email_report():
 <p><strong>Strategies:</strong> {strategies_html}</p>
 <table style="border-collapse:collapse;margin:12px 0;">
   <tr>
-    <td style="padding:6px 16px 6px 0;color:#555;">Overall P&amp;L</td>
-    <td style="color:{pnl_color};font-size:20px;font-weight:bold;">{sign}{total_pnl:.2f}</td>
+    <td style="padding:6px 16px 6px 0;color:#555;">Net P&amp;L</td>
+    <td style="color:{pnl_color};font-size:20px;font-weight:bold;">{pnl_text}</td>
   </tr>
   <tr>
-    <td style="padding:6px 16px 6px 0;color:#555;">Capital Invested</td>
-    <td style="color:#6c3483;font-size:18px;font-weight:bold;">₹{capital:,.2f}</td>
+    <td style="padding:6px 16px 6px 0;color:#555;">Charges</td>
+    <td style="color:#555;font-size:16px;">₹{inr(charges)}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 16px 6px 0;color:#555;">Sizing</td>
+    <td style="color:#555;font-size:16px;">₹1,00,000 per trade · one position per stock and strategy</td>
   </tr>
 </table>
 <p>Please find the detailed Excel report attached. It contains:</p>
@@ -661,7 +684,7 @@ def send_backtest_email_report():
 </body></html>
 """
         _send_email(
-            subject=f"[AlgoTrading] {report_type} P&L Report — {today_str}  ({sign}{total_pnl:.2f})",
+            subject=f"[AlgoTrading] {report_type} P&L Report — {today_str}  ({pnl_text})",
             body=body,
             attachment_bytes=excel_bytes,
             filename=filename,

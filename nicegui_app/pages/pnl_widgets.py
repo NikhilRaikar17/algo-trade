@@ -9,7 +9,7 @@ from html import escape
 import plotly.graph_objects as go
 from nicegui import ui
 
-from backtest_metrics import DEFAULT_SIZING, SIZING_MODES, equity_curve
+from backtest_metrics import DEFAULT_SIZING, SIZING_MODES, equity_curve, inr
 
 # Fixed hexes: Plotly can't read the theme's CSS variables. Mid-tones that read on dark and light.
 _LINE = "#4f8cff"
@@ -20,7 +20,7 @@ _GRID = "rgba(138,151,163,0.15)"
 # ── Formatting ────────────────────────────────────────────────────────────────
 
 def rs(v: float, sign: bool = False) -> str:
-    s = f"₹{abs(v):,.0f}"
+    s = f"₹{inr(v)}"
     if sign:
         return ("+" if v > 0 else "−" if v < 0 else "") + s
     return ("−" if v < 0 else "") + s

@@ -26,6 +26,8 @@
   --at-mono:     'Roboto Mono', ui-monospace, 'Menlo', monospace;
   --at-sans:     'Manrope', -apple-system, system-ui, sans-serif;
   --at-cond:     var(--at-sans);  /* headings: Manrope at heavier weights */
+  --at-nav-fg:   var(--at-fg-dim);    /* sidebar items */
+  --at-nav-meta: var(--at-fg-faint);  /* sidebar section labels + footer */
 }
 
 /* ================================================================
@@ -189,7 +191,7 @@ html, body {
 /* Nav buttons */
 .nav-btn,
 .nav-sub-btn {
-  color: var(--at-fg-dim) !important;
+  color: var(--at-nav-fg) !important;
   font-family: var(--at-sans) !important;
   border-radius: 0 !important;
 }
@@ -708,6 +710,10 @@ html body.at-light-theme{
   --at-down:     #cc1f2e;
   --at-warn:     #b87000;
   --at-info:     #1a5fcc;
+  /* sidebar text is black on the white drawer, not grey (re-declared here: a var() is resolved
+     where it's declared, so inheriting the :root values would keep the dark-theme greys) */
+  --at-nav-fg:   #0d1117;
+  --at-nav-meta: #0d1117;
 }
 
 html body.at-light-theme{
@@ -790,7 +796,7 @@ html body.at-light-theme .at-ticker-val { color: var(--at-fg) !important; }
 
 /* Nav buttons */
 html body.at-light-theme .nav-btn,
-html body.at-light-theme .nav-sub-btn { color: var(--at-fg-dim) !important; }
+html body.at-light-theme .nav-sub-btn { color: var(--at-nav-fg) !important; }
 html body.at-light-theme .nav-btn:hover,
 html body.at-light-theme .nav-sub-btn:hover { background: rgba(0,0,0,0.04) !important; color: var(--at-fg) !important; }
 html body.at-light-theme .nav-btn.nav-btn-active {
@@ -798,7 +804,6 @@ html body.at-light-theme .nav-btn.nav-btn-active {
   border-left-color: var(--at-accent) !important;
   color: var(--at-fg) !important;
 }
-html body.at-light-theme .nav-btn .q-icon { color: var(--at-fg-faint) !important; }
 html body.at-light-theme .nav-btn.nav-btn-active .q-icon { color: var(--at-accent) !important; }
 html body.at-light-theme .q-btn--flat { color: var(--at-fg-dim) !important; }
 html body.at-light-theme .q-btn--flat:hover { background: rgba(0,0,0,0.04) !important; }

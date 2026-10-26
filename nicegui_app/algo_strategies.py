@@ -9,8 +9,14 @@ import talib
 
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT, now_ist
 from state import _is_already_sent, _mark_sent, _send_telegram, save_completed_trade
+from backtest_metrics import net_rupees, rupees_text
 
 _MARKET_CLOSE = _dtime(15, 30)
+
+
+def _pnl_msg(trade):
+    """Telegram P&L line in rupees: net of charges for a ₹1,00,000 position."""
+    return f"{rupees_text(net_rupees(trade))} net (₹1L position, after charges)"
 _NO_NEW_TRADE_AFTER = _dtime(15, 0)  # no new entries after 3:00 PM IST
 
 
@@ -166,9 +172,8 @@ def classify_trades(patterns, current_price, contract_name=""):
                     p["symbol"] = contract_name
                     save_completed_trade(completed_key, p)
                     _mark_sent(completed_key)
-                    emoji = "+" if p["pnl"] > 0 else ""
                     _send_telegram(
-                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}"
+                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {_pnl_msg(p)}\nStatus: {p['status']}"
                     )
             else:
                 p["unrealized_pnl"] = round(pnl, 2)
@@ -191,9 +196,8 @@ def classify_trades(patterns, current_price, contract_name=""):
                     p["symbol"] = contract_name
                     save_completed_trade(completed_key, p)
                     _mark_sent(completed_key)
-                    emoji = "+" if p["pnl"] > 0 else ""
                     _send_telegram(
-                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{p['pnl']:.2f}\nStatus: {p['status']}"
+                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {_pnl_msg(p)}\nStatus: {p['status']}"
                     )
             else:
                 p["unrealized_pnl"] = round(pnl, 2)
@@ -393,9 +397,8 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
                 s["symbol"] = contract_name
                 save_completed_trade(completed_key, s)
                 _mark_sent(completed_key)
-                emoji = "+" if pnl > 0 else ""
                 _send_telegram(
-                    f"TRADE CLOSED [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {emoji}{pnl:.2f}\nStatus: {s['status']}"
+                    f"TRADE CLOSED [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {_pnl_msg(s)}\nStatus: {s['status']}"
                 )
         else:
             s["unrealized_pnl"] = pnl
@@ -1118,10 +1121,9 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
                 s["symbol"] = contract_name
                 save_completed_trade(completed_key, s)
                 _mark_sent(completed_key)
-                emoji = "+" if pnl > 0 else ""
                 _send_telegram(
-                    "TRADE CLOSED [{}] | {}\nSignal: {}\nEntry: {:.2f} | Exit: {:.2f}\nPnL: {}{:.2f}\nStatus: {}".format(
-                        strategy_name, contract_name, s["signal"], entry, current_price, emoji, pnl, s["status"]
+                    "TRADE CLOSED [{}] | {}\nSignal: {}\nEntry: {:.2f} | Exit: {:.2f}\nPnL: {}\nStatus: {}".format(
+                        strategy_name, contract_name, s["signal"], entry, current_price, _pnl_msg(s), s["status"]
                     )
                 )
         else:

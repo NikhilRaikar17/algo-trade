@@ -13,21 +13,21 @@ _S = {
     "section": (
         "font-family:var(--at-cond);"
         "font-size:9px; font-weight:700; letter-spacing:0.14em;"
-        "text-transform:uppercase; color:var(--at-fg-faint); padding:6px 16px 4px;"
+        "text-transform:uppercase; color:var(--at-nav-meta); padding:6px 16px 4px;"
     ),
     "sep": "margin:4px 12px; background:var(--at-line);",
     "info_key": (
         "font-family:var(--at-cond);"
         "font-size:9px; font-weight:700; letter-spacing:0.12em;"
-        "text-transform:uppercase; color:var(--at-fg-faint); margin-bottom:2px;"
+        "text-transform:uppercase; color:var(--at-nav-meta); margin-bottom:2px;"
     ),
     "info_val": (
         "font-family:var(--at-mono);"
-        "font-size:10px; color:var(--at-fg-dim);"
+        "font-size:10px; color:var(--at-nav-fg);"
     ),
     "info_faint": (
         "font-family:var(--at-mono);"
-        "font-size:9px; color:var(--at-fg-faint);"
+        "font-size:9px; color:var(--at-nav-meta);"
     ),
     "live_dot": (
         "width:6px; height:6px; border-radius:50%; flex-shrink:0;"
@@ -36,7 +36,7 @@ _S = {
     ),
     "menu_empty": (
         "font-family:var(--at-mono);"
-        "font-size:10px; color:var(--at-fg-faint); padding:6px 16px 8px 46px; cursor:pointer;"
+        "font-size:10px; color:var(--at-nav-meta); padding:6px 16px 8px 46px; cursor:pointer;"
     ),
 }
 
@@ -74,7 +74,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                 "border-radius:0 !important;"
                 "font-family:var(--at-sans) !important;"
                 "font-size:12px !important; font-weight:500 !important;"
-                "color:var(--at-fg-dim) !important; height:32px !important;"
+                "color:var(--at-nav-fg) !important; height:32px !important;"
                 "border-left: 2px solid transparent;"
                 + ("padding-left:30px !important;" if indent else "")
             )
@@ -146,13 +146,13 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
                     "border-radius:0 !important;"
                     "font-family:var(--at-sans) !important;"
                     "font-size:12px !important; font-weight:500 !important;"
-                    "color:var(--at-fg-dim) !important; height:32px !important;"
+                    "color:var(--at-nav-fg) !important; height:32px !important;"
                     "border-left: 2px solid transparent;"
                 )
             )
             with backtest_toggle:
                 backtest_chevron = ui.icon("expand_more").style(
-                    "margin-left:auto; font-size:16px; color:var(--at-fg-faint);"
+                    "margin-left:auto; font-size:16px; color:var(--at-nav-meta);"
                     "transition:transform .15s;"
                 )
             backtest_menu = ui.element("div")

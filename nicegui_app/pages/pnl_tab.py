@@ -1,89 +1,25 @@
 """
 Live P&L — what the live engine's trades made, after charges, for the strategies switched on for Live.
 
-Completed trades come from .trade_history.json (state.save_completed_trade) plus any of today's
-that are still only in the engine's memory; open positions come from the engine. The maths is the
-same as Backtest P&L (backtest_metrics): one position per stock and strategy, sized by ₹ per trade
-or shares, net of Dhan's intraday charges.
+Trades come from live_trades.load_live_trades(); the maths is the same as Backtest P&L
+(backtest_metrics): one position per stock and strategy, sized by ₹ per trade or shares, net of
+Dhan's intraday charges.
 """
 
 from datetime import datetime
 from html import escape
 
-import pandas as pd
 from nicegui import ui
 
-from backtest_metrics import DEFAULT_SIZING, finalize_trades, group_by, size_trades, summarize
+from backtest_metrics import DEFAULT_SIZING, group_by, size_trades, summarize
 from brokerage import is_short
-from config import IST, now_ist
+from config import now_ist
+from live_trades import load_live_trades
 from pages.pnl_widgets import (
     CSS, charges_html, equity_figure, kpi_tiles, rs, sizing_controls, strategy_table, summary_table, td, tone,
     trades_table,
 )
-from pnl import collect_all_trades
-from state import load_trade_history
 from strategy_registry import get_live_strategy_names
-
-
-def _to_ts(v):
-    if v is None or v == "":
-        return None
-    try:
-        ts = pd.Timestamp(v)
-    except (TypeError, ValueError):
-        return None
-    return ts.tz_localize(IST) if ts.tzinfo is None else ts
-
-
-def _normalize(t: dict) -> dict:
-    """Copy of a live trade with stock / time / exit_time / trade_date filled in. Records saved before
-    times were stored get the session open/close and approx_time=True (no overlap check, no clock time)."""
-    r = dict(t)
-    r["stock"] = r.get("symbol") or r.get("stock") or ""
-    entry_t = _to_ts(r.get("time") or (r.get("D") or {}).get("time"))
-    exit_t = _to_ts(r.get("exit_time"))
-    if entry_t is None or exit_t is None:
-        day = pd.Timestamp(r.get("trade_date") or now_ist().strftime("%Y-%m-%d")).tz_localize(IST)
-        entry_t = entry_t or day + pd.Timedelta(hours=9, minutes=15)
-        exit_t = exit_t or day + pd.Timedelta(hours=15, minutes=30)
-        r["approx_time"] = True
-    r["time"], r["exit_time"] = entry_t, exit_t
-    r["trade_date"] = r.get("trade_date") or entry_t.strftime("%Y-%m-%d")
-    return r
-
-
-def _merge_completed(mem_completed, hist_completed):
-    """History is the record; add today's in-memory trades that aren't saved yet (whole trade kept)."""
-    result = list(hist_completed)
-    today = now_ist().strftime("%Y-%m-%d")
-    for t in mem_completed:
-        saved = any(
-            r.get("strategy") == t.get("strategy") and r.get("symbol") == t.get("symbol")
-            and str(r.get("signal")) == str(t.get("signal"))
-            and abs(float(r.get("entry", 0)) - float(t.get("entry", 0))) < 0.01
-            for r in hist_completed
-        )
-        if not saved:
-            result.append({**t, "trade_date": t.get("trade_date") or today})
-    return result
-
-
-def _open_positions(active: list[dict], completed: list[dict]) -> tuple[list[dict], int]:
-    """Active signals an account would actually hold: the first per stock and strategy, and only if
-    no counted trade on that stock/strategy was still open at that moment. → (kept, overlapping)."""
-    busy: dict[tuple, list] = {}
-    for t in completed:
-        if not t.get("approx_time"):
-            busy.setdefault((t["stock"], t["strategy"]), []).append((t["time"], t["exit_time"]))
-    kept, overlap, holding = [], 0, set()
-    for t in sorted(active, key=lambda t: t["time"]):
-        lane = (t["stock"], t["strategy"])
-        if lane in holding or any(s <= t["time"] < e for s, e in busy.get(lane, [])):
-            overlap += 1
-            continue
-        holding.add(lane)
-        kept.append(t)
-    return kept, overlap
 
 
 def _positions_table(positions: list[dict], mode: str, amount: float) -> tuple[str, float]:
@@ -236,19 +172,8 @@ def render_pnl_tab(container):
         if body.client._deleted:
             return
         live_names = get_live_strategy_names()
-        all_active, mem_completed = collect_all_trades()
-        hist = [t for t in load_trade_history() if t.get("strategy") in live_names]
-        merged = [_normalize(t) for t in _merge_completed(mem_completed, hist)]
-        usable = [t for t in merged if float(t.get("entry") or 0) > 0 and float(t.get("exit_price") or 0) > 0]
-        completed, ex = finalize_trades(usable, now_ist())
-        active = [_normalize(t) for t in all_active if t.get("strategy") in live_names and float(t.get("entry") or 0) > 0]
-        positions, open_overlap = _open_positions(active, completed)
-
-        data.update(completed=completed, active=positions, at=now_ist(), notes={
-            "overlap": ex["overlap"] + open_overlap,
-            "broken": len(merged) - len(usable),
-            "approx": sum(1 for t in completed if t.get("approx_time")),
-        })
+        completed, positions, notes = load_live_trades()
+        data.update(completed=completed, active=positions, at=now_ist(), notes=notes)
 
         everything = completed + positions
         for sel, key, opts in (

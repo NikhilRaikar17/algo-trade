@@ -78,6 +78,35 @@ def size_trades(trades: list[dict], mode: str, amount: float) -> list[dict]:
     return out
 
 
+def net_rupees(trade: dict, mode: str = "capital", amount: float | None = None) -> float | None:
+    """Net ₹ for one finished trade at a sizing (default ₹1,00,000 per trade); None if it has no
+    exit yet or one share costs more than the amount."""
+    if not trade.get("entry") or not trade.get("exit_price"):
+        return None
+    sized = size_trades([trade], mode, amount if amount is not None else DEFAULT_SIZING[mode])
+    return sized[0]["net"] if sized else None
+
+
+def inr(v: float) -> str:
+    """Whole rupees with Indian digit grouping, no sign: 1234567 → '12,34,567'."""
+    digits = f"{abs(v):.0f}"
+    if len(digits) <= 3:
+        return digits
+    head, tail = digits[:-3], digits[-3:]
+    groups = []
+    while len(head) > 2:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    return ",".join([head] + groups + [tail]) if head else ",".join(groups + [tail])
+
+
+def rupees_text(v: float | None) -> str:
+    """+₹1,234 / −₹1,00,560 for messages and labels ("—" when there is no value)."""
+    if v is None:
+        return "—"
+    return f"{'+' if v > 0 else '−' if v < 0 else ''}₹{inr(v)}"
+
+
 def _by_exit(trades):
     return sorted(trades, key=lambda t: (t.get("exit_time") or t["time"]))
 

@@ -10,6 +10,7 @@ from nicegui import ui
 from data import _fetch_any_stock_candles
 from db import get_active_top_stocks
 from algo_strategies import detect_sma50_signals, backtest_sma50
+from backtest_metrics import net_rupees, rupees_text
 from tv_charts import render_tv_sma50_chart, flush_pending_js
 
 
@@ -139,9 +140,11 @@ def _build_sma50_content(container, label, candles):
 
         completed   = [t for t in trades if t["status"] != "Open"]
         open_trades = [t for t in trades if t["status"] == "Open"]
-        total_pnl   = sum(t["pnl"] for t in completed)
-        winners     = sum(1 for t in completed if t["pnl"] > 0)
-        losers      = sum(1 for t in completed if t["pnl"] < 0)
+        for t in trades:
+            t["pnl_rs"] = net_rupees(t)  # ₹1,00,000 position, after charges
+        total_pnl   = sum(t["pnl_rs"] or 0 for t in completed)
+        winners     = sum(1 for t in completed if (t["pnl_rs"] or 0) > 0)
+        losers      = sum(1 for t in completed if (t["pnl_rs"] or 0) < 0)
 
         ui.separator().classes("my-4")
         with ui.row().classes("gap-6 flex-wrap items-center"):
@@ -151,8 +154,8 @@ def _build_sma50_content(container, label, candles):
             _stat_card("Winners / Losers", f"{winners}W / {losers}L")
             pnl_color = "text-green-700" if total_pnl >= 0 else "text-red-700"
             _stat_card(
-                "Total P&L",
-                f"{'+' if total_pnl >= 0 else ''}{total_pnl:.2f} pts",
+                "Net P&L · ₹1L/trade",
+                rupees_text(total_pnl),
                 value_class=pnl_color,
             )
 
@@ -184,7 +187,7 @@ def _build_sma50_content(container, label, candles):
                 "SMA 50":     t["sma50"],
                 "Exit":       round(t["exit_price"], 2) if t["exit_price"] else "—",
                 "Exit Time":  exit_str or "—",
-                "P&L":        t["pnl"],
+                "P&L":        round(t["pnl_rs"]) if t["pnl_rs"] is not None else "—",
                 "Status":     t["status"],
             })
 
@@ -197,7 +200,7 @@ def _build_sma50_content(container, label, candles):
             {"name": "sma50",      "label": "SMA 50",     "field": "SMA 50",     "sortable": True, "align": "left"},
             {"name": "exit",       "label": "Exit",       "field": "Exit",       "sortable": True, "align": "left"},
             {"name": "exit_time",  "label": "Exit Time",  "field": "Exit Time",  "sortable": True, "align": "left"},
-            {"name": "pnl",        "label": "P&L",        "field": "P&L",        "sortable": True, "align": "left"},
+            {"name": "pnl",        "label": "P&L ₹",      "field": "P&L",        "sortable": True, "align": "left"},
             {"name": "status",     "label": "Status",     "field": "Status",     "sortable": True, "align": "left"},
         ]
         _cid = chart_id
@@ -219,7 +222,7 @@ def _build_sma50_content(container, label, candles):
                     color: props.value > 0 ? '#15803d' : props.value < 0 ? '#b91c1c' : '',
                     fontWeight: 'bold'
                 }">
-                    {{ props.value > 0 ? '+' : '' }}{{ props.value }}
+                    {{ typeof props.value === 'number' ? (props.value > 0 ? '+' : props.value < 0 ? '−' : '') + '₹' + Math.abs(props.value).toLocaleString('en-IN') : props.value }}
                 </span>
             </q-td>
             """,

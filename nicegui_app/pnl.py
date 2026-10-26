@@ -193,11 +193,10 @@ def send_morning_message():
 
 
 def send_daily_pnl_summary():
-    """Send intraday live-trading P&L summary at 3:30 PM on trading days.
-    Reads from _trade_store (populated by trading_engine) plus today's
-    persisted records from .trade_history.json so no trade is missed.
+    """Send intraday live-trading P&L summary at 3:30 PM on trading days, in rupees.
+    Trades come from live_trades.load_live_trades(): the engine's memory plus today's
+    persisted records from .trade_history.json, so no trade is missed.
     """
-    from state import load_trade_history
     now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
     summary_key = f"daily_pnl_{today_str}"
@@ -209,53 +208,39 @@ def send_daily_pnl_summary():
     if _is_already_sent(summary_key):
         return
 
-    # Merge in-memory trades with today's persisted trades (dedup by entry price + strategy + signal)
-    all_active, mem_completed = collect_all_trades()
-    live_names = get_live_strategy_names()
-    hist_today = [t for t in load_trade_history()
-                  if t.get("trade_date") == today_str and t.get("strategy") in live_names]
-    seen = set()
-    all_completed = list(hist_today)
-    for t in hist_today:
-        seen.add((t.get("strategy"), t.get("signal"), round(float(t.get("entry", 0)), 1)))
-    for t in mem_completed:
-        key = (t.get("strategy"), t.get("signal"), round(float(t.get("entry", 0)), 1))
-        if key not in seen:
-            all_completed.append(t)
-            seen.add(key)
+    # Same trades and maths as the Live P&L page: one position per stock and strategy,
+    # a ₹1,00,000 position per trade, net of Dhan's intraday charges.
+    from backtest_metrics import DEFAULT_SIZING, inr, rupees_text, size_trades, summarize
+    from brokerage import is_short
+    from live_trades import load_live_trades
 
-    total_realized = sum(t.get("pnl", 0) for t in all_completed)
-    total_unrealized = sum(t.get("unrealized_pnl", 0) for t in all_active)
-    total_trades = len(all_completed)
-    winners = sum(1 for t in all_completed if t.get("pnl", 0) > 0)
-    losers = sum(1 for t in all_completed if t.get("pnl", 0) < 0)
-    win_rate = (winners / total_trades * 100) if total_trades else 0
+    completed, positions, _ = load_live_trades()
+    capital = DEFAULT_SIZING["capital"]
+    today = size_trades([t for t in completed if t["trade_date"] == today_str], "capital", capital)
+    day = summarize(today)
+    total_realized = day["net"]
+    total_unrealized = 0.0
+    for t in positions:
+        qty = int(capital // float(t["entry"]))
+        total_unrealized += float(t.get("unrealized_pnl", 0) or 0) * qty
+    total_trades, winners, losers, win_rate = day["trades"], day["wins"], day["losses"], day["win_rate"]
 
-    # Per-strategy breakdown with win rate
     strat_lines = []
-    strategies = sorted(set(t.get("strategy", "Unknown") for t in all_completed))
-    for strat in strategies:
-        strat_trades = [t for t in all_completed if t.get("strategy") == strat]
-        spnl = sum(t.get("pnl", 0) for t in strat_trades)
-        sw = sum(1 for t in strat_trades if t.get("pnl", 0) > 0)
-        sl_count = sum(1 for t in strat_trades if t.get("pnl", 0) < 0)
-        swr = int(sw / len(strat_trades) * 100) if strat_trades else 0
-        emoji = "+" if spnl > 0 else ""
+    for strat in sorted({t["strategy"] for t in today}):
+        g = summarize([t for t in today if t["strategy"] == strat])
         strat_lines.append(
-            f"  {strat}: {len(strat_trades)}T | {sw}W/{sl_count}L | WR:{swr}% | PnL:{emoji}{spnl:.2f}"
+            f"  {strat}: {g['trades']}T | {g['wins']}W/{g['losses']}L | WR:{g['win_rate']:.0f}% | {rupees_text(g['net'])}"
         )
 
     # Individual trade log (max 10 trades to keep message size reasonable)
     trade_log_lines = []
-    for t in all_completed[-10:]:
-        pnl = t.get("pnl", 0)
-        sign = "+" if pnl > 0 else ""
+    for t in sorted(today, key=lambda t: t["exit_time"])[-10:]:
         status_icon = "✅" if t.get("status") == "Target Hit" else ("❌" if t.get("status") == "SL Hit" else "🔔")
+        side = "SELL" if is_short(t) else "BUY"
         trade_log_lines.append(
-            f"  {status_icon} {t.get('strategy','?')} | {t.get('signal','')[:25]} | {sign}{pnl:.2f}"
+            f"  {status_icon} {t.get('stock', '?')} {side} | {t.get('strategy', '?')} | {rupees_text(t['net'])}"
         )
 
-    emoji_total = "+" if total_realized > 0 else ""
     breakdown = "\n".join(strat_lines) if strat_lines else "  No trades today"
     trade_log = "\n".join(trade_log_lines) if trade_log_lines else "  No completed trades"
 
@@ -269,13 +254,14 @@ def send_daily_pnl_summary():
     msg = (
         f"MARKET CLOSED — DAILY SUMMARY {result_emoji}\n"
         f"{day_name}\n{'=' * 30}\n\n"
-        f"Realized P&L:   {emoji_total}{total_realized:.2f}\n"
-        f"Unrealized P&L: {total_unrealized:+.2f}\n"
+        f"Realized P&L:   {rupees_text(total_realized)} (after ₹{inr(day['charges'])} charges)\n"
+        f"Unrealized P&L: {rupees_text(total_unrealized)} ({len(positions)} open)\n"
+        f"Sizing:         ₹{inr(capital)} per trade\n"
         f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
         f"Winners/Losers: {winners}W / {losers}L\n"
         f"\nStocks Monitored: {stock_names}\n"
         f"\nStrategy Breakdown:\n{breakdown}\n\n"
-        f"Trade Log (last {min(10, len(all_completed))}):\n{trade_log}\n\n"
+        f"Trade Log (last {min(10, len(today))}):\n{trade_log}\n\n"
         f"{'=' * 30}\n"
         f"Trading session complete. See you tomorrow!"
     )
