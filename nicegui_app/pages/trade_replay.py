@@ -18,7 +18,7 @@ from nicegui import ui
 from config import now_ist
 from data import fetch_stock_candles_history, STOCK_WATCH_GROUPS
 from db import get_active_top_stocks
-from pnl import collect_all_trades
+from live_signals import get_today_signals
 from replay_engine import Plan, ReplayError, run_replay, SESSION_OPEN
 
 # Fixed hexes: Plotly can't read the theme's CSS variables. Mid-tones that read on dark and light.
@@ -79,10 +79,10 @@ def _default_entry_time() -> str:
 
 
 def _live_signals(name_to_sid: dict[str, str]) -> dict[str, dict]:
-    """label → plan fields for today's active live signals on stocks we can fetch."""
+    """label → plan fields for today's open live signals on stocks we can fetch. Blocking."""
     out = {}
     try:
-        active, _ = collect_all_trades()
+        active, _, _ = get_today_signals()
     except Exception:
         return out
     for t in active:
@@ -314,28 +314,30 @@ def render_trade_replay_tab(container):
 
     run_btn.on_click(_run)
 
-    def _reload_signals():
-        """Re-read the engine's open trades. Runs on page visit and every time the dropdown opens,
+    async def _reload_signals():
+        """Re-read today's open signals. Runs on page visit and every time the dropdown opens,
         since the engine finds new signals every 2 minutes while the page stays open."""
         nonlocal signals, stocks, name_to_sid
         latest = _stock_options()  # top stocks change during the day
         if latest != stocks:
             stocks, name_to_sid = latest, {v: k for k, v in latest.items()}
             stock_select.set_options(stocks, value=stock_select.value if stock_select.value in stocks else first_sid)
-        signals = _live_signals(name_to_sid)
+        signals = await asyncio.get_event_loop().run_in_executor(None, _live_signals, name_to_sid)
+        if signal_select.client._deleted:
+            return
         signal_select.set_options(list(signals.keys()))
         if signal_select.value not in signals:
             signal_select.set_value(None)
         placeholder = (
             f"{len(signals)} open live signal{'s' if len(signals) != 1 else ''} — pick one, or enter a plan below"
             if signals else
-            "No open live signals right now (the engine scans every 2 min in market hours)"
+            "No open live signals today"
         )
         signal_select.props(f'placeholder="{placeholder}"')
 
     signal_select.on("popup-show", _reload_signals)
 
     async def refresh():
-        _reload_signals()
+        await _reload_signals()
 
     return refresh

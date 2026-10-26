@@ -93,7 +93,6 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
         for page_id, _, _ in BACKTEST_PAGES.values():
             nav_btn_refs.pop(page_id, None)
         backtest_menu.clear()
-        backtest_exp.set_text(f"Backtest Algos · {len(rows)}")
         with backtest_menu:
             if not rows:
                 ui.label("None enabled — manage").style(_S["menu_empty"]).on(
@@ -147,7 +146,13 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             with backtest_exp:
                 backtest_menu = ui.element("div")
             _nav_button("backtest_pnl", "Backtest P&L", "analytics", icon_color="icon-amber")
-            _nav_button("trade_replay", "Trade Replay", "replay",    icon_color="icon-blue")
+
+            ui.separator().style(_S["sep"])
+
+            # TRADE TOOLS
+            _section_label("TRADE TOOLS")
+            _nav_button("trade_desk",   "Trade Desk",   "fact_check", icon_color="icon-green")
+            _nav_button("trade_replay", "Trade Replay", "replay",     icon_color="icon-blue")
 
             ui.separator().style(_S["sep"])
 

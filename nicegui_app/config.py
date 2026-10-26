@@ -39,6 +39,18 @@ LIVE_STRATEGY_ENABLED = {
     "sma50": True,
 }
 
+# ================= TRADE DESK RISK LIMITS =================
+# Used by trade_desk.py to size each live signal and PASS/BLOCK it. Nothing places orders:
+# daily limits assume every PASSED signal is taken, in signal-time order.
+RISK_LIMITS = {
+    "max_loss_per_trade": 1000,   # ₹ lost if the stop fills at the stop price; sets the quantity
+    "max_trades_per_day": 3,      # passed signals per day
+    "max_daily_loss": 3000,       # ₹, sum of the max losses of the day's passed signals
+    "min_reward_risk": 1.0,       # (target − entry) / (entry − stop), absolute
+    "no_entries_before": "09:20",
+    "no_entries_after": "15:00",  # matches algo_strategies._NO_NEW_TRADE_AFTER
+}
+
 # Trade-store prefix / dropdown key → trade["strategy"] name used in P&L
 STRATEGY_NAMES = {
     "abcd":  "ABCD",

@@ -42,6 +42,7 @@ from pages import (
     render_admin_tab,
     render_strategies_tab,
     render_trade_replay_tab,
+    render_trade_desk_tab,
     BACKTEST_PAGES,
 )
 
@@ -65,6 +66,7 @@ ALL_PAGE_IDS = [
     *(page_id for page_id, _, _ in BACKTEST_PAGES.values()),
     "backtest_pnl",
     "trade_replay",
+    "trade_desk",
     "pnl",
     "admin",
 ]
@@ -583,7 +585,7 @@ async def index():
         # is viewing the page — causing a jarring blank flash.
         _STATIC_ONCE = {
             "markets", "market_news", "top_stocks", "swing_trades", "global_markets",
-            "nifty", "banknifty", "pnl", "backtest_pnl", "admin", "strategies", "trade_replay",
+            "nifty", "banknifty", "pnl", "backtest_pnl", "admin", "strategies", "trade_replay", "trade_desk",
             *BACKTEST_PAGE_IDS,
         }
         renders = {
@@ -597,6 +599,7 @@ async def index():
             "pnl":           lambda: render_pnl_tab(page_containers["pnl"]),
             "backtest_pnl":  lambda: render_backtest_pnl_tab(page_containers["backtest_pnl"]),
             "trade_replay":  lambda: render_trade_replay_tab(page_containers["trade_replay"]),
+            "trade_desk":    lambda: render_trade_desk_tab(page_containers["trade_desk"]),
             "strategies":    lambda: render_strategies_tab(
                 page_containers["strategies"],
                 can_edit=username_from_session == "nikhil",
