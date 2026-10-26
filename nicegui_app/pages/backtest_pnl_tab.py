@@ -22,7 +22,7 @@ from algo_strategies import (
     detect_sma50_signals, backtest_sma50,
     detect_ema10_signals, backtest_ema10,
 )
-from backtest_metrics import DEFAULT_SIZING, finalize_trades, group_by, size_trades, summarize
+from backtest_metrics import DEFAULT_MODE, DEFAULT_SIZING, finalize_trades, group_by, size_trades, summarize
 from config import now_ist
 from data import _fetch_any_stock_candles
 from db import get_active_top_stocks
@@ -134,7 +134,7 @@ def render_backtest_pnl_tab(container):
     """Build the Backtest P&L tab. Returns an async refresh() closure."""
 
     st = {"key": None, "label": "", "strategy": "All", "date": "All", "stock": "All",
-          "view": "strategy", "mode": "capital", "amount": DEFAULT_SIZING["capital"], "busy": False}
+          "view": "strategy", "mode": DEFAULT_MODE, "amount": DEFAULT_SIZING[DEFAULT_MODE], "busy": False}
     data = {"trades": [], "report": {}, "stocks": [], "ran_at": None}
     cache: dict[str, dict] = {}
 

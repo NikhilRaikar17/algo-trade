@@ -58,3 +58,16 @@ def test_size_and_summary():
     assert s["net"] == pytest.approx(s["gross"] - s["charges"])
     assert s["max_drawdown"] == pytest.approx(-sized[1]["net"])  # the loss came after the only high
     assert max_drawdown([]) == 0
+
+
+def test_risk_sizing_loses_the_set_amount_at_the_stop():
+    from backtest_metrics import qty_for
+    long_ = {"entry": 500.0, "stop_loss": 495.0}               # ₹5 risk per share
+    short = {"entry": 200.0, "stop_loss": 202.5}               # ₹2.50 risk per share
+    assert qty_for(long_, "risk", 1000) == 200
+    assert qty_for(short, "risk", 1000) == 400
+    assert qty_for({"entry": 1000.0}, "risk", 1000) == 100     # no stop saved: assume 1%
+    stopped = _trade("2026-10-26 10:00", "2026-10-26 11:00", 500, 495, 510, status="SL Hit")
+    stopped["stop_loss"] = 495.0
+    t = size_trades([stopped], "risk", 1000)[0]
+    assert t["gross"] == pytest.approx(-1000)                  # exactly the max loss, before charges

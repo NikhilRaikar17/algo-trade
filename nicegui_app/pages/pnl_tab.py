@@ -11,7 +11,7 @@ from html import escape
 
 from nicegui import ui
 
-from backtest_metrics import DEFAULT_SIZING, group_by, size_trades, summarize
+from backtest_metrics import DEFAULT_MODE, DEFAULT_SIZING, group_by, qty_for, size_trades, summarize
 from brokerage import is_short
 from config import now_ist
 from live_trades import load_live_trades
@@ -27,7 +27,7 @@ def _positions_table(positions: list[dict], mode: str, amount: float) -> tuple[s
     rows, total = [], 0.0
     for t in positions:
         entry = float(t["entry"])
-        qty = int(amount // entry) if mode == "capital" else int(amount)
+        qty = qty_for(t, mode, amount)
         if qty < 1:
             continue
         short = is_short(t)
@@ -59,7 +59,7 @@ def render_pnl_tab(container):
     """Build the Live P&L tab. Returns an async refresh() closure."""
 
     st = {"strategy": "All", "date": "All", "stock": "All", "view": "strategy",
-          "mode": "capital", "amount": DEFAULT_SIZING["capital"]}
+          "mode": DEFAULT_MODE, "amount": DEFAULT_SIZING[DEFAULT_MODE]}
     data = {"completed": [], "active": [], "notes": {}, "at": None}
 
     with container:

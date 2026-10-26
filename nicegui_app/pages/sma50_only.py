@@ -141,7 +141,7 @@ def _build_sma50_content(container, label, candles):
         completed   = [t for t in trades if t["status"] != "Open"]
         open_trades = [t for t in trades if t["status"] == "Open"]
         for t in trades:
-            t["pnl_rs"] = net_rupees(t)  # ₹1,00,000 position, after charges
+            t["pnl_rs"] = net_rupees(t)  # risk ₹1,000 at the stop, after charges
         total_pnl   = sum(t["pnl_rs"] or 0 for t in completed)
         winners     = sum(1 for t in completed if (t["pnl_rs"] or 0) > 0)
         losers      = sum(1 for t in completed if (t["pnl_rs"] or 0) < 0)
@@ -154,7 +154,7 @@ def _build_sma50_content(container, label, candles):
             _stat_card("Winners / Losers", f"{winners}W / {losers}L")
             pnl_color = "text-green-700" if total_pnl >= 0 else "text-red-700"
             _stat_card(
-                "Net P&L · ₹1L/trade",
+                "Net P&L · ₹1,000 risk/trade",
                 rupees_text(total_pnl),
                 value_class=pnl_color,
             )

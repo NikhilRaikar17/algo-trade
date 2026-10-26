@@ -9,14 +9,14 @@ import talib
 
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT, now_ist
 from state import _is_already_sent, _mark_sent, _send_telegram, save_completed_trade
-from backtest_metrics import net_rupees, rupees_text
+from backtest_metrics import net_rupees, rupees_text, sizing_label
 
 _MARKET_CLOSE = _dtime(15, 30)
 
 
 def _pnl_msg(trade):
-    """Telegram P&L line in rupees: net of charges for a ₹1,00,000 position."""
-    return f"{rupees_text(net_rupees(trade))} net (₹1L position, after charges)"
+    """Telegram P&L line in rupees, net of charges, at the default sizing (risk ₹1,000 at the stop)."""
+    return f"{rupees_text(net_rupees(trade))} net ({sizing_label()}, after charges)"
 _NO_NEW_TRADE_AFTER = _dtime(15, 0)  # no new entries after 3:00 PM IST
 
 

@@ -11,12 +11,29 @@ from collections import defaultdict
 from datetime import datetime, time
 
 from brokerage import calculate_brokerage, is_short
+from config import RISK_LIMITS
 
 _CLOSE = time(15, 30)
 _CHARGE_KEYS = ("brokerage", "stt", "exchange", "gst", "sebi", "stamp")
 
-SIZING_MODES = {"capital": "₹ per trade", "shares": "Shares"}
-DEFAULT_SIZING = {"capital": 100_000, "shares": 1}
+# risk: the quantity that loses `amount` ₹ if the stop fills (as on Trade Desk) — the default.
+# capital: as many shares as `amount` ₹ buys. shares: a fixed share count.
+SIZING_MODES = {"risk": "Risk ₹", "capital": "₹ per trade", "shares": "Shares"}
+DEFAULT_SIZING = {"risk": RISK_LIMITS["max_loss_per_trade"], "capital": 100_000, "shares": 1}
+DEFAULT_MODE = "risk"
+_ASSUMED_STOP_PCT = 0.01  # risk sizing for old live records saved without a stop: assume 1%
+
+
+def qty_for(trade: dict, mode: str, amount: float) -> int:
+    """Whole shares for one trade under a sizing rule (0 = can't afford one share / no valid stop)."""
+    entry = float(trade["entry"])
+    if mode == "capital":
+        return int(amount // entry)
+    if mode == "shares":
+        return int(amount)
+    stop = trade.get("stop_loss")
+    per_share = abs(entry - float(stop)) if stop else entry * _ASSUMED_STOP_PCT
+    return int(amount // per_share) if per_share > 0 else 0
 
 
 def finalize_trades(trades: list[dict], now: datetime) -> tuple[list[dict], dict]:
@@ -53,12 +70,12 @@ def finalize_trades(trades: list[dict], now: datetime) -> tuple[list[dict], dict
 
 
 def size_trades(trades: list[dict], mode: str, amount: float) -> list[dict]:
-    """Add qty, side, gross, charges, net, capital and ret_pct to a copy of each trade.
-    capital mode buys as many whole shares as `amount` rupees allows; trades priced above it are skipped."""
+    """Add qty, side, gross, charges, net, capital and ret_pct to a copy of each trade, with the
+    quantity from qty_for(); trades that size to zero shares are skipped."""
     out = []
     for t in trades:
         entry, exit_px = float(t["entry"]), float(t["exit_price"])
-        qty = int(amount // entry) if mode == "capital" else int(amount)
+        qty = qty_for(t, mode, amount)
         if qty < 1:
             continue
         short = is_short(t)
@@ -78,9 +95,9 @@ def size_trades(trades: list[dict], mode: str, amount: float) -> list[dict]:
     return out
 
 
-def net_rupees(trade: dict, mode: str = "capital", amount: float | None = None) -> float | None:
-    """Net ₹ for one finished trade at a sizing (default ₹1,00,000 per trade); None if it has no
-    exit yet or one share costs more than the amount."""
+def net_rupees(trade: dict, mode: str = DEFAULT_MODE, amount: float | None = None) -> float | None:
+    """Net ₹ for one finished trade at a sizing (default: risk ₹1,000 at the stop); None if it has
+    no exit yet or sizes to zero shares."""
     if not trade.get("entry") or not trade.get("exit_price"):
         return None
     sized = size_trades([trade], mode, amount if amount is not None else DEFAULT_SIZING[mode])
@@ -105,6 +122,16 @@ def rupees_text(v: float | None) -> str:
     if v is None:
         return "—"
     return f"{'+' if v > 0 else '−' if v < 0 else ''}₹{inr(v)}"
+
+
+def sizing_label(mode: str = DEFAULT_MODE, amount: float | None = None) -> str:
+    """'risking ₹1,000 per trade' / '₹1,00,000 per trade' / '10 shares per trade' for messages."""
+    amount = DEFAULT_SIZING[mode] if amount is None else amount
+    if mode == "risk":
+        return f"risking ₹{inr(amount)} per trade"
+    if mode == "capital":
+        return f"₹{inr(amount)} per trade"
+    return f"{int(amount)} shares per trade"
 
 
 def _by_exit(trades):

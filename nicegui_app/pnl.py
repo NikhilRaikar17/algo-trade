@@ -209,19 +209,21 @@ def send_daily_pnl_summary():
         return
 
     # Same trades and maths as the Live P&L page: one position per stock and strategy,
-    # a ₹1,00,000 position per trade, net of Dhan's intraday charges.
-    from backtest_metrics import DEFAULT_SIZING, inr, rupees_text, size_trades, summarize
+    # sized to lose ₹1,000 at the stop (RISK_LIMITS, as on Trade Desk), net of Dhan's intraday charges.
+    from backtest_metrics import (
+        DEFAULT_MODE, DEFAULT_SIZING, inr, qty_for, rupees_text, size_trades, sizing_label, summarize,
+    )
     from brokerage import is_short
     from live_trades import load_live_trades
 
     completed, positions, _ = load_live_trades()
-    capital = DEFAULT_SIZING["capital"]
-    today = size_trades([t for t in completed if t["trade_date"] == today_str], "capital", capital)
+    amount = DEFAULT_SIZING[DEFAULT_MODE]
+    today = size_trades([t for t in completed if t["trade_date"] == today_str], DEFAULT_MODE, amount)
     day = summarize(today)
     total_realized = day["net"]
     total_unrealized = 0.0
     for t in positions:
-        qty = int(capital // float(t["entry"]))
+        qty = qty_for(t, DEFAULT_MODE, amount)
         total_unrealized += float(t.get("unrealized_pnl", 0) or 0) * qty
     total_trades, winners, losers, win_rate = day["trades"], day["wins"], day["losses"], day["win_rate"]
 
@@ -256,7 +258,7 @@ def send_daily_pnl_summary():
         f"{day_name}\n{'=' * 30}\n\n"
         f"Realized P&L:   {rupees_text(total_realized)} (after ₹{inr(day['charges'])} charges)\n"
         f"Unrealized P&L: {rupees_text(total_unrealized)} ({len(positions)} open)\n"
-        f"Sizing:         ₹{inr(capital)} per trade\n"
+        f"Sizing:         {sizing_label()}\n"
         f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
         f"Winners/Losers: {winners}W / {losers}L\n"
         f"\nStocks Monitored: {stock_names}\n"

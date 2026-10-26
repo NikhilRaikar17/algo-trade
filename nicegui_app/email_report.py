@@ -28,7 +28,7 @@ from openpyxl.utils import get_column_letter
 
 from config import now_ist, _is_trading_day
 from state import _is_already_sent, _mark_sent
-from backtest_metrics import inr, rupees_text
+from backtest_metrics import inr, rupees_text, sizing_label
 from strategy_registry import get_backtest_strategy_names
 
 # ── Colour palette ─────────────────────────────────────────────────────────────
@@ -62,10 +62,10 @@ def _fetch_all_stocks_for_report():
 
 
 def _to_rupees(trades):
-    """Size every trade at ₹1,00,000 (as the P&L pages do) and make "pnl" its net ₹ after charges.
-    The original points move to "pnl_pts"; qty, charges and capital come along from size_trades()."""
-    from backtest_metrics import DEFAULT_SIZING, size_trades   # noqa: PLC0415
-    sized = size_trades(trades, "capital", DEFAULT_SIZING["capital"])
+    """Size every trade like the P&L pages' default (lose ₹1,000 at the stop) and make "pnl" its net ₹
+    after charges. The original points move to "pnl_pts"; qty, charges and capital come from size_trades()."""
+    from backtest_metrics import DEFAULT_MODE, DEFAULT_SIZING, size_trades   # noqa: PLC0415
+    sized = size_trades(trades, DEFAULT_MODE, DEFAULT_SIZING[DEFAULT_MODE])
     for t in sized:
         t["pnl_pts"] = t["pnl"]
         t["pnl"] = round(t["net"], 2)
@@ -668,7 +668,7 @@ def send_backtest_email_report():
   </tr>
   <tr>
     <td style="padding:6px 16px 6px 0;color:#555;">Sizing</td>
-    <td style="color:#555;font-size:16px;">₹1,00,000 per trade · one position per stock and strategy</td>
+    <td style="color:#555;font-size:16px;">{sizing_label().capitalize()} · one position per stock and strategy</td>
   </tr>
 </table>
 <p>Please find the detailed Excel report attached. It contains:</p>

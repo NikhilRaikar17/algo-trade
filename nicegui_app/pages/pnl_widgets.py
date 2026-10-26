@@ -261,19 +261,25 @@ def charges_html(s: dict) -> str:
             f'<div class="row">{parts}</div></details>')
 
 
+_AMOUNT_LABEL = {"risk": "Max loss ₹ per trade", "capital": "₹ per trade", "shares": "Shares per trade"}
+_AMOUNT_STEP = {"risk": 100, "capital": 1000, "shares": 1}
+
+
 def sizing_controls(st: dict, on_change):
-    """₹-per-trade / shares toggle plus amount box. Updates st["mode"] / st["amount"], then calls on_change()."""
+    """Risk ₹ / ₹-per-trade / shares toggle plus amount box. Updates st["mode"] / st["amount"],
+    then calls on_change()."""
     with ui.element("div").classes("bt-size"):
         mode_tgl = ui.toggle(SIZING_MODES, value=st["mode"]) \
             .props("dense no-caps unelevated toggle-color=primary").classes("bt-seg")
-        amount_in = ui.number(label="₹ per trade" if st["mode"] == "capital" else "Shares per trade",
-                              value=st["amount"], min=1, step=1000, format="%.0f") \
+        amount_in = ui.number(label=_AMOUNT_LABEL[st["mode"]], value=st["amount"], min=1,
+                              step=_AMOUNT_STEP[st["mode"]], format="%.0f") \
             .props("outlined dense").classes("flex-1 min-w-[90px]")
 
     def _on_mode(e):
         st["mode"] = e.value
         st["amount"] = DEFAULT_SIZING[e.value]
-        amount_in.props["label"] = "₹ per trade" if e.value == "capital" else "Shares per trade"
+        amount_in.props["label"] = _AMOUNT_LABEL[e.value]
+        amount_in.props["step"] = _AMOUNT_STEP[e.value]
         amount_in.update()
         amount_in.set_value(st["amount"])
         on_change()
