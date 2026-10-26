@@ -141,6 +141,26 @@ def _is_trading_day(dt=None):
 ENV_FILE = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(dotenv_path=ENV_FILE, override=True)
 
+import dhan_auth
+
+_last_token_alert = 0.0
+
+
+def _token_alert(error):
+    """Telegram the token failure, at most once an hour."""
+    global _last_token_alert
+    import time
+
+    if time.time() - _last_token_alert < 3600 or not TELEGRAM_ENABLED:
+        return
+    _last_token_alert = time.time()
+    send_alert_to_all(f"⚠️ Dhan token refresh failed: {error}", RECEIVER_CHAT_IDS, BOT_TOKEN)
+
+
+if os.getenv("DHAN_TOTP_SECRET"):
+    dhan_auth.ensure_fresh_token(ENV_FILE)
+    dhan_auth.start_refresher(ENV_FILE, on_error=_token_alert)
+
 CLIENT_ID = os.getenv("DHAN_CLIENT_CODE")
 ACCESS_TOKEN = os.getenv("DHAN_TOKEN_ID")
 dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)

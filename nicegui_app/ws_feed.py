@@ -192,7 +192,10 @@ def _run_index_feed() -> None:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            feed = DhanFeed(_CLIENT_ID, _ACCESS_TOKEN, _INSTRUMENTS, version="v2")
+            # Read the token at connect time so a refreshed token is used on reconnect.
+            feed = DhanFeed(
+                _CLIENT_ID, os.getenv("DHAN_TOKEN_ID", _ACCESS_TOKEN), _INSTRUMENTS, version="v2"
+            )
             loop.run_until_complete(feed.connect())
             state.set_ws_connected(True)
             print("  [ws_feed] connected, streaming ticks...")
