@@ -43,6 +43,8 @@ LIVE_STRATEGY_ENABLED = {
 # Used by trade_desk.py to size each live signal and PASS/BLOCK it. Nothing places orders:
 # daily limits assume every PASSED signal is taken, in signal-time order.
 RISK_LIMITS = {
+    "funds": 100_000,             # ₹ cash for open positions at any moment; every day starts with it all
+                                  # free (no compounding, no intraday leverage)
     "max_loss_per_trade": 1000,   # ₹ lost if the stop fills at the stop price; sets the quantity
     "max_trades_per_day": 3,      # passed signals per day
     "max_daily_loss": 3000,       # ₹, sum of the max losses of the day's passed signals

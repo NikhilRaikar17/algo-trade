@@ -22,7 +22,7 @@ from algo_strategies import (
     detect_sma50_signals, backtest_sma50,
     detect_ema10_signals, backtest_ema10,
 )
-from backtest_metrics import DEFAULT_MODE, DEFAULT_SIZING, finalize_trades, group_by, size_trades, summarize
+from backtest_metrics import DEFAULT_FUNDS, inr, DEFAULT_MODE, DEFAULT_SIZING, finalize_trades, group_by, size_trades, summarize
 from config import now_ist
 from data import _fetch_any_stock_candles
 from db import get_active_top_stocks
@@ -134,8 +134,8 @@ def render_backtest_pnl_tab(container):
     """Build the Backtest P&L tab. Returns an async refresh() closure."""
 
     st = {"key": None, "label": "", "strategy": "All", "date": "All", "stock": "All",
-          "view": "strategy", "mode": DEFAULT_MODE, "amount": DEFAULT_SIZING[DEFAULT_MODE], "busy": False}
-    data = {"trades": [], "report": {}, "stocks": [], "ran_at": None}
+          "view": "strategy", "mode": DEFAULT_MODE, "amount": DEFAULT_SIZING[DEFAULT_MODE], "funds": DEFAULT_FUNDS, "compound": True, "busy": False}
+    data = {"trades": [], "report": {}, "stocks": [], "ran_at": None, "funds_report": {}}
     cache: dict[str, dict] = {}
 
     with container:
@@ -153,6 +153,9 @@ def render_backtest_pnl_tab(container):
             date_sel = ui.select(["All"], value="All", label="Day").props("outlined dense")
             stock_filter = ui.select(["All"], value="All", label="Stock").props("outlined dense")
             sizing_controls(st, lambda: _render())
+            ui.switch("Compound", value=True, on_change=lambda e: (st.update(compound=e.value), _render())) \
+                .tooltip("On: the funds are the starting balance and every day's net P&L (after charges) "
+                         "carries into the next. Off: every day starts with the same funds.")
         status = ui.html("").classes("bt-status mt-2 mb-3")
         body = ui.element("div").classes("w-full")
         with body:
@@ -181,8 +184,15 @@ def render_backtest_pnl_tab(container):
         skipped = [f"{n} {what}" for what, n in (("still open today", ex.get("open", 0)),
                                                   ("never filled", ex.get("no_fill", 0)),
                                                   ("overlapping an open position", ex.get("overlap", 0))) if n]
+        fr = data["funds_report"]
+        if fr.get("no_funds"):
+            skipped.append(f'{fr["no_funds"]} with no free funds')
         if skipped:
             parts.append("not counted: " + ", ".join(skipped))
+        if fr.get("cut"):
+            parts.append(f'{fr["cut"]} sized down to fit the funds')
+        if st["funds"] and st["compound"] and "end_balance" in fr:
+            parts.append(f'<b>₹{inr(st["funds"])} → ₹{inr(fr["end_balance"])}</b> compounding, after charges')
         if data["ran_at"]:
             parts.append(f"ran {data['ran_at'].strftime('%H:%M')}")
         status.set_content(" · ".join(parts))
@@ -200,7 +210,9 @@ def render_backtest_pnl_tab(container):
                 ui.html('<div class="bt-card bt-empty">No finished trades in the last 7 days for this selection.</div>')
                 return
 
-            sized_all = size_trades(data["trades"], st["mode"], st["amount"])
+            sized_all = size_trades(data["trades"], st["mode"], st["amount"], st["funds"], data["funds_report"],
+                                    compound=st["compound"])
+            _status_line()
             trades = _filtered(sized_all)
             s = summarize(trades)
             ui.html(kpi_tiles(s))
@@ -211,9 +223,15 @@ def render_backtest_pnl_tab(container):
                 return
 
             with ui.element("div").classes("bt-card w-full mt-3"):
-                ui.html('<div class="bt-h">Equity curve</div>'
-                        '<div class="bt-hs">Cumulative net P&amp;L, one point per trade. Hover a point for the trade.</div>')
-                ui.plotly(equity_figure(trades)).classes("w-full")
+                whole = len(trades) == len(sized_all) and st["funds"] and st["compound"]
+                if whole:
+                    ui.html('<div class="bt-h">Account balance</div>'
+                            '<div class="bt-hs">Starting funds plus every trade\'s net P&amp;L after charges, compounding. '
+                            'Hover a point for the trade.</div>')
+                else:
+                    ui.html('<div class="bt-h">Equity curve</div>'
+                            '<div class="bt-hs">Cumulative net P&amp;L, one point per trade. Hover a point for the trade.</div>')
+                ui.plotly(equity_figure(trades, base=st["funds"] if whole else 0)).classes("w-full")
 
             with ui.row().classes("w-full items-center justify-between mt-4 mb-2 gap-2"):
                 ui.label("Breakdown").classes("bt-h")

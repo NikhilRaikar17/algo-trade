@@ -80,6 +80,8 @@ def evaluate(rows: list[DeskRow], limits: dict) -> list[DeskRow]:
     max_loss = float(limits["max_loss_per_trade"])
     passed_count, passed_loss = 0, 0.0
     open_passed = set()  # (symbol, side) already passed and not closed
+    funds = float(limits.get("funds") or 0)  # 0 = no cash cap
+    funds_used = 0.0                         # capital of PASSED signals that are still open
 
     for r in rows:
         r.reasons, r.warnings = [], []
@@ -94,13 +96,26 @@ def evaluate(rows: list[DeskRow], limits: dict) -> list[DeskRow]:
 
         r.reward_risk = round(reward / r.risk_per_share, 2)
         r.qty = math.floor(max_loss / r.risk_per_share)
-        r.capital = round(r.qty * r.entry, 2)
-        r.max_loss = round(r.qty * r.risk_per_share, 2)
 
         if r.qty < 1:
             r.reasons.append(
                 f"one share risks ₹{r.risk_per_share:,.2f}, over your ₹{max_loss:,.0f} max loss per trade"
             )
+        elif funds:
+            # cash cap: open PASSED positions hold their capital; cut the size to what's left
+            affordable = math.floor(max(funds - funds_used, 0) / r.entry)
+            if affordable < 1:
+                r.reasons.append(
+                    f"no free funds: ₹{funds_used:,.0f} of your ₹{funds:,.0f} is in open positions"
+                )
+            elif affordable < r.qty:
+                r.warnings.append(
+                    f"size cut from {r.qty} to {affordable} shares to fit the ₹{funds:,.0f} funds "
+                    f"(risks ₹{affordable * r.risk_per_share:,.0f}, not ₹{max_loss:,.0f})"
+                )
+                r.qty = affordable
+        r.capital = round(r.qty * r.entry, 2)
+        r.max_loss = round(r.qty * r.risk_per_share, 2)
         if r.reward_risk < limits["min_reward_risk"]:
             r.reasons.append(f"reward:risk {r.reward_risk:.2f} is under your minimum {limits['min_reward_risk']:.2f}")
         t = r.signal_time.time()
@@ -131,6 +146,7 @@ def evaluate(rows: list[DeskRow], limits: dict) -> list[DeskRow]:
             passed_loss += r.max_loss
             if r.status == "Active":
                 open_passed.add((r.symbol, r.side))
+                funds_used += r.capital
     return rows
 
 

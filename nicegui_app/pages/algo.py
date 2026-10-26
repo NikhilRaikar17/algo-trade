@@ -39,6 +39,7 @@ from tv_charts import (
     render_tv_sma50_chart,
     flush_pending_js,
 )
+from pages.pnl_widgets import account_strip
 from ui_components import build_trade_table
 from strategy_registry import get_strategies, get_live_strategy_keys
 import ws_feed
@@ -283,6 +284,7 @@ def render_algo_tab(container, algo_type="abcd"):
 
     with container:
         ui.label("Live Algo Trading").classes("text-xl font-bold mb-2")
+        account_strip()
 
         with ui.row().classes("items-center gap-4 flex-wrap mb-4"):
             ui.label("Stock:").classes("text-sm font-medium text-gray-700")

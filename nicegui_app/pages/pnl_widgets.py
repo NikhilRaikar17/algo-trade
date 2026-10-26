@@ -87,6 +87,11 @@ CSS = """
   .bt-track { width:70px; height:6px; position:relative; flex-shrink:0; }
   .bt-track::before { content:''; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--at-line2); }
   .bt-fill { position:absolute; top:0; height:6px; border-radius:3px; }
+  .bt-pct { font-size:13px; font-weight:600; margin-left:6px; }
+  .bt-fundsbar { height:6px; border-radius:3px; background:color-mix(in srgb, var(--at-up) 22%, transparent);
+                 margin-top:8px; overflow:hidden; }
+  .bt-fundsbar span { display:block; height:100%; background:var(--at-warn); border-radius:3px; }
+  .bt-acct-compact { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px 22px; }
   .bt-empty { font-size:13px; color:var(--at-fg-dim); padding:28px 12px; text-align:center; }
   @media (max-width: 899px) {
     .bt-wrap { border:none; overflow:visible; }
@@ -171,22 +176,23 @@ def trades_table(trades: list[dict], show_stock: bool) -> str:
     return f'<div class="bt-wrap"><table class="bt-table"><thead>{head}</thead><tbody>{"".join(body)}</tbody></table></div>'
 
 
-def equity_figure(trades: list[dict]) -> go.Figure:
+def equity_figure(trades: list[dict], base: float = 0.0) -> go.Figure:
+    """Cumulative net P&L per trade; with base (starting funds) the line is the account balance."""
     curve = equity_curve(trades)
     xs = list(range(1, len(curve) + 1))
-    ys = [round(total, 2) for _, total in curve]
+    ys = [round(base + total, 2) for _, total in curve]
     hover = [
         f"#{i} · {t['exit_time'].strftime('%d %b' if t.get('approx_time') else '%d %b %H:%M') if hasattr(t.get('exit_time'), 'strftime') else ''}<br>"
         f"{escape(t.get('stock', ''))} · {escape(t['strategy'])}<br>"
-        f"Trade {rs(t['net'], sign=True)} · Total {rs(total, sign=True)}"
+        f"Trade {rs(t['net'], sign=True)} · " + (f"Balance {rs(base + total)}" if base else f"Total {rs(total, sign=True)}")
         for i, (t, total) in zip(xs, curve)
     ]
     fig = go.Figure(go.Scatter(
-        x=[0] + xs, y=[0] + ys, mode="lines+markers",
+        x=[0] + xs, y=[round(base, 2)] + ys, mode="lines+markers",
         line=dict(color=_LINE, width=2), marker=dict(size=6, color=_LINE),
         text=["Start"] + hover, hovertemplate="%{text}<extra></extra>",
     ))
-    fig.add_hline(y=0, line=dict(color=_INK, width=1, dash="dot"))
+    fig.add_hline(y=base, line=dict(color=_INK, width=1, dash="dot"))
     fig.update_layout(
         height=240, margin=dict(l=8, r=8, t=8, b=8), showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -234,6 +240,39 @@ def strategy_table(groups: dict, names: list[str], selected: str, on_pick):
                         cell("Net P&L", net_bar(g["net"], scale), "n")
 
 
+def account_card(a: dict, compact: bool = False) -> str:
+    """The live paper account (account.account_state()): balance, free funds, what's in open positions."""
+    used_pct = 0 if a["balance"] <= 0 else min(100, a["in_positions"] / a["balance"] * 100)
+    started = a["start"].strftime("%d %b %Y, %H:%M")
+    bar = (f'<div class="bt-fundsbar"><span style="width:{used_pct:.1f}%"></span></div>'
+           f'<div class="bt-s">{rs(a["in_positions"])} in {a["open"]} open position{"s" if a["open"] != 1 else ""}'
+           f' · {rs(a["free"])} free</div>')
+    if compact:
+        return f"""
+        <div class="bt-card bt-acct-compact">
+          <div><div class="bt-k">Paper account</div>
+            <div class="bt-v">{rs(a["balance"])} <span class="bt-pct {tone(a['return_pct'])}">{a['return_pct']:+.2f}%</span></div>
+            <div class="bt-s">started {rs(a["initial"])} on {started}</div></div>
+          <div><div class="bt-k">Free to trade</div><div class="bt-v">{rs(a["free"])}</div>{bar}</div>
+          <div><div class="bt-k">Realised, after charges</div>
+            <div class="bt-v {tone(a['realized'])}">{rs(a["realized"], sign=True)}</div>
+            <div class="bt-s">{a["trades"]} trades · charges {rs(a["charges"])}</div></div>
+        </div>"""
+    return f"""
+    <div class="bt-tiles">
+      <div class="bt-tile hero"><div class="bt-k">Account balance</div>
+        <div class="bt-v">{rs(a["balance"])} <span class="bt-pct {tone(a['return_pct'])}">{a['return_pct']:+.2f}%</span></div>
+        <div class="bt-s">started with {rs(a["initial"])} on {started} · compounding</div></div>
+      <div class="bt-tile"><div class="bt-k">Free to trade</div><div class="bt-v">{rs(a["free"])}</div>{bar}</div>
+      <div class="bt-tile"><div class="bt-k">Realised P&amp;L</div>
+        <div class="bt-v {tone(a['realized'])}">{rs(a["realized"], sign=True)}</div>
+        <div class="bt-s">gross {rs(a["gross"], sign=True)} − brokerage &amp; taxes {rs(a["charges"])}</div></div>
+      <div class="bt-tile"><div class="bt-k">Unrealised</div>
+        <div class="bt-v {tone(a['unrealized'])}">{rs(a["unrealized"], sign=True)}</div>
+        <div class="bt-s">{a["open"]} open, before charges</div></div>
+    </div>"""
+
+
 def kpi_tiles(s: dict) -> str:
     avg_cap = f" · avg {rs(s['capital'])} per trade" if s["trades"] else ""
     return f"""
@@ -266,14 +305,28 @@ _AMOUNT_STEP = {"risk": 100, "capital": 1000, "shares": 1}
 
 
 def sizing_controls(st: dict, on_change):
-    """Risk ₹ / ₹-per-trade / shares toggle plus amount box. Updates st["mode"] / st["amount"],
-    then calls on_change()."""
+    """Risk ₹ / ₹-per-trade / shares toggle, amount box and funds box. Updates st["mode"] /
+    st["amount"] / st["funds"], then calls on_change()."""
     with ui.element("div").classes("bt-size"):
         mode_tgl = ui.toggle(SIZING_MODES, value=st["mode"]) \
             .props("dense no-caps unelevated toggle-color=primary").classes("bt-seg")
         amount_in = ui.number(label=_AMOUNT_LABEL[st["mode"]], value=st["amount"], min=1,
                               step=_AMOUNT_STEP[st["mode"]], format="%.0f") \
             .props("outlined dense").classes("flex-1 min-w-[90px]")
+        funds_in = ui.number(label="Funds ₹", value=st["funds"], min=0, step=10_000, format="%.0f") \
+            .props("outlined dense").classes("flex-1 min-w-[100px]") \
+            .tooltip("Cash for open positions at any moment (the starting balance when compounding). 0 = no limit.")
+
+    def _on_funds(e):
+        try:
+            v = max(0, int(e.value or 0))
+        except (TypeError, ValueError):
+            return
+        if v != st["funds"]:
+            st["funds"] = v
+            on_change()
+
+    funds_in.on_value_change(_on_funds)
 
     def _on_mode(e):
         st["mode"] = e.value
@@ -295,3 +348,30 @@ def sizing_controls(st: dict, on_change):
 
     mode_tgl.on_value_change(_on_mode)
     amount_in.on_value_change(_on_amount)
+
+
+def account_strip(refresh_seconds: int = 60):
+    """Compact paper-account card (balance, free funds, realised after charges) that keeps itself up
+    to date — for pages that aren't about P&L, like Live Algos."""
+    import asyncio  # noqa: PLC0415
+
+    from account import current_state  # noqa: PLC0415 — account → live_trades → pnl: keep page imports light
+
+    ui.add_head_html(CSS)
+    box = ui.element("div").classes("w-full mb-3")
+
+    async def _update():
+        if box.client._deleted or not box.visible:
+            return
+        try:
+            state = await asyncio.get_event_loop().run_in_executor(None, current_state)
+        except Exception as e:  # the strip must never break the page under it
+            print(f"  [account_strip] {e}")
+            return
+        box.clear()
+        with box:
+            ui.html(account_card(state, compact=True))
+
+    ui.timer(0.1, _update, once=True)
+    ui.timer(refresh_seconds, _update)
+    return box

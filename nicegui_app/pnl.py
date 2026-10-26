@@ -208,23 +208,20 @@ def send_daily_pnl_summary():
     if _is_already_sent(summary_key):
         return
 
-    # Same trades and maths as the Live P&L page: one position per stock and strategy,
-    # sized to lose ₹1,000 at the stop (RISK_LIMITS, as on Trade Desk), net of Dhan's intraday charges.
-    from backtest_metrics import (
-        DEFAULT_MODE, DEFAULT_SIZING, inr, qty_for, rupees_text, size_trades, sizing_label, summarize,
-    )
+    # Same trades and maths as the Live P&L page: the paper account (account.py) — one position per
+    # stock and strategy, sized to lose ₹1,000 at the stop, cut to the free balance, compounding,
+    # net of brokerage and taxes.
+    from account import account_state
+    from backtest_metrics import inr, rupees_text, sizing_label, summarize
     from brokerage import is_short
     from live_trades import load_live_trades
 
     completed, positions, _ = load_live_trades()
-    amount = DEFAULT_SIZING[DEFAULT_MODE]
-    today = size_trades([t for t in completed if t["trade_date"] == today_str], DEFAULT_MODE, amount)
+    acct = account_state(completed, positions)
+    today = [t for t in acct["sized"] if t["trade_date"] == today_str]
     day = summarize(today)
     total_realized = day["net"]
-    total_unrealized = 0.0
-    for t in positions:
-        qty = qty_for(t, DEFAULT_MODE, amount)
-        total_unrealized += float(t.get("unrealized_pnl", 0) or 0) * qty
+    total_unrealized = acct["unrealized"]
     total_trades, winners, losers, win_rate = day["trades"], day["wins"], day["losses"], day["win_rate"]
 
     strat_lines = []
@@ -257,8 +254,11 @@ def send_daily_pnl_summary():
         f"MARKET CLOSED — DAILY SUMMARY {result_emoji}\n"
         f"{day_name}\n{'=' * 30}\n\n"
         f"Realized P&L:   {rupees_text(total_realized)} (after ₹{inr(day['charges'])} charges)\n"
-        f"Unrealized P&L: {rupees_text(total_unrealized)} ({len(positions)} open)\n"
-        f"Sizing:         {sizing_label()}\n"
+        f"Unrealized P&L: {rupees_text(total_unrealized)} ({acct['open']} open)\n"
+        f"Account:        ₹{inr(acct['balance'])} ({acct['return_pct']:+.2f}% since "
+        f"{acct['start']:%d %b}, started ₹{inr(acct['initial'])})\n"
+        f"Free funds:     ₹{inr(acct['free'])}\n"
+        f"Sizing:         {sizing_label(funds=None)}, compounding\n"
         f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
         f"Winners/Losers: {winners}W / {losers}L\n"
         f"\nStocks Monitored: {stock_names}\n"

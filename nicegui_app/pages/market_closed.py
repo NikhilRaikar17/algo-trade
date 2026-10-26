@@ -8,8 +8,9 @@ from config import now_ist, is_nse_holiday
 from state import get_next_market_open
 
 
-def render_market_closed(container):
-    """Build the market-closed countdown view inside container."""
+def render_market_closed(container, show_account: bool = False):
+    """Build the market-closed countdown view inside container (with the paper account above it
+    when show_account — the Live Algos page)."""
     ist_now = now_ist()
     if is_nse_holiday(ist_now):
         close_reason = "NSE Holiday"
@@ -21,6 +22,9 @@ def render_market_closed(container):
     next_open = get_next_market_open()
 
     with container:
+        if show_account:
+            from pages.pnl_widgets import account_strip  # noqa: PLC0415
+            account_strip()
         with ui.element("div").classes(
             "w-full flex flex-col items-center justify-center py-10 sm:py-20 px-4"
         ):

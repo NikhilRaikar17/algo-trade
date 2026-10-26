@@ -637,7 +637,7 @@ async def index():
         if market_open:
             refresh_fns["algo"] = render_algo_tab(page_containers["algo"])
         else:
-            render_market_closed(page_containers["algo"])
+            render_market_closed(page_containers["algo"], show_account=True)
             refresh_fns.pop("algo", None)
 
     async def full_refresh():

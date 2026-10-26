@@ -15,6 +15,8 @@ from datetime import time
 
 from nicegui import ui
 
+from account import current_state
+from backtest_metrics import inr
 from config import RISK_LIMITS, now_ist
 from data import fetch_stock_candles_history
 from live_signals import get_today_signals
@@ -86,7 +88,14 @@ def render_trade_desk_tab(container):
     history_cache: dict[tuple, object] = {}  # (security_id, date) → candles DataFrame
     state = {"busy": False, "rows": []}
 
-    lim = RISK_LIMITS
+    lim = dict(RISK_LIMITS)  # "funds" is replaced by the paper account's balance on every refresh
+
+    def _limits_text():
+        return (f"LIMITS · funds ₹{inr(lim['funds'])} (account balance) · max loss ₹{lim['max_loss_per_trade']:,}/trade · "
+                f"{lim['max_trades_per_day']} trades/day · "
+                f"₹{lim['max_daily_loss']:,}/day · reward:risk ≥ {lim['min_reward_risk']} · "
+                f"entries {lim['no_entries_before']}–{lim['no_entries_after']} · edit in config.RISK_LIMITS")
+
     with container:
         ui.add_head_html(_CSS)
         ui.label("Trade Desk").classes("text-xl font-bold mb-1")
@@ -94,11 +103,7 @@ def render_trade_desk_tab(container):
             "Today's live signals with their odds, a suggested size and a risk check. "
             "Nothing is placed: you trade in Dhan. Daily limits assume you take every PASSED signal, in order."
         ).classes("text-sm text-gray-500 mb-1")
-        ui.label(
-            f"LIMITS · max loss ₹{lim['max_loss_per_trade']:,}/trade · {lim['max_trades_per_day']} trades/day · "
-            f"₹{lim['max_daily_loss']:,}/day · reward:risk ≥ {lim['min_reward_risk']} · "
-            f"entries {lim['no_entries_before']}–{lim['no_entries_after']} · edit in config.RISK_LIMITS"
-        ).classes("td-limits mb-3")
+        limits_lbl = ui.label(_limits_text()).classes("td-limits mb-3")
         tiles = ui.element("div").classes("w-full mb-3")
         table_box = ui.element("div").classes("w-full")
         status = ui.label("").classes("td-foot")
@@ -117,7 +122,7 @@ def render_trade_desk_tab(container):
               <div class="td-tile"><div class="td-k">Loss at risk</div><div class="td-v">₹{s['loss_used']:,.0f}</div>
                 <div class="td-s">of ₹{s['loss_limit']:,} daily limit</div></div>
               <div class="td-tile"><div class="td-k">Capital in passed</div><div class="td-v">₹{s['capital_passed']:,.0f}</div>
-                <div class="td-s">qty × entry, before leverage</div></div>
+                <div class="td-s">qty × entry · funds ₹{inr(lim['funds'])}</div></div>
             </div>""")
 
         table_box.clear()
@@ -196,9 +201,15 @@ def render_trade_desk_tab(container):
             return
         state["busy"] = True
         try:
-            active, completed, source = await asyncio.get_event_loop().run_in_executor(None, get_today_signals)
+            loop = asyncio.get_event_loop()
+            active, completed, source = await loop.run_in_executor(None, get_today_signals)
+            try:
+                lim["funds"] = (await loop.run_in_executor(None, current_state))["balance"]
+            except Exception as e:  # keep the last known funds rather than block the desk
+                print(f"  [trade_desk] account: {e}")
             if container.client._deleted:
                 return
+            limits_lbl.set_text(_limits_text())
             state["rows"] = evaluate(build_rows(active, completed), lim)
             _render()
             status.set_text(f"Updated {now_ist():%H:%M:%S} · source: {source} · refreshes every {_REFRESH_SECONDS}s "

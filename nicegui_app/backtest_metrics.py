@@ -21,6 +21,7 @@ _CHARGE_KEYS = ("brokerage", "stt", "exchange", "gst", "sebi", "stamp")
 SIZING_MODES = {"risk": "Risk ₹", "capital": "₹ per trade", "shares": "Shares"}
 DEFAULT_SIZING = {"risk": RISK_LIMITS["max_loss_per_trade"], "capital": 100_000, "shares": 1}
 DEFAULT_MODE = "risk"
+DEFAULT_FUNDS = RISK_LIMITS["funds"]  # cash for open positions; each day starts with all of it free
 _ASSUMED_STOP_PCT = 0.01  # risk sizing for old live records saved without a stop: assume 1%
 
 
@@ -69,15 +70,49 @@ def finalize_trades(trades: list[dict], now: datetime) -> tuple[list[dict], dict
     return kept, excluded
 
 
-def size_trades(trades: list[dict], mode: str, amount: float) -> list[dict]:
+def size_trades(trades: list[dict], mode: str, amount: float, funds: float | None = None,
+                report: dict | None = None, compound: bool = False) -> list[dict]:
     """Add qty, side, gross, charges, net, capital and ret_pct to a copy of each trade, with the
-    quantity from qty_for(); trades that size to zero shares are skipped."""
+    quantity from qty_for(); trades that size to zero shares are skipped.
+
+    funds: cash available for open positions. Each day starts with all of it free; trades are taken
+    in entry order, an open position holds its capital until its exit, and a trade's quantity is cut
+    to what the free cash buys (skipped if not one share). Trades without real times (old live
+    records) are only capped by the funds, not sequenced.
+    compound: each day opens with funds + the net P&L (after charges) of every earlier day instead
+    of the same funds every day.
+    report gets "no_funds" and "cut" counts and, with funds, "end_balance" and "day_open" {date: ₹}."""
+    report = report if report is not None else {}
+    report.update(no_funds=0, cut=0, day_open={})
+    holding: list[tuple] = []  # (exit_time, capital) of positions open today
+    day, day_funds = None, funds
     out = []
-    for t in trades:
+    ordered = sorted(trades, key=lambda t: t["time"]) if funds and len(trades) > 1 else trades
+    for t in ordered:
         entry, exit_px = float(t["entry"]), float(t["exit_price"])
         qty = qty_for(t, mode, amount)
         if qty < 1:
             continue
+        if funds:
+            when = t.get("time")  # a lone live trade (net_rupees) may not carry one
+            if when is not None and when.date() != day:
+                day, holding = when.date(), []
+                day_funds = funds + (sum(x["net"] for x in out) if compound else 0)
+                report["day_open"][day] = day_funds
+            if t.get("approx_time"):
+                free = day_funds
+            else:
+                holding = [(x, c) for x, c in holding if x > t["time"]]  # positions closed by now free up
+                free = day_funds - sum(c for _, c in holding)
+            affordable = int(max(free, 0) // entry)
+            if affordable < 1:
+                report["no_funds"] += 1
+                continue
+            if affordable < qty:
+                qty = affordable
+                report["cut"] += 1
+            if not t.get("approx_time"):
+                holding.append((t.get("exit_time") or t["time"], entry * qty))
         short = is_short(t)
         b = calculate_brokerage(entry, exit_px, lot_size=1, quantity=qty, segment="equity_intraday", short=short)
         capital = entry * qty
@@ -89,18 +124,38 @@ def size_trades(trades: list[dict], mode: str, amount: float) -> list[dict]:
             "charges": b["total_charges"],
             "net": b["net_pnl"],
             "capital": capital,
+            "funds_cut": qty < qty_for(t, mode, amount),
             "ret_pct": b["net_pnl"] / capital * 100,
             "charge_parts": {k: b[k] for k in _CHARGE_KEYS},
         })
+    if funds:
+        report["end_balance"] = funds + (sum(x["net"] for x in out) if compound else 0)
     return out
 
 
-def net_rupees(trade: dict, mode: str = DEFAULT_MODE, amount: float | None = None) -> float | None:
-    """Net ₹ for one finished trade at a sizing (default: risk ₹1,000 at the stop); None if it has
-    no exit yet or sizes to zero shares."""
+def size_open_positions(positions: list[dict], mode: str, amount: float,
+                        funds: float | None = DEFAULT_FUNDS) -> list[tuple[dict, int]]:
+    """[(position, qty)] for positions open right now, oldest first: each is sized by the rule and cut
+    to the funds the earlier ones leave free (qty 0 = no funds left for it)."""
+    used, out = 0.0, []
+    for t in sorted(positions, key=lambda t: t["time"]):
+        entry = float(t["entry"])
+        qty = qty_for(t, mode, amount)
+        if funds:
+            qty = min(qty, int(max(funds - used, 0) // entry))
+        used += qty * entry
+        out.append((t, max(qty, 0)))
+    return out
+
+
+def net_rupees(trade: dict, mode: str = DEFAULT_MODE, amount: float | None = None,
+               funds: float | None = DEFAULT_FUNDS) -> float | None:
+    """Net ₹ for one finished trade at a sizing (default: risk ₹1,000 at the stop, at most the
+    funds); None if it has no exit yet or sizes to zero shares."""
     if not trade.get("entry") or not trade.get("exit_price"):
         return None
-    sized = size_trades([trade], mode, amount if amount is not None else DEFAULT_SIZING[mode])
+    one = {**trade, "approx_time": True}  # on its own: capped by the funds, nothing to sequence
+    sized = size_trades([one], mode, amount if amount is not None else DEFAULT_SIZING[mode], funds)
     return sized[0]["net"] if sized else None
 
 
@@ -124,14 +179,17 @@ def rupees_text(v: float | None) -> str:
     return f"{'+' if v > 0 else '−' if v < 0 else ''}₹{inr(v)}"
 
 
-def sizing_label(mode: str = DEFAULT_MODE, amount: float | None = None) -> str:
-    """'risking ₹1,000 per trade' / '₹1,00,000 per trade' / '10 shares per trade' for messages."""
+def sizing_label(mode: str = DEFAULT_MODE, amount: float | None = None,
+                 funds: float | None = DEFAULT_FUNDS) -> str:
+    """'risking ₹1,000 per trade, ₹1,00,000 funds' and the like, for messages."""
     amount = DEFAULT_SIZING[mode] if amount is None else amount
     if mode == "risk":
-        return f"risking ₹{inr(amount)} per trade"
-    if mode == "capital":
-        return f"₹{inr(amount)} per trade"
-    return f"{int(amount)} shares per trade"
+        label = f"risking ₹{inr(amount)} per trade"
+    elif mode == "capital":
+        label = f"₹{inr(amount)} per trade"
+    else:
+        label = f"{int(amount)} shares per trade"
+    return label + (f", ₹{inr(funds)} funds" if funds else "")
 
 
 def _by_exit(trades):

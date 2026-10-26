@@ -64,8 +64,8 @@ def _fetch_all_stocks_for_report():
 def _to_rupees(trades):
     """Size every trade like the P&L pages' default (lose ₹1,000 at the stop) and make "pnl" its net ₹
     after charges. The original points move to "pnl_pts"; qty, charges and capital come from size_trades()."""
-    from backtest_metrics import DEFAULT_MODE, DEFAULT_SIZING, size_trades   # noqa: PLC0415
-    sized = size_trades(trades, DEFAULT_MODE, DEFAULT_SIZING[DEFAULT_MODE])
+    from backtest_metrics import DEFAULT_FUNDS, DEFAULT_MODE, DEFAULT_SIZING, size_trades   # noqa: PLC0415
+    sized = size_trades(trades, DEFAULT_MODE, DEFAULT_SIZING[DEFAULT_MODE], DEFAULT_FUNDS, compound=True)
     for t in sized:
         t["pnl_pts"] = t["pnl"]
         t["pnl"] = round(t["net"], 2)
@@ -668,7 +668,7 @@ def send_backtest_email_report():
   </tr>
   <tr>
     <td style="padding:6px 16px 6px 0;color:#555;">Sizing</td>
-    <td style="color:#555;font-size:16px;">{sizing_label().capitalize()} · one position per stock and strategy</td>
+    <td style="color:#555;font-size:16px;">{sizing_label().capitalize()}, compounding · one position per stock and strategy</td>
   </tr>
 </table>
 <p>Please find the detailed Excel report attached. It contains:</p>
