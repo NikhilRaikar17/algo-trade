@@ -91,30 +91,30 @@ async def _start_scheduler():
 
     async def _top_stocks_loop():
         """Fetch & cache top stocks (NIFTY 50) every 5 minutes during market hours — the only writer.
-        Once market closes and data is cached, the loop exits — prices don't
-        change after 3:30 PM IST so there's nothing to refresh."""
+        After the close it ranks once more on closing prices, then idles (the list stays static
+        overnight) and resumes at the next market open. It never exits: an earlier version
+        returned after the close, so a server left running kept yesterday's list all next day."""
         from pages.top_stocks import _fetch_top_stocks
         from state import _cache_set, _cache_get_stable, is_market_open
+
+        async def _rank(reason):
+            gainers, losers, meta = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_stocks)
+            _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers, "meta": meta})
+            print(f"  [top_stocks_bg] {reason}: {meta['fetched']}/{meta['universe']} ranked, "
+                  f"{len(gainers)} gainers, {len(losers)} losers")
+
+        was_open = False
         while True:
             try:
                 if is_market_open():
-                    gainers, losers, meta = await asyncio.get_event_loop().run_in_executor(
-                        None, _fetch_top_stocks
-                    )
-                    _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers, "meta": meta})
-                    print(f"  [top_stocks_bg] {meta['fetched']}/{meta['universe']} ranked: "
-                          f"{len(gainers)} gainers, {len(losers)} losers")
-                else:
-                    if _cache_get_stable("top_stocks_data") is None:
-                        # App started outside market hours — do one fetch so the page has data
-                        gainers, losers, meta = await asyncio.get_event_loop().run_in_executor(
-                            None, _fetch_top_stocks
-                        )
-                        _cache_set("top_stocks_data", {"gainers": gainers, "losers": losers, "meta": meta})
-                        print(f"  [top_stocks_bg] one-time fetch (market closed): {meta['fetched']}/{meta['universe']} ranked")
-                    else:
-                        print("  [top_stocks_bg] market closed & data cached — loop exiting")
-                        return  # prices won't change, no point looping further
+                    await _rank("market open")
+                    was_open = True
+                elif was_open:
+                    await _rank("final ranking on closing prices")
+                    was_open = False
+                elif _cache_get_stable("top_stocks_data") is None:
+                    await _rank("app started outside market hours")
+                # else: market closed and the closing list is cached — idle until the open
             except Exception as e:
                 print(f"  [top_stocks_bg error] {e}")
             await asyncio.sleep(300)  # check every 5 minutes
