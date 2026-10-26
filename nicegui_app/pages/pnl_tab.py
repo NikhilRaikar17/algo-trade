@@ -1,336 +1,265 @@
 """
-P&L summary tab — day-wise breakdown with strategy filter.
+Live P&L — what the live engine's trades made, after charges, for the strategies switched on for Live.
+
+Completed trades come from .trade_history.json (state.save_completed_trade) plus any of today's
+that are still only in the engine's memory; open positions come from the engine. The maths is the
+same as Backtest P&L (backtest_metrics): one position per stock and strategy, sized by ₹ per trade
+or shares, net of Dhan's intraday charges.
 """
 
-from collections import defaultdict
+from datetime import datetime
+from html import escape
 
+import pandas as pd
 from nicegui import ui
 
-from config import now_ist
+from backtest_metrics import DEFAULT_SIZING, finalize_trades, group_by, size_trades, summarize
+from brokerage import is_short
+from config import IST, now_ist
+from pages.pnl_widgets import (
+    CSS, charges_html, equity_figure, kpi_tiles, rs, sizing_controls, strategy_table, summary_table, td, tone,
+    trades_table,
+)
 from pnl import collect_all_trades
 from state import load_trade_history
-from ui_components import build_trade_table
-from brokerage import charges_for_trades
 from strategy_registry import get_live_strategy_names
 
 
+def _to_ts(v):
+    if v is None or v == "":
+        return None
+    try:
+        ts = pd.Timestamp(v)
+    except (TypeError, ValueError):
+        return None
+    return ts.tz_localize(IST) if ts.tzinfo is None else ts
+
+
+def _normalize(t: dict) -> dict:
+    """Copy of a live trade with stock / time / exit_time / trade_date filled in. Records saved before
+    times were stored get the session open/close and approx_time=True (no overlap check, no clock time)."""
+    r = dict(t)
+    r["stock"] = r.get("symbol") or r.get("stock") or ""
+    entry_t = _to_ts(r.get("time") or (r.get("D") or {}).get("time"))
+    exit_t = _to_ts(r.get("exit_time"))
+    if entry_t is None or exit_t is None:
+        day = pd.Timestamp(r.get("trade_date") or now_ist().strftime("%Y-%m-%d")).tz_localize(IST)
+        entry_t = entry_t or day + pd.Timedelta(hours=9, minutes=15)
+        exit_t = exit_t or day + pd.Timedelta(hours=15, minutes=30)
+        r["approx_time"] = True
+    r["time"], r["exit_time"] = entry_t, exit_t
+    r["trade_date"] = r.get("trade_date") or entry_t.strftime("%Y-%m-%d")
+    return r
+
+
+def _merge_completed(mem_completed, hist_completed):
+    """History is the record; add today's in-memory trades that aren't saved yet (whole trade kept)."""
+    result = list(hist_completed)
+    today = now_ist().strftime("%Y-%m-%d")
+    for t in mem_completed:
+        saved = any(
+            r.get("strategy") == t.get("strategy") and r.get("symbol") == t.get("symbol")
+            and str(r.get("signal")) == str(t.get("signal"))
+            and abs(float(r.get("entry", 0)) - float(t.get("entry", 0))) < 0.01
+            for r in hist_completed
+        )
+        if not saved:
+            result.append({**t, "trade_date": t.get("trade_date") or today})
+    return result
+
+
+def _open_positions(active: list[dict], completed: list[dict]) -> tuple[list[dict], int]:
+    """Active signals an account would actually hold: the first per stock and strategy, and only if
+    no counted trade on that stock/strategy was still open at that moment. → (kept, overlapping)."""
+    busy: dict[tuple, list] = {}
+    for t in completed:
+        if not t.get("approx_time"):
+            busy.setdefault((t["stock"], t["strategy"]), []).append((t["time"], t["exit_time"]))
+    kept, overlap, holding = [], 0, set()
+    for t in sorted(active, key=lambda t: t["time"]):
+        lane = (t["stock"], t["strategy"])
+        if lane in holding or any(s <= t["time"] < e for s, e in busy.get(lane, [])):
+            overlap += 1
+            continue
+        holding.add(lane)
+        kept.append(t)
+    return kept, overlap
+
+
+def _positions_table(positions: list[dict], mode: str, amount: float) -> tuple[str, float]:
+    """(table html, total unrealised ₹ before charges)."""
+    rows, total = [], 0.0
+    for t in positions:
+        entry = float(t["entry"])
+        qty = int(amount // entry) if mode == "capital" else int(amount)
+        if qty < 1:
+            continue
+        short = is_short(t)
+        upts = float(t.get("unrealized_pnl", 0) or 0)
+        ltp = entry - upts if short else entry + upts
+        u = upts * qty
+        total += u
+        side = "SELL" if short else "BUY"
+        rows.append(
+            "<tr>"
+            + td("Stock", f'{escape(t["stock"])} <span class="bt-dim">· {escape(t["strategy"])}</span>', "wide")
+            + td("Side", f'<b class="{"bt-down" if short else "bt-up"}">{side}</b>')
+            + td("Since", t["time"].strftime("%H:%M"), "n")
+            + td("Qty", f"{qty:,}", "n")
+            + td("Entry ₹", f"{entry:,.2f}", "n")
+            + td("Now ₹", f"{ltp:,.2f}", "n")
+            + td("Target", f'{float(t["target"]):,.2f}' if t.get("target") else "—", "n bt-dim")
+            + td("Stop", f'{float(t["stop_loss"]):,.2f}' if t.get("stop_loss") else "—", "n bt-dim")
+            + td("Unrealised", f"<b>{rs(u, sign=True)}</b>", f"n {tone(u)}")
+            + "</tr>"
+        )
+    head = ('<tr><th>Stock</th><th>Side</th><th class="n">Since</th><th class="n">Qty</th><th class="n">Entry ₹</th>'
+            '<th class="n">Now ₹</th><th class="n">Target</th><th class="n">Stop</th><th class="n">Unrealised</th></tr>')
+    html = f'<div class="bt-wrap"><table class="bt-table"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>'
+    return html, total
+
 
 def render_pnl_tab(container):
-    """Build the P&L summary tab. Returns an async refresh() closure."""
+    """Build the Live P&L tab. Returns an async refresh() closure."""
+
+    st = {"strategy": "All", "date": "All", "stock": "All", "view": "strategy",
+          "mode": "capital", "amount": DEFAULT_SIZING["capital"]}
+    data = {"completed": [], "active": [], "notes": {}, "at": None}
 
     with container:
-        ui.label("Profit / Loss — All Strategies").classes("text-xl font-bold mb-3")
-        filter_row = ui.element("div").classes("w-full mb-2")
-        summary_container = ui.element("div").classes("w-full")
+        ui.add_head_html(CSS)
+        with ui.row().classes("w-full items-end justify-between gap-2 mb-1"):
+            with ui.column().classes("gap-0"):
+                ui.label("Live P&L").classes("text-xl font-bold")
+                ui.label("Trades from the live engine · strategies switched on for Live · "
+                         "after Dhan intraday charges · nothing here is a real order").classes("bt-sub")
+            refresh_btn = ui.button("Refresh", icon="refresh").props("flat dense no-caps")
 
-    # Mutable filter state shared between refresh() and event handlers
-    _state = {"strategy": "All", "date": "All", "stock": "All"}
-    # Latest fetched data (updated each refresh cycle)
-    _data = {"completed": [], "active": []}
+        with ui.element("div").classes("bt-bar w-full mt-3"):
+            strat_sel = ui.select(["All"], value="All", label="Strategy").props("outlined dense")
+            date_sel = ui.select(["All"], value="All", label="Day").props("outlined dense")
+            stock_sel = ui.select(["All"], value="All", label="Stock").props("outlined dense")
+            sizing_controls(st, lambda: _render())
+        status = ui.html("").classes("bt-status mt-2 mb-3")
+        body = ui.element("div").classes("w-full")
 
-    # ── helpers ──────────────────────────────────────────────────────────────
-
-    def _merge_completed(mem_completed, hist_completed):
-        """Return hist as primary; append any in-memory trades not yet persisted."""
-        today = now_ist().strftime("%Y-%m-%d")
-        result = list(hist_completed)
-        for t in mem_completed:
-            strat = t.get("strategy", "Unknown")
-            signal = str(t.get("signal", ""))
-            entry = float(t.get("entry", 0))
-            already = any(
-                r.get("strategy") == strat
-                and r.get("signal") == signal
-                and abs(float(r.get("entry", 0)) - entry) < 0.01
-                for r in hist_completed
-            )
-            if not already:
-                result.append({
-                    "trade_date": today,
-                    "strategy": strat,
-                    "signal": signal,
-                    "entry": entry,
-                    "exit_price": float(t.get("exit_price", 0)),
-                    "pnl": float(t.get("pnl", 0)),
-                    "status": str(t.get("status", "")),
-                })
-        return result
-
-    def _apply_filters(completed):
-        out = completed
-        if _state["strategy"] != "All":
-            out = [t for t in out if t.get("strategy") == _state["strategy"]]
-        if _state["date"] != "All":
-            out = [t for t in out if t.get("trade_date") == _state["date"]]
-        if _state["stock"] != "All":
-            out = [t for t in out if t.get("symbol") == _state["stock"]]
+    def _filtered(trades, *, strategy=True, date=True):
+        out = trades
+        if strategy and st["strategy"] != "All":
+            out = [t for t in out if t["strategy"] == st["strategy"]]
+        if date and st["date"] != "All":
+            out = [t for t in out if t["trade_date"] == st["date"]]
+        if st["stock"] != "All":
+            out = [t for t in out if t["stock"] == st["stock"]]
         return out
 
-    # ── main render ──────────────────────────────────────────────────────────
+    def _status_line():
+        n, parts = data["notes"], []
+        parts.append(f"<b>{len(data['completed'])}</b> closed trades counted")
+        skipped = [f"{v} {what}" for what, v in (("overlapping an open position", n.get("overlap", 0)),
+                                                  ("with no exit price", n.get("broken", 0))) if v]
+        if skipped:
+            parts.append("not counted: " + ", ".join(skipped))
+        if n.get("approx"):
+            parts.append(f"{n['approx']} older trades saved without times")
+        if data["at"]:
+            parts.append(f"updated {data['at'].strftime('%H:%M')}")
+        status.set_content(" · ".join(parts))
 
     def _render():
-        completed = _data["completed"]
-        active = _data["active"]
-        filtered = _apply_filters(completed)
+        _status_line()
+        body.clear()
+        with body:
+            if not get_live_strategy_names():
+                ui.html('<div class="bt-card bt-empty">No strategies are switched on for Live. '
+                        'Turn some on in <b>Strategies</b>.</div>')
+                return
 
-        summary_container.clear()
-        with summary_container:
+            positions = _filtered(data["active"], date=False)
+            if positions:
+                html, unreal = _positions_table(positions, st["mode"], st["amount"])
+                with ui.element("div").classes("bt-card w-full mb-3"):
+                    ui.html(f'<div class="bt-h">Open now · <span class="{tone(unreal)}">{rs(unreal, sign=True)}</span> '
+                            f'unrealised</div><div class="bt-hs">{len(positions)} position'
+                            f'{"s" if len(positions) != 1 else ""}, before charges. Not in the totals below until closed.</div>')
+                    ui.html(html)
 
-            # ── Summary cards ──────────────────────────────────────────────
-            total_pnl = sum(t.get("pnl", 0) for t in filtered)
-            total_trades = len(filtered)
-            winners = sum(1 for t in filtered if t.get("pnl", 0) > 0)
-            losers = sum(1 for t in filtered if t.get("pnl", 0) < 0)
-            win_rate = (winners / total_trades * 100) if total_trades else 0
+            if not data["completed"]:
+                ui.html('<div class="bt-card bt-empty">No closed live trades yet.</div>')
+                return
 
-            # Brokerage calculation (equity intraday, 1 share per trade)
-            charges = charges_for_trades(filtered, lot_size=1, quantity=1, segment="equity_intraday")
-            gross_pnl = charges["gross_pnl"]
-            total_charges = charges["total_charges"]
-            net_pnl = charges["net_pnl"]
+            sized_all = size_trades(data["completed"], st["mode"], st["amount"])
+            trades = _filtered(sized_all)
+            s = summarize(trades)
+            ui.html(kpi_tiles(s))
+            ui.html(charges_html(s))
+            if not trades:
+                ui.html('<div class="bt-card bt-empty mt-3">No trades match these filters.</div>')
+                return
 
-            with ui.row().classes("gap-4 flex-wrap mb-4"):
-                with ui.card().classes("p-3 min-w-[120px] flex-1"):
-                    ui.label("Gross P&L").classes("text-sm text-gray-500")
-                    color = "text-green-600" if gross_pnl >= 0 else "text-red-600"
-                    ui.label(f"₹{gross_pnl:+,.2f}").classes(f"text-2xl font-bold {color}")
-                with ui.card().classes("p-3 min-w-[120px] flex-1 border border-orange-200"):
-                    ui.label("Charges").classes("text-sm text-gray-500")
-                    ui.label(f"₹{total_charges:,.2f}").classes("text-2xl font-bold text-orange-500")
-                    ui.label(
-                        f"Avg ₹{charges['per_trade_avg_charges']:.0f}/trade"
-                    ).classes("text-xs text-gray-400")
-                with ui.card().classes("p-3 min-w-[120px] flex-1 border border-blue-200"):
-                    ui.label("Net P&L").classes("text-sm text-gray-500")
-                    net_color = "text-green-600" if net_pnl >= 0 else "text-red-600"
-                    ui.label(f"₹{net_pnl:+,.2f}").classes(f"text-2xl font-bold {net_color}")
-                    ui.label("After charges").classes("text-xs text-gray-400")
-                with ui.card().classes("p-3 min-w-[120px] flex-1"):
-                    ui.label("Trades").classes("text-sm text-gray-500")
-                    ui.label(str(total_trades)).classes("text-2xl font-bold")
-                with ui.card().classes("p-3 min-w-[120px] flex-1"):
-                    ui.label("Win Rate").classes("text-sm text-gray-500")
-                    ui.label(f"{win_rate:.0f}%").classes("text-2xl font-bold text-emerald-600")
-                with ui.card().classes("p-3 min-w-[120px] flex-1"):
-                    ui.label("W / L").classes("text-sm text-gray-500")
-                    ui.label(f"{winners} / {losers}").classes("text-2xl font-bold")
+            with ui.element("div").classes("bt-card w-full mt-3"):
+                ui.html('<div class="bt-h">Equity curve</div>'
+                        '<div class="bt-hs">Cumulative net P&amp;L, one point per closed trade. Hover a point for the trade.</div>')
+                ui.plotly(equity_figure(trades)).classes("w-full")
 
-            # ── Per-strategy breakdown cards ───────────────────────────────
-            ui.label("Strategy Breakdown").classes("text-base font-semibold mb-1")
-            date_filter_active = _state["date"] != "All"
-            with ui.row().classes("gap-3 flex-wrap mb-4"):
-                for strat in get_live_strategy_names():
-                    strat_trades = [t for t in completed if t.get("strategy") == strat]
-                    if date_filter_active:
-                        strat_trades = [t for t in strat_trades if t.get("trade_date") == _state["date"]]
-                    spnl = sum(t.get("pnl", 0) for t in strat_trades)
-                    sw = sum(1 for t in strat_trades if t.get("pnl", 0) > 0)
-                    sl_c = sum(1 for t in strat_trades if t.get("pnl", 0) < 0)
-                    swr = f"{sw / len(strat_trades) * 100:.0f}%" if strat_trades else "—"
-                    scolor = "text-green-600" if spnl >= 0 else "text-red-600"
-                    is_active_filter = _state["strategy"] == strat
-                    card_border = "border-2 border-emerald-500" if is_active_filter else ""
-                    with ui.card().classes(f"p-3 w-[180px] {card_border}"):
-                        ui.label(strat).classes("text-sm font-bold text-gray-600 mb-1")
-                        ui.label(f"{spnl:+.2f}").classes(f"text-xl font-bold {scolor}")
-                        ui.label(f"{len(strat_trades)} trades · {sw}W/{sl_c}L · WR {swr}").classes(
-                            "text-xs text-gray-500"
-                        )
+            with ui.row().classes("w-full items-center justify-between mt-4 mb-2 gap-2"):
+                ui.label("Breakdown").classes("bt-h")
+                ui.toggle({"strategy": "By strategy", "day": "By day", "stock": "By stock", "trades": "Trades"},
+                          value=st["view"], on_change=lambda e: (st.update(view=e.value), _render())) \
+                    .props("dense no-caps unelevated toggle-color=primary").classes("bt-seg")
 
-            ui.separator().classes("my-3")
-
-            # ── Day-wise P&L table ─────────────────────────────────────────
-            ui.label("Day-wise P&L").classes("text-base font-semibold mb-2")
-            # Group by date using strategy filter but ignore date filter here
-            day_trades = completed
-            if _state["strategy"] != "All":
-                day_trades = [t for t in day_trades if t.get("strategy") == _state["strategy"]]
-
-            date_groups: dict[str, list] = defaultdict(list)
-            for t in day_trades:
-                date_groups[t.get("trade_date", "Unknown")].append(t)
-
-            if not date_groups:
-                ui.label("No trade history yet.").classes("text-gray-500 italic")
+            if st["view"] == "strategy":
+                groups = dict(group_by(_filtered(sized_all, strategy=False), "strategy"))
+                strategy_table(groups, get_live_strategy_names(), st["strategy"], _pick_strategy)
+            elif st["view"] == "day":
+                groups = sorted(group_by(trades, "trade_date"), key=lambda kv: kv[0], reverse=True)
+                ui.html(summary_table([(datetime.strptime(d, "%Y-%m-%d").strftime("%a %d %b"), g) for d, g in groups], "Day"))
+            elif st["view"] == "stock":
+                ui.html(summary_table(group_by(trades, "stock"), "Stock"))
             else:
-                day_rows = []
-                for date in sorted(date_groups.keys(), reverse=True):
-                    dtrades = date_groups[date]
-                    dpnl = sum(t.get("pnl", 0) for t in dtrades)
-                    dw = sum(1 for t in dtrades if t.get("pnl", 0) > 0)
-                    dl = sum(1 for t in dtrades if t.get("pnl", 0) < 0)
-                    dwr = f"{dw / len(dtrades) * 100:.0f}%" if dtrades else "0%"
-                    day_rows.append({
-                        "Date": date,
-                        "Trades": len(dtrades),
-                        "Winners": dw,
-                        "Losers": dl,
-                        "Win %": dwr,
-                        "P&L": round(dpnl, 2),
-                    })
-                build_trade_table(ui.element("div").classes("w-full"), day_rows, "P&L")
+                ui.html(trades_table(trades, show_stock=True))
 
-            ui.separator().classes("my-3")
+    def _pick_strategy(name):
+        strat_sel.set_value("All" if st["strategy"] == name else name)  # fires _on_filter → _render
 
-            # ── Completed trade details ────────────────────────────────────
-            filter_label = (
-                f"{_state['strategy']}" if _state["strategy"] != "All" else "All Strategies"
-            )
-            date_label = f" · {_state['date']}" if _state["date"] != "All" else ""
-            ui.label(f"Completed Trades ({filter_label}{date_label})").classes(
-                "text-base font-semibold mb-2"
-            )
-
-            def _fmt(t_val):
-                if t_val is None:
-                    return "—"
-                if hasattr(t_val, "strftime"):
-                    return t_val.strftime("%d %b %H:%M")
-                return str(t_val)
-
-            def _make_rows(trades):
-                return [
-                    {
-                        "Date":      t.get("trade_date", ""),
-                        "Strategy":  t.get("strategy", ""),
-                        "Stock":     t.get("symbol", ""),
-                        "Signal":    t.get("signal", ""),
-                        "Entry":     t.get("entry", 0),
-                        "Target":    round(t.get("target", 0), 2) if t.get("target") else "—",
-                        "SL":        round(t.get("stop_loss", 0), 2) if t.get("stop_loss") else "—",
-                        "Exit":      round(t.get("exit_price", 0), 2),
-                        "Entry Time": _fmt(t.get("time")),
-                        "Exit Time":  _fmt(t.get("exit_time")),
-                        "P&L":       t.get("pnl", 0),
-                        "Status":    t.get("status", ""),
-                    }
-                    for t in trades
-                ]
-
-            profits = [t for t in filtered if t.get("pnl", 0) > 0]
-            losses = [t for t in filtered if t.get("pnl", 0) <= 0]
-
-            with ui.tabs().classes("w-full") as trade_tabs:
-                profits_tab = ui.tab(f"Profits ({len(profits)})").classes("text-green-600")
-                losses_tab = ui.tab(f"Losses ({len(losses)})").classes("text-red-600")
-
-            with ui.tab_panels(trade_tabs, value=profits_tab).classes("w-full"):
-                with ui.tab_panel(profits_tab):
-                    if not profits:
-                        ui.label("No profitable trades for this filter.").classes("text-gray-500 italic")
-                    else:
-                        build_trade_table(ui.element("div").classes("w-full"), _make_rows(profits), "P&L")
-                with ui.tab_panel(losses_tab):
-                    if not losses:
-                        ui.label("No losing trades for this filter.").classes("text-gray-500 italic")
-                    else:
-                        build_trade_table(ui.element("div").classes("w-full"), _make_rows(losses), "P&L")
-
-            # ── Active trades ──────────────────────────────────────────────
-            ui.separator().classes("my-3")
-            ui.label("Active Trades").classes("text-base font-semibold mb-2")
-
-            active_filtered = active
-            if _state["strategy"] != "All":
-                active_filtered = [t for t in active if t.get("strategy") == _state["strategy"]]
-
-            if not active_filtered:
-                ui.label("No active trades.").classes("text-gray-500 italic")
-            else:
-                total_unreal = sum(t.get("unrealized_pnl", 0) for t in active_filtered)
-                ucolor = "text-green-600" if total_unreal >= 0 else "text-red-600"
-                ui.label(f"Unrealized P&L: {total_unreal:+.2f}").classes(
-                    f"text-base font-bold {ucolor} mb-2"
-                )
-                def _fmt_t(t_val):
-                    if t_val is None:
-                        return "—"
-                    if hasattr(t_val, "strftime"):
-                        return t_val.strftime("%d %b %H:%M")
-                    return str(t_val)
-
-                rows = [
-                    {
-                        "Strategy":   t.get("strategy", ""),
-                        "Stock":      t.get("symbol", ""),
-                        "Signal":     t.get("signal", ""),
-                        "Entry":      t.get("entry", 0),
-                        "Target":     t.get("target", 0),
-                        "Stop Loss":  t.get("stop_loss", 0),
-                        "Entry Time": _fmt_t(t.get("time")),
-                        "Unreal. P&L": t.get("unrealized_pnl", 0),
-                    }
-                    for t in active_filtered
-                ]
-                build_trade_table(ui.element("div").classes("w-full"), rows, "Unreal. P&L")
-
-    # ── filter row builder ────────────────────────────────────────────────────
-
-    def _build_filter_row(strategies, dates, stocks):
-        filter_row.clear()
-        with filter_row:
-            with ui.element("div").classes("flt-row"):
-                strat_select = ui.select(
-                    ["All"] + strategies,
-                    value=_state["strategy"],
-                    label="Strategy",
-                ).props("outlined dense")
-
-                stock_select = ui.select(
-                    ["All"] + stocks,
-                    value=_state["stock"],
-                    label="Stock",
-                ).props("outlined dense")
-
-                date_select = ui.select(
-                    ["All"] + dates,
-                    value=_state["date"],
-                    label="Date",
-                ).props("outlined dense")
-
-        def on_strat(e):
-            _state["strategy"] = e.value
-            _render()
-
-        def on_stock(e):
-            _state["stock"] = e.value
-            _render()
-
-        def on_date(e):
-            _state["date"] = e.value
-            _render()
-
-        strat_select.on_value_change(on_strat)
-        stock_select.on_value_change(on_stock)
-        date_select.on_value_change(on_date)
-
-    # ── refresh (called by main loop) ─────────────────────────────────────────
-
-    async def refresh():
-        all_active, mem_completed = collect_all_trades()
-        live_names = get_live_strategy_names()
-        hist_completed = [t for t in load_trade_history() if t.get("strategy") in live_names]
-        all_completed = _merge_completed(mem_completed, hist_completed)
-
-        _data["completed"] = all_completed
-        _data["active"] = all_active
-
-        strategies = list(live_names)
-        dates = sorted(
-            set(t.get("trade_date", "Unknown") for t in all_completed),
-            reverse=True,
-        )
-        stocks = sorted(s for s in set(t.get("symbol", "") for t in all_completed + all_active) if s)
-
-        # Reset stale filter values if they no longer exist in data
-        if _state["strategy"] not in (["All"] + strategies):
-            _state["strategy"] = "All"
-        if _state["date"] not in (["All"] + dates):
-            _state["date"] = "All"
-        if _state["stock"] not in (["All"] + stocks):
-            _state["stock"] = "All"
-
-        _build_filter_row(strategies, dates, stocks)
+    def _on_filter(key, value):
+        if value is None or st[key] == value:
+            return
+        st[key] = value
         _render()
 
+    strat_sel.on_value_change(lambda e: _on_filter("strategy", e.value))
+    date_sel.on_value_change(lambda e: _on_filter("date", e.value))
+    stock_sel.on_value_change(lambda e: _on_filter("stock", e.value))
+
+    async def refresh():
+        if body.client._deleted:
+            return
+        live_names = get_live_strategy_names()
+        all_active, mem_completed = collect_all_trades()
+        hist = [t for t in load_trade_history() if t.get("strategy") in live_names]
+        merged = [_normalize(t) for t in _merge_completed(mem_completed, hist)]
+        usable = [t for t in merged if float(t.get("entry") or 0) > 0 and float(t.get("exit_price") or 0) > 0]
+        completed, ex = finalize_trades(usable, now_ist())
+        active = [_normalize(t) for t in all_active if t.get("strategy") in live_names and float(t.get("entry") or 0) > 0]
+        positions, open_overlap = _open_positions(active, completed)
+
+        data.update(completed=completed, active=positions, at=now_ist(), notes={
+            "overlap": ex["overlap"] + open_overlap,
+            "broken": len(merged) - len(usable),
+            "approx": sum(1 for t in completed if t.get("approx_time")),
+        })
+
+        everything = completed + positions
+        for sel, key, opts in (
+            (strat_sel, "strategy", ["All"] + list(live_names)),
+            (date_sel, "date", ["All"] + sorted({t["trade_date"] for t in completed}, reverse=True)),
+            (stock_sel, "stock", ["All"] + sorted({t["stock"] for t in everything if t["stock"]})),
+        ):
+            if st[key] not in opts:
+                st[key] = "All"
+            sel.set_options(opts, value=st[key])
+        _render()
+
+    refresh_btn.on_click(refresh)
     return refresh

@@ -19,12 +19,12 @@ _SEBI_PER_CRORE = 10.0          # ₹10 per crore of turnover
 
 # Equity intraday (MIS) rates
 _EQ_STT_PCT        = 0.00025    # 0.025% on sell-side turnover
-_EQ_EXCHANGE_PCT   = 0.0000345  # 0.00345% NSE equity transaction charge
+_EQ_EXCHANGE_PCT   = 0.0000297  # 0.00297% NSE equity transaction charge (since Oct 2024)
 _EQ_STAMP_PCT      = 0.00003    # 0.003% on buy-side turnover
 
 # F&O (options) rates
-_FNO_STT_PCT       = 0.000625   # 0.0625% on sell-side premium
-_FNO_EXCHANGE_PCT  = 0.00035    # 0.035% NSE F&O transaction charge
+_FNO_STT_PCT       = 0.001      # 0.1% on sell-side premium (since Oct 2024)
+_FNO_EXCHANGE_PCT  = 0.0003503  # 0.03503% NSE options transaction charge on premium
 _FNO_STAMP_PCT     = 0.00003    # 0.003% on buy-side premium
 
 # Standard lot sizes (current as of 2025-26 revision)
@@ -51,6 +51,7 @@ def calculate_brokerage(
     lot_size: int = DEFAULT_LOT_SIZE,
     quantity: int = 1,
     segment: str = "fno",        # "fno" | "equity_intraday"
+    short: bool = False,         # True: sold at entry, bought back at exit
 ) -> dict:
     """
     Return a breakdown dict with all charges for one round-trip (buy + sell) trade.
@@ -66,7 +67,7 @@ def calculate_brokerage(
     Returns
     -------
     dict with keys:
-        gross_pnl      – (exit - entry) × lot_size × quantity
+        gross_pnl      – (exit - entry) × lot_size × quantity; (entry - exit) × … when short
         brokerage      – ₹ charged by Dhan (both legs)
         stt            – Securities Transaction Tax (sell leg)
         exchange       – NSE exchange transaction charge
@@ -86,8 +87,9 @@ def calculate_brokerage(
         stamp_pct    = _FNO_STAMP_PCT
 
     units = lot_size * quantity
-    buy_turnover  = entry_price * units
-    sell_turnover = exit_price  * units
+    buy_price, sell_price = (exit_price, entry_price) if short else (entry_price, exit_price)
+    buy_turnover  = buy_price  * units
+    sell_turnover = sell_price * units
 
     # Brokerage: ₹20 flat or 0.03% of turnover, whichever is lower — per order
     brokerage_buy  = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * buy_turnover)
@@ -100,18 +102,18 @@ def calculate_brokerage(
     # Exchange transaction charge (both sides)
     exchange = exchange_pct * (buy_turnover + sell_turnover)
 
-    # GST on brokerage + exchange charges
-    gst = _GST_PCT * (brokerage + exchange)
-
     # SEBI charges (₹10 per crore)
     total_turnover = buy_turnover + sell_turnover
     sebi = _SEBI_PER_CRORE * total_turnover / 1_00_00_000
+
+    # GST on brokerage + exchange + SEBI charges
+    gst = _GST_PCT * (brokerage + exchange + sebi)
 
     # Stamp duty — on buy side only
     stamp = stamp_pct * buy_turnover
 
     total_charges = brokerage + stt + exchange + gst + sebi + stamp
-    gross_pnl = (exit_price - entry_price) * units
+    gross_pnl = (sell_price - buy_price) * units
     net_pnl = gross_pnl - total_charges
 
     return {
@@ -127,6 +129,21 @@ def calculate_brokerage(
     }
 
 
+def is_short(trade: dict) -> bool:
+    """Sold first? Decided by the target (below the entry), else the signal text ("SELL …"),
+    else the P&L sign vs the price move."""
+    entry = float(trade.get("entry") or 0)
+    target = trade.get("target")
+    if target is not None and entry:
+        return float(target) < entry
+    signal = str(trade.get("signal") or "").strip().upper()
+    if signal.startswith(("SELL", "BUY")):
+        return signal.startswith("SELL")
+    exit_px = float(trade.get("exit_price") or 0)
+    pnl = float(trade.get("pnl") or 0)
+    return bool(entry and exit_px and pnl and (exit_px - entry) * pnl < 0)
+
+
 def charges_for_trades(
     trades: list[dict],
     lot_size: int = DEFAULT_LOT_SIZE,
@@ -135,7 +152,8 @@ def charges_for_trades(
 ) -> dict:
     """
     Aggregate brokerage breakdown across a list of completed trades.
-    Each trade must have 'entry' and 'exit_price' keys.
+    Each trade must have 'entry' and 'exit_price' keys; a trade whose target is below its entry
+    is treated as a short.
 
     Returns the same keys as calculate_brokerage() but summed, plus:
         per_trade_avg_charges  – average total charges per trade
@@ -161,7 +179,7 @@ def charges_for_trades(
             totals["gross_pnl"] += raw
             totals["net_pnl"]   += raw
             continue
-        b = calculate_brokerage(entry, exit_px, lot_size, quantity, segment)
+        b = calculate_brokerage(entry, exit_px, lot_size, quantity, segment, short=is_short(t))
         for k in totals:
             totals[k] += b[k]
         n += 1

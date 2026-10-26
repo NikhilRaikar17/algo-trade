@@ -83,6 +83,13 @@ def load_trade_history():
         return []
 
 
+def _iso(ts):
+    """Timestamp/datetime → ISO string (None stays None) so the record stays JSON."""
+    if ts is None:
+        return None
+    return ts.isoformat(timespec="seconds") if hasattr(ts, "isoformat") else str(ts)
+
+
 def save_completed_trade(key, trade):
     """Persist a completed trade keyed by dedup key. Deduplicates and trims to 90 days."""
     try:
@@ -99,6 +106,11 @@ def save_completed_trade(key, trade):
             "exit_price": float(trade.get("exit_price", 0)),
             "pnl": float(trade.get("pnl", 0)),
             "status": str(trade.get("status", "")),
+            # side, risk and timing — the Live P&L page needs them for charges and overlap checks
+            "target": float(trade["target"]) if trade.get("target") is not None else None,
+            "stop_loss": float(trade["stop_loss"]) if trade.get("stop_loss") is not None else None,
+            "time": _iso(trade.get("time") or (trade.get("D") or {}).get("time")),
+            "exit_time": _iso(trade.get("exit_time")) or now_ist().isoformat(timespec="seconds"),
         }
         history.append(record)
         cutoff = (now_ist() - timedelta(days=90)).strftime("%Y-%m-%d")

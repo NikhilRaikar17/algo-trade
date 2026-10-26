@@ -534,22 +534,23 @@ def backtest_double_top_custom(signals, candles):
                             "pnl": round(float(entry - sl), 2),
                         }
                         break
+                    continue  # the target only counts from the next bar: order inside the fill bar is unknown
             if filled:
-                # Phase 2: track target and SL
-                if float(bar["low"]) <= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(entry - target), 2),
-                    }
-                    break
+                # Phase 2: track SL first, then target (a bar touching both is a loss)
                 if float(bar["high"]) >= sl:
                     result = {
                         "status": "SL Hit",
                         "exit_price": round(float(sl), 2),
                         "exit_time": bar["timestamp"],
                         "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
                     }
                     break
         if filled and result["status"] == "No Fill" and last_bar is not None:
@@ -668,21 +669,22 @@ def backtest_double_top_standard(signals, candles):
                             "pnl": round(float(entry - sl), 2),
                         }
                         break
+                    continue  # the target only counts from the next bar: order inside the fill bar is unknown
             if filled:
-                if float(bar["low"]) <= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(entry - target), 2),
-                    }
-                    break
                 if float(bar["high"]) >= sl:
                     result = {
                         "status": "SL Hit",
                         "exit_price": round(float(sl), 2),
                         "exit_time": bar["timestamp"],
                         "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
                     }
                     break
         if filled and result["status"] == "No Fill" and last_bar is not None:
@@ -821,22 +823,23 @@ def backtest_double_bottom(signals, candles):
                             "pnl": round(float(sl - entry), 2),
                         }
                         break
+                    continue  # the target only counts from the next bar: order inside the fill bar is unknown
             if filled:
-                # Phase 2: track target and SL
-                if float(bar["high"]) >= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(target - entry), 2),
-                    }
-                    break
+                # Phase 2: track SL first, then target (a bar touching both is a loss)
                 if float(bar["low"]) <= sl:
                     result = {
                         "status": "SL Hit",
                         "exit_price": round(float(sl), 2),
                         "exit_time": bar["timestamp"],
                         "pnl": round(float(sl - entry), 2),
+                    }
+                    break
+                if float(bar["high"]) >= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(target - entry), 2),
                     }
                     break
         if filled and result["status"] == "No Fill" and last_bar is not None:
@@ -926,14 +929,6 @@ def backtest_ema10(signals, candles):
         for _, bar in future.iterrows():
             last_bar = bar
             if s["type"] == "Bullish":
-                if float(bar["high"]) >= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(target - entry), 2),
-                    }
-                    break
                 if float(bar["low"]) <= sl:
                     result = {
                         "status": "SL Hit",
@@ -942,21 +937,29 @@ def backtest_ema10(signals, candles):
                         "pnl": round(float(sl - entry), 2),
                     }
                     break
-            else:
-                if float(bar["low"]) <= target:
+                if float(bar["high"]) >= target:
                     result = {
                         "status": "Target Hit",
                         "exit_price": round(float(target), 2),
                         "exit_time": bar["timestamp"],
-                        "pnl": round(float(entry - target), 2),
+                        "pnl": round(float(target - entry), 2),
                     }
                     break
+            else:
                 if float(bar["high"]) >= sl:
                     result = {
                         "status": "SL Hit",
                         "exit_price": round(float(sl), 2),
                         "exit_time": bar["timestamp"],
                         "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
                     }
                     break
         if result["status"] == "Open" and last_bar is not None:
@@ -1036,14 +1039,6 @@ def backtest_sma50(signals, candles):
         for _, bar in future.iterrows():
             last_bar = bar
             if s["type"] == "Bullish":
-                if float(bar["high"]) >= target:
-                    result = {
-                        "status": "Target Hit",
-                        "exit_price": round(float(target), 2),
-                        "exit_time": bar["timestamp"],
-                        "pnl": round(float(target - entry), 2),
-                    }
-                    break
                 if float(bar["low"]) <= sl:
                     result = {
                         "status": "SL Hit",
@@ -1052,21 +1047,29 @@ def backtest_sma50(signals, candles):
                         "pnl": round(float(sl - entry), 2),
                     }
                     break
-            else:
-                if float(bar["low"]) <= target:
+                if float(bar["high"]) >= target:
                     result = {
                         "status": "Target Hit",
                         "exit_price": round(float(target), 2),
                         "exit_time": bar["timestamp"],
-                        "pnl": round(float(entry - target), 2),
+                        "pnl": round(float(target - entry), 2),
                     }
                     break
+            else:
                 if float(bar["high"]) >= sl:
                     result = {
                         "status": "SL Hit",
                         "exit_price": round(float(sl), 2),
                         "exit_time": bar["timestamp"],
                         "pnl": round(float(entry - sl), 2),
+                    }
+                    break
+                if float(bar["low"]) <= target:
+                    result = {
+                        "status": "Target Hit",
+                        "exit_price": round(float(target), 2),
+                        "exit_time": bar["timestamp"],
+                        "pnl": round(float(entry - target), 2),
                     }
                     break
         if result["status"] == "Open" and last_bar is not None:
