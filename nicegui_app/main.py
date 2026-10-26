@@ -25,7 +25,6 @@ from trading_engine import run_trading_engine
 from email_report import send_backtest_email_report
 from ws_feed import start_ws_feed
 from global_feed import start_global_feed
-from pages.homepage import render_homepage
 from pages.login import render_login_page
 from pages import (
     render_dashboard,
@@ -130,10 +129,6 @@ async def _start_scheduler():
 
 
 @ui.page("/")
-async def homepage():
-    render_homepage()
-
-
 @ui.page("/login")
 async def login_page():
     from auth import validate_session
