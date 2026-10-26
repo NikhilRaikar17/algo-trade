@@ -42,6 +42,13 @@ LIVE_STRATEGY_ENABLED = {
 # ================= TRADE DESK RISK LIMITS =================
 # Used by trade_desk.py to size each live signal and PASS/BLOCK it. Nothing places orders:
 # daily limits assume every PASSED signal is taken, in signal-time order.
+# Strategy Analysis verdicts: a strategy is "Not good" when more than max_loss_rate % of its trades
+# lose money after charges — in the backtest and in live trading (each with at least min_trades trades).
+STRATEGY_REVIEW = {
+    "max_loss_rate": 50,          # % of trades with a net loss
+    "min_trades": 10,             # fewer trades than this is too few to judge
+}
+
 RISK_LIMITS = {
     "funds": 100_000,             # ₹ cash for open positions at any moment; every day starts with it all
                                   # free (no compounding, no intraday leverage)

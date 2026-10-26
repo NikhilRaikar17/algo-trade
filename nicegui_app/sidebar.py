@@ -135,6 +135,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             # STRATEGIES
             _section_label("STRATEGIES")
             _nav_button("strategies", "Strategies", "tune", icon_color="icon-purple")
+            _nav_button("strategy_analysis", "Strategy Analysis", "grading", icon_color="icon-purple")
             # Backtest Algos: a nav-styled header that folds its sub-list (not a q-expansion,
             # whose own padding and background never matched the other nav buttons)
             backtest_open = {"value": active_page["value"] in {pid for pid, _, _ in BACKTEST_PAGES.values()}}

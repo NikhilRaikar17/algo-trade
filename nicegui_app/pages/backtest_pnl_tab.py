@@ -90,6 +90,7 @@ def _run_all_backtests(candles, stock_name: str = "", enabled_keys=None, exclude
         try:
             for t in fn(candles):
                 t["strategy"] = name
+                t["strategy_key"] = key
                 t["stock"] = stock_name
                 when = t.get("time")
                 t["trade_date"] = when.strftime("%Y-%m-%d") if hasattr(when, "strftime") else str(when)[:10]
@@ -103,12 +104,13 @@ def _run_all_backtests(candles, stock_name: str = "", enabled_keys=None, exclude
     return kept
 
 
-def _fetch_all_stocks_trades(stocks: list[dict], report: dict | None = None) -> list[dict]:
-    """Fetch candles for every stock and run the backtests. `report` (optional) receives
-    loaded / missing stock names and the excluded-trade counts."""
+def _fetch_all_stocks_trades(stocks: list[dict], report: dict | None = None, keys=None) -> list[dict]:
+    """Fetch candles for every stock and run the backtests (`keys`: strategy keys to run, default the
+    backtest-enabled ones). `report` (optional) receives loaded / missing stock names and the
+    excluded-trade counts."""
     report = report if report is not None else {}
     report.update(loaded=[], missing=[], excluded={})
-    enabled_keys = get_backtest_strategy_keys()
+    enabled_keys = keys if keys is not None else get_backtest_strategy_keys()
     all_trades = []
     if not enabled_keys:
         return all_trades
