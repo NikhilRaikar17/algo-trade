@@ -32,7 +32,7 @@ GENERATE_URL = "https://auth.dhan.co/app/generateAccessToken"
 PREMARKET_START = (8, 0)
 PREMARKET_END = (9, 10)
 CHECK_INTERVAL_SECONDS = 15 * 60
-MIN_REMAINING = timedelta(hours=1)
+MIN_REMAINING = timedelta(minutes=10)
 
 _lock = threading.Lock()
 
@@ -60,11 +60,11 @@ def needs_refresh(token: str | None, now: datetime) -> bool:
     exp = token_expiry(token)
     if exp is None or exp - now < MIN_REMAINING:
         return True
-    # Pre-market: make sure the token outlives today's close.
+    # Pre-market: take a new token unless one was already made in today's window,
+    # so refreshes stay pinned to the morning instead of drifting into market hours.
     start = now.replace(hour=PREMARKET_START[0], minute=PREMARKET_START[1], second=0, microsecond=0)
     end = now.replace(hour=PREMARKET_END[0], minute=PREMARKET_END[1], second=0, microsecond=0)
-    close = now.replace(hour=16, minute=0, second=0, microsecond=0)
-    return start <= now <= end and exp < close
+    return start <= now <= end and exp < start + timedelta(hours=24)
 
 
 def generate_token() -> str:
