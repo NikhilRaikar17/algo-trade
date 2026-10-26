@@ -1,0 +1,4 @@
+sed -i 's/^DHAN_TOKEN_ID.*/DHAN_TOKEN_ID = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyUmVnaW9uIjoiUjEiLCJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzkzMDgxMTY3LCJpYXQiOjE3OTI5OTQ3NjcsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTA4OTA2NDI3In0.Q1N3MJ85wRQ8CuxuxuH9CKorWE1fiJ6z8KuFzzYooupTnDqEmur2fmzd3JjpQRba254Qd195TzPLuYSFj-3I5A"/' .env
+sudo systemctl restart streamlit
+
+stocks.birthday-box.org

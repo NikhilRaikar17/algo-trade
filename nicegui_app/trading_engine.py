@@ -1,5 +1,5 @@
 """
-Background trading engine — runs all strategies on top-stocks equity 5-min
+Background trading engine — runs the enabled live strategies on top-stocks equity 5-min
 candles every 120 seconds during market hours, independent of any browser
 connection.
 
@@ -10,7 +10,7 @@ exactly as the live algo tab does, but driven by the server-side scheduler.
 import asyncio
 import traceback
 
-from config import now_ist, REFRESH_SECONDS
+from config import now_ist, REFRESH_SECONDS, LIVE_STRATEGY_KEYS
 from state import _trade_store, is_market_open
 from data import _fetch_any_stock_candles
 from algo_strategies import (
@@ -30,61 +30,31 @@ from algo_strategies import (
 )
 
 
+# key → (detect(candles) -> signals, classify(signals, current_price, name) -> (active, completed))
+_STRATEGY_RUNNERS = {
+    "abcd":  (lambda c: detect_abcd_patterns(find_swing_points(c, order=2)), classify_trades),
+    "dtc":   (detect_double_top_custom_signals, classify_double_top_custom_trades),
+    "dts":   (detect_double_top_standard_signals, classify_double_top_standard_trades),
+    "db":    (detect_double_bottom_signals, classify_double_bottom_trades),
+    "ema10": (lambda c: detect_ema10_signals(c)[0], classify_ema10_trades),
+    "sma50": (lambda c: detect_sma50_signals(c)[0], classify_sma50_trades),
+}
+
+
 def _run_strategies_for_contract(candles, current_price, contract_name):
-    """Run all strategies for a single stock. Updates _trade_store."""
-
-    # ABCD
-    try:
-        swings = find_swing_points(candles, order=2)
-        patterns = detect_abcd_patterns(swings)
-        active, completed = classify_trades(patterns, current_price, contract_name)
-        _trade_store[f"abcd_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:abcd:{contract_name}] {traceback.format_exc()}")
-
-    # Double Top Customized
-    try:
-        signals = detect_double_top_custom_signals(candles)
-        active, completed = classify_double_top_custom_trades(signals, current_price, contract_name)
-        _trade_store[f"dtc_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:dtc:{contract_name}] {traceback.format_exc()}")
-
-    # Double Top Standard
-    try:
-        signals = detect_double_top_standard_signals(candles)
-        active, completed = classify_double_top_standard_trades(signals, current_price, contract_name)
-        _trade_store[f"dts_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:dts:{contract_name}] {traceback.format_exc()}")
-
-    # Double Bottom
-    try:
-        signals = detect_double_bottom_signals(candles)
-        active, completed = classify_double_bottom_trades(signals, current_price, contract_name)
-        _trade_store[f"db_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:db:{contract_name}] {traceback.format_exc()}")
-
-    # EMA10
-    try:
-        signals, _ = detect_ema10_signals(candles)
-        active, completed = classify_ema10_trades(signals, current_price, contract_name)
-        _trade_store[f"ema10_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:ema10:{contract_name}] {traceback.format_exc()}")
-
-    # SMA50
-    try:
-        signals, _ = detect_sma50_signals(candles)
-        active, completed = classify_sma50_trades(signals, current_price, contract_name)
-        _trade_store[f"sma50_trades_{contract_name}"] = {"active": active, "completed": completed}
-    except Exception:
-        print(f"  [engine:sma50:{contract_name}] {traceback.format_exc()}")
+    """Run every enabled live strategy (config.LIVE_STRATEGY_ENABLED) for one stock. Updates _trade_store."""
+    for key in LIVE_STRATEGY_KEYS:
+        detect, classify = _STRATEGY_RUNNERS[key]
+        try:
+            signals = detect(candles)
+            active, completed = classify(signals, current_price, contract_name)
+            _trade_store[f"{key}_trades_{contract_name}"] = {"active": active, "completed": completed}
+        except Exception:
+            print(f"  [engine:{key}:{contract_name}] {traceback.format_exc()}")
 
 
 def _run_engine_tick():
-    """One full scan: fetch 5-min equity candles for all active top stocks and run all strategies."""
+    """One full scan: fetch 5-min equity candles for all active top stocks and run the enabled live strategies."""
     from db import get_active_top_stocks
 
     today_date = now_ist().date()

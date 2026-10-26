@@ -12,7 +12,7 @@ import pandas as pd
 from nicegui import ui
 from dhanhq import marketfeed as mf
 
-from config import now_ist
+from config import now_ist, LIVE_STRATEGY_KEYS
 from state import _trade_store
 from data import _fetch_any_stock_candles, STOCK_WATCH_GROUPS
 from algo_strategies import (
@@ -43,7 +43,8 @@ from ui_components import build_trade_table
 from strategy_registry import get_strategies
 import ws_feed
 
-_STRATEGIES = get_strategies()
+# Only strategies enabled in config.LIVE_STRATEGY_ENABLED appear in the dropdown
+_STRATEGIES = [(name, key) for name, key in get_strategies() if key in LIVE_STRATEGY_KEYS]
 
 # Flatten all stocks from all groups for the selector
 _ALL_STOCKS: list[dict] = []

@@ -27,6 +27,32 @@ def now_cest():
     return datetime.now(CEST)
 
 
+# ================= LIVE STRATEGIES =================
+# Toggle which strategies trade live and count in live P&L (True = enabled).
+# Backtest pages always run every strategy regardless of these flags.
+LIVE_STRATEGY_ENABLED = {
+    "abcd":  True,
+    "dtc":   False,  # Double Top Customized
+    "dts":   False,  # Double Top Standard
+    "db":    False,  # Double Bottom
+    "ema10": False,
+    "sma50": True,
+}
+
+# Trade-store prefix / dropdown key → trade["strategy"] name used in P&L
+STRATEGY_NAMES = {
+    "abcd":  "ABCD",
+    "dtc":   "Double Top Customized",
+    "dts":   "Double Top Standard",
+    "db":    "Double Bottom",
+    "ema10": "EMA10",
+    "sma50": "SMA50",
+}
+
+LIVE_STRATEGY_KEYS = tuple(k for k, on in LIVE_STRATEGY_ENABLED.items() if on)
+LIVE_STRATEGY_NAMES = tuple(STRATEGY_NAMES[k] for k in LIVE_STRATEGY_KEYS)
+
+
 # ================= NSE HOLIDAYS (2025-2026) =================
 # Source 2025: NSE Circular CMTR65587
 # Source 2026: NSE Circular CMTR71775
