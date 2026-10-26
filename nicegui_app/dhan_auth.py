@@ -27,14 +27,42 @@ import pyotp
 import requests
 
 GENERATE_URL = "https://auth.dhan.co/app/generateAccessToken"
+PROFILE_URL = "https://api.dhan.co/v2/profile"
 
 # Refresh pre-market so one token covers the whole session.
-PREMARKET_START = (8, 0)
+PREMARKET_START = (7, 0)
 PREMARKET_END = (9, 10)
 CHECK_INTERVAL_SECONDS = 15 * 60
 MIN_REMAINING = timedelta(minutes=10)
 
 _lock = threading.Lock()
+_validity_cache: dict = {}  # {token: datetime} — only the current token is kept
+
+
+def fetch_token_validity() -> datetime | None:
+    """Expiry of the current token as reported by Dhan's profile API (`tokenValidity`).
+
+    Cached per token, since a token's expiry never changes. None if Dhan can't be reached.
+    """
+    token = os.getenv("DHAN_TOKEN_ID", "")
+    if not token:
+        return None
+    if token in _validity_cache:
+        return _validity_cache[token]
+    try:
+        resp = requests.get(
+            PROFILE_URL,
+            headers={"access-token": token, "Accept": "application/json"},
+            timeout=10,
+        )
+        raw = resp.json().get("tokenValidity")  # e.g. "27/10/2026 19:55", IST
+        validity = _ist().localize(datetime.strptime(raw, "%d/%m/%Y %H:%M"))
+    except Exception as e:
+        print(f"  [dhan_auth] could not read token validity: {e}")
+        return None
+    _validity_cache.clear()
+    _validity_cache[token] = validity
+    return validity
 
 
 def token_expiry(token: str) -> datetime | None:
@@ -146,11 +174,11 @@ def ensure_fresh_token(env_file: str, on_error=None) -> bool:
 
 
 def start_refresher(env_file: str, on_error=None) -> None:
-    """Background thread: check every 15 min and refresh when needed."""
+    """Background thread: check on each quarter hour (07:00, 07:15, ...) and refresh when needed."""
 
     def _loop():
         while True:
-            time.sleep(CHECK_INTERVAL_SECONDS)
+            time.sleep(CHECK_INTERVAL_SECONDS - time.time() % CHECK_INTERVAL_SECONDS + 1)
             ensure_fresh_token(env_file, on_error)
 
     threading.Thread(target=_loop, daemon=True, name="dhan-token-refresher").start()

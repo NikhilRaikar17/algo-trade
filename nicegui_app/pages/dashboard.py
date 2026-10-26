@@ -8,6 +8,7 @@ import json
 import uuid
 from nicegui import ui, context
 
+import dhan_auth
 from config import now_ist, now_cest, INDICES
 from state import _cache_get, _cache_set, get_live_price, get_ws_connected, get_all_global_prices
 from data import get_expiries, fetch_option_chain, _fetch_any_index_candles, _candles_to_daily_change
@@ -311,6 +312,13 @@ def render_dashboard(container):
                     ui.icon("schedule", size="18px").classes("text-gray-400")
                     _tick_label = ui.label("Waiting for first tick…").classes("text-sm text-gray-500")
 
+                ui.element("div").classes("w-px h-6 bg-gray-200")
+
+                # Access token expiry (as reported by Dhan's profile API)
+                with ui.row().classes("items-center gap-2"):
+                    _token_icon = ui.icon("key", size="18px").classes("text-gray-400")
+                    _token_label = ui.label("Token · Checking…").classes("text-sm font-semibold text-gray-500")
+
         # ---- Section Header ----
         with ui.row().classes("w-full items-center mb-4"):
             with ui.row().classes("items-center gap-2"):
@@ -450,6 +458,25 @@ def render_dashboard(container):
             _api_icon.props("name=cloud_off").classes("text-red-500", remove="text-green-500 text-gray-400")
             _api_label.set_text("Dhan API · Error")
             _api_label.classes("text-red-600", remove="text-green-600 text-gray-500")
+
+        # Update token expiry
+        validity = await asyncio.get_running_loop().run_in_executor(
+            None, dhan_auth.fetch_token_validity
+        )
+        if page_client._deleted:
+            return
+        if validity is None:
+            token_text, token_cls = "Token · Expiry unknown", "text-gray-500"
+        else:
+            left = validity - now_ist()
+            if left.total_seconds() <= 0:
+                token_text, token_cls = f"Token · Expired {validity:%d %b %H:%M} IST", "text-red-600"
+            else:
+                token_text = f"Token · Expires {validity:%d %b %H:%M} IST"
+                token_cls = "text-amber-600" if left.total_seconds() < 2 * 3600 else "text-green-600"
+        _token_label.set_text(token_text)
+        _token_label.classes(token_cls, remove="text-green-600 text-amber-600 text-red-600 text-gray-500")
+        _token_icon.classes(token_cls, remove="text-green-600 text-amber-600 text-red-600 text-gray-400 text-gray-500")
 
         # Update FUT card labels in-place
         for name in ["NIFTY", "BANKNIFTY"]:
