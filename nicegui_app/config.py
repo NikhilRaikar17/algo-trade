@@ -56,9 +56,10 @@ STRATEGY_REVIEW = {
 RISK_LIMITS = {
     "funds": 100_000,             # ₹ the paper account starts with; open positions hold their capital
                                   # until they close (no intraday leverage)
-    "max_loss_per_trade": 250,    # ₹ lost if the stop fills at the stop price; sets the quantity
-    "max_capital_pct": 33,        # % of the balance one trade may use, so one tight stop can't take it all
-    "min_risk_pct": 50,           # skip a trade cut by the funds below this % of max_loss_per_trade
+    "max_loss_per_trade": 1000,   # ₹ lost if the stop fills at the stop price; sets the quantity
+    "max_capital_pct": 30,        # % of the balance one trade may use, leaving room for other trades;
+                                  # the quantity is cut to fit it, or to the free funds if less is left
+    "min_risk_pct": 0,            # skip a trade cut by the funds below this % of max_loss_per_trade (0 = never)
     "max_trades_per_day": None,   # taken trades per day; None = no limit
     "max_daily_loss": 750,        # ₹ net loss (after charges) of the day's closed trades that ends the day
     "max_losing_streak": 3,       # losing trades in a row (net after charges) that end the day
