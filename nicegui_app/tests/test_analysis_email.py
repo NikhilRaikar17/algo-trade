@@ -26,25 +26,37 @@ def _data():
     loser = _trade("2026-10-26 13:15", "2026-10-26 14:00", 300, 297, 297, 306, "EMA 10", "ema10", "WIPRO", "SL Hit")
     rows = [{"key": "abcd", "display_name": "ABCD", "live_enabled": True, "backtest_enabled": True},
             {"key": "ema10", "display_name": "EMA 10", "live_enabled": False, "backtest_enabled": True}]
+    opt = [_trade("2026-10-26 11:00", "2026-10-26 11:40", 200, 198.5, 198.5, 210, "SMA50", "sma50",
+                  "NIFTY 09NOV 22750 CE", "SL Hit")]
+    opt_sized = size_trades(opt, "risk", 1000, 200_000, compound=True)
+    for t in opt_sized:
+        t["lot_size"], t["qty"] = 65, 130
+    opts = dict(acct, initial=200_000, balance=200_000 + opt_sized[0]["net"], free=200_000,
+                return_pct=opt_sized[0]["net"] / 2000, sized=opt_sized)
     return {"now": now, "rows": rows, "backtest": backtest + [loser], "backtest_report": {"loaded": ["X"], "missing": []},
-            "live": live, "account": acct}
+            "live": live, "account": acct, "options": opts}
 
 
-def test_live_winner_goes_under_right_and_backtest_loser_under_wrong():
+def test_live_results_only_stocks_and_options():
     ins = ae.insights(_data())
-    assert any(x.startswith("ABCD made ₹") and "live today" in x for x in ins["right"])
-    assert any("Worst trade: WIPRO BUY" in x for x in ins["wrong"])
+    assert any(x.startswith("ABCD made ₹") and "on stocks today" in x for x in ins["right"])
+    assert any(x.startswith("SMA50 lost ₹") and "on options today" in x for x in ins["wrong"])
+    assert any("Worst trade: NIFTY 09NOV 22750 CE BUY" in x for x in ins["wrong"])
+    lines = " ".join(ins["right"] + ins["wrong"])
+    assert "WIPRO" not in lines and "TCS" not in lines and "backtest" not in lines.lower().replace("backtest losing", "")
     assert not any("−₹" in x and "lost" in x for x in ins["right"] + ins["wrong"])   # no "lost −₹…"
 
 
 def test_email_has_live_report_and_analysis_and_subject():
     ins = ae.insights(_data())
     html = ae.build_html(ins, "Monday, 26 Oct 2026")
-    for part in ("Live report", "Live trades today", "INFY", "Strategy analysis", "What went right",
-                 "Which strategies work", "3:45 PM"):
+    for part in ("LIVE report", "Stocks", "INFY", "Options · NIFTY", "NIFTY 09NOV 22750 CE", "2 lots (130)",
+                 "Strategy analysis", "What went right", "Which strategies work", "BACKTEST email"):
         assert part in html
+    assert "Backtest net" not in html and "TCS" not in html          # no backtest ₹ in the live email
     subject = ae.build_subject(ins)
-    assert subject.startswith("[AlgoTrading] Live report & strategy analysis — 2026-10-26") and "today +₹" in subject
+    assert subject.startswith("[AlgoTrading] LIVE report & strategy analysis — 2026-10-26")
+    assert "stocks +₹" in subject and "options −₹" in subject
 
 
 def test_sends_only_in_the_window_and_once(monkeypatch):
