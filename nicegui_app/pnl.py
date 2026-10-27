@@ -109,6 +109,61 @@ def collect_all_trades():
     return all_active, all_completed
 
 
+_DAY_QUOTES = [
+    "Discipline is choosing what you want most over what you want now.",
+    "Small steps every day add up to big results.",
+    "Your best trade today may be the one you don't take.",
+    "Calm minds make clear decisions.",
+    "Progress, not perfection.",
+    "Protect your capital first; profits follow patience.",
+    "Every day is a fresh chart. Read it with an open mind.",
+    "Consistency beats intensity.",
+    "Stick to the plan. The plan is there for the days you doubt it.",
+    "A good loss taken quickly is better than a bad hope held long.",
+    "Focus on the process, and let the results take care of themselves.",
+    "Gratitude turns what we have into enough.",
+    "Be patient with the market and kind to yourself.",
+    "Strength grows in the moments you think you can't go on but keep going anyway.",
+    "Today is a good day to do your best work.",
+]
+
+_SHIVA_BLESSINGS = [
+    "Om Namah Shivaya 🙏\nMay Lord Shiva keep your mind steady and your choices wise today.",
+    "Har Har Mahadev 🔱\nMay Mahadev remove every obstacle from your path today.",
+    "Om Tryambakam Yajamahe Sugandhim Pushtivardhanam 🙏\nMay Lord Shiva bless you with health, courage and peace.",
+    "Om Namah Shivaya 🕉️\nMay Bholenath fill your day with calm, clarity and strength.",
+    "Jai Bhole Nath 🔱\nMay the blessings of Lord Shiva guide every step you take today.",
+    "Om Namah Shivaya 🙏\nMay Neelkanth give you the strength to stay calm through every storm.",
+    "Har Har Mahadev 🕉️\nMay Shiva's grace bring patience to your mind and success to your work.",
+    "Om Shambhave Namah 🙏\nMay Lord Shiva bless your home with happiness and your day with good fortune.",
+    "Jai Shiv Shankar 🔱\nMay Mahadev keep fear away and fill you with quiet confidence.",
+    "Om Namah Shivaya 🕉️\nMay the light of Lord Shiva shine on you and everyone you love.",
+    "Har Har Mahadev 🙏\nMay Lord Shiva grant you wisdom to act and the peace to let go.",
+]
+
+
+def send_morning_blessing():
+    """Send at 8:55 AM IST every day: a positive quote for the day and Lord Shiva's blessing,
+    just before the 9:00 pre-market alert. Both rotate day by day."""
+    now = now_ist()
+    today_str = now.strftime("%Y-%m-%d")
+    key = f"morning_blessing_{today_str}"
+
+    if not (now.hour == 8 and 55 <= now.minute <= 59):
+        return
+    if _is_already_sent(key):
+        return
+
+    day = now.toordinal()
+    _send_telegram(
+        f"🌅 Good morning! | {now.strftime('%A, %d %b %Y')}\n{'=' * 30}\n"
+        f"✨ Thought for the day:\n\"{_DAY_QUOTES[day % len(_DAY_QUOTES)]}\"\n\n"
+        f"{_SHIVA_BLESSINGS[day % len(_SHIVA_BLESSINGS)]}"
+    )
+    _mark_sent(key)
+    print(f"  [telegram] Morning blessing sent for {today_str}")
+
+
 def send_premarket_alert():
     """Send at 9:00 AM IST every day — prep alert on trading days, rest/holiday message otherwise."""
     now = now_ist()
