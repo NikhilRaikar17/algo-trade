@@ -13,6 +13,8 @@ from datetime import datetime, time, timedelta
 
 import pandas as pd
 
+from brokerage import calculate_brokerage
+
 TAKEN, SKIPPED = "TAKEN", "SKIPPED"
 
 
@@ -37,6 +39,8 @@ class DeskRow:
     reasons: list = field(default_factory=list)   # why it was skipped
     warnings: list = field(default_factory=list)  # shown, never skip
     decided_at: datetime | None = None
+    lot_size: int = 1         # units per lot: qty is a whole number of lots (options), 1 for shares
+    group: str = ""           # holding one position per group, e.g. "NIFTY options" ("" = per symbol)
 
 
 @dataclass
@@ -44,7 +48,7 @@ class Book:
     """What the account holds when a signal is checked."""
     balance: float                 # starting funds + net P&L of every closed trade
     open_capital: float = 0.0      # capital of taken trades still open
-    open_symbols: set = field(default_factory=set)
+    open_symbols: set = field(default_factory=set)   # symbols and groups of open trades
     taken_today: int = 0
     day_stopped: str = ""          # why trading is over for today ("" = still trading)
 
@@ -121,31 +125,45 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
         return r
 
     r.reward_risk = round(reward / r.risk_per_share, 2)
-    want = math.floor(max_loss / r.risk_per_share)
+    # sized in whole lots: a lot is one share for stocks, lot_size units for options
+    lot = max(int(r.lot_size or 1), 1)
+    unit = "share" if lot == 1 else "lot"
+    lot_risk, lot_cost = r.risk_per_share * lot, r.entry * lot
+    want = math.floor(max_loss / lot_risk)
     free = max(book.balance - book.open_capital, 0.0)
     cap = book.balance * float(limits.get("max_capital_pct") or 100) / 100
-    r.qty = min(want, math.floor(min(free, cap) / r.entry))
+    lots = min(want, math.floor(min(free, cap) / lot_cost))
 
     if want < 1:
-        r.reasons.append(f"one share risks ₹{r.risk_per_share:,.2f}, over your ₹{max_loss:,.0f} max loss per trade")
-    elif free < r.entry:
+        r.reasons.append(f"one {unit} risks ₹{lot_risk:,.2f}, over your ₹{max_loss:,.0f} max loss per trade")
+    elif free < lot_cost:
         r.reasons.append(f"no free funds: ₹{book.open_capital:,.0f} of your ₹{book.balance:,.0f} is in open positions")
-    elif r.qty < 1:
-        r.reasons.append(f"one share costs more than the ₹{cap:,.0f} per-trade cap")
-    elif r.qty < want:
+    elif lots < 1:
+        r.reasons.append(f"one {unit} costs more than the ₹{cap:,.0f} per-trade cap")
+    elif lots < want:
         why = "free funds" if free < cap else f"₹{cap:,.0f} per-trade cap"
-        cut_risk = r.qty * r.risk_per_share
+        cut_risk = lots * lot_risk
         if cut_risk < max_loss * float(limits.get("min_risk_pct") or 0) / 100:
-            r.reasons.append(f"the {why} only buys {r.qty} shares, risking ₹{cut_risk:,.0f}: "
+            r.reasons.append(f"the {why} only buys {lots} {unit}s, risking ₹{cut_risk:,.0f}: "
                              f"under {limits['min_risk_pct']}% of your ₹{max_loss:,.0f}")
         else:
-            r.warnings.append(f"size cut from {want} to {r.qty} shares by the {why} "
+            r.warnings.append(f"size cut from {want} to {lots} {unit}s by the {why} "
                               f"(risks ₹{cut_risk:,.0f}, not ₹{max_loss:,.0f})")
-    r.qty = max(r.qty, 0)
+    r.qty = max(lots, 0) * lot
     r.capital = round(r.qty * r.entry, 2)
     r.max_loss = round(r.qty * r.risk_per_share, 2)
 
-    if r.reward_risk < limits["min_reward_risk"]:
+    if limits.get("reward_risk_after_charges") and r.qty:
+        # options: ~₹90 of charges a round trip is a big slice of a small move, so judge R:R net of them
+        seg, short = limits.get("segment", "equity_intraday"), r.side == "SELL"
+        won = calculate_brokerage(r.entry, r.target, 1, r.qty, seg, short=short)
+        lost = calculate_brokerage(r.entry, r.stop, 1, r.qty, seg, short=short)
+        net_rr = won["net_pnl"] / -lost["net_pnl"] if lost["net_pnl"] < 0 else 0.0
+        if net_rr < limits["min_reward_risk"]:
+            r.reasons.append(f"reward:risk after charges is {net_rr:.2f} (₹{won['net_pnl']:,.0f} at the target, "
+                             f"₹{lost['net_pnl']:,.0f} at the stop), under your minimum "
+                             f"{limits['min_reward_risk']:.2f}")
+    elif r.reward_risk < limits["min_reward_risk"]:
         r.reasons.append(f"reward:risk {r.reward_risk:.2f} is under your minimum {limits['min_reward_risk']:.2f}")
     t = now.time()
     if t < _hhmm(limits["no_entries_before"]) or t > _hhmm(limits["no_entries_after"]):
@@ -153,6 +171,8 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
                          f"{limits['no_entries_before']}–{limits['no_entries_after']}")
     if r.symbol in book.open_symbols:
         r.reasons.append(f"already holding {r.symbol}")
+    elif r.group and r.group in book.open_symbols:
+        r.reasons.append(f"already holding {r.group}")
     if book.day_stopped:
         r.reasons.append(f"trading stopped for today: {book.day_stopped}")
     max_trades = limits.get("max_trades_per_day")

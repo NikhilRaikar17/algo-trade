@@ -23,6 +23,8 @@ from sidebar import build_sidebar
 from strategy_registry import get_backtest_strategy_keys
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
 from trading_engine import run_position_monitor, run_trading_engine
+from options_engine import run_options_engine, run_options_monitor
+from account import OPTIONS
 from email_report import send_backtest_email_report
 from analysis_email import send_strategy_analysis_email
 from ws_feed import start_ws_feed
@@ -71,6 +73,7 @@ ALL_PAGE_IDS = [
     "trade_replay",
     "trade_desk",
     "pnl",
+    "pnl_options",
     "admin",
 ]
 
@@ -127,6 +130,8 @@ async def _start_scheduler():
     asyncio.create_task(_loop())
     asyncio.create_task(run_trading_engine())
     asyncio.create_task(run_position_monitor())
+    asyncio.create_task(run_options_engine())
+    asyncio.create_task(run_options_monitor())
     asyncio.create_task(_top_stocks_loop())
     asyncio.create_task(start_ws_feed())
     asyncio.create_task(start_global_feed())
@@ -601,7 +606,7 @@ async def index():
         # is viewing the page — causing a jarring blank flash.
         _STATIC_ONCE = {
             "markets", "market_news", "top_stocks", "swing_trades", "global_markets",
-            "nifty", "banknifty", "pnl", "backtest_pnl", "admin", "strategies", "strategy_analysis", "trade_replay", "trade_desk",
+            "nifty", "banknifty", "pnl", "pnl_options", "backtest_pnl", "admin", "strategies", "strategy_analysis", "trade_replay", "trade_desk",
             *BACKTEST_PAGE_IDS,
         }
         renders = {
@@ -613,6 +618,7 @@ async def index():
             "nifty":         lambda: render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"]),
             "banknifty":     lambda: render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]),
             "pnl":           lambda: render_pnl_tab(page_containers["pnl"]),
+            "pnl_options":   lambda: render_pnl_tab(page_containers["pnl_options"], acct=OPTIONS),
             "backtest_pnl":  lambda: render_backtest_pnl_tab(page_containers["backtest_pnl"]),
             "trade_replay":  lambda: render_trade_replay_tab(page_containers["trade_replay"]),
             "trade_desk":    lambda: render_trade_desk_tab(page_containers["trade_desk"]),

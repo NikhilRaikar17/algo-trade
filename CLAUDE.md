@@ -40,6 +40,7 @@ Live trading runs on the Dhan websocket feed, not REST polling:
 - `trading_engine.py` — runs strategies just after each 5-min bar closes, on finished bars at the live price; `run_position_monitor()` closes open trades at target/stop on ticks.
 - `account.py` — the paper account's book (`.live_book.json`): each signal is TAKEN or SKIPPED once (`trade_desk.check()`), only taken trades are alerted and counted. Limits in `config.RISK_LIMITS`.
 - The Live Algos page only displays (classifiers called with `book=False`).
+- `options_engine.py` — the same loop for NIFTY / BANKNIFTY options in a second paper account (`account.OPTIONS`, limits `config.OPTIONS_LIMITS`): `option_contracts.py` picks a CE and a PE per index (next-to-next expiry, near-ATM, liquid, affordable; `config.OPTIONS_SELECTION`), the strategies run on the option premium charts (feed keys `"2:<id>"`, see `ws_feed.feed_key`), only BUY signals are traded, in whole lots. Classifiers book into it with `book=OPTIONS`. Shown on Live P&L Options (`render_pnl_tab(..., acct=OPTIONS)`, sidebar OPTIONS section).
 
 ### Key Files in `nicegui_app/`
 

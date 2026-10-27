@@ -25,7 +25,9 @@ launch.json
 # Runtime state written by the app
 .telegram_sent.json
 .trade_history.json
-.live_account.json
+.live_account*.json
+.live_book*.json
+.lot_sizes.json
 
 # Working files from the trader-* Claude skills
 trader/

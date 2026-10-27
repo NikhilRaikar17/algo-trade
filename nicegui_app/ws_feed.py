@@ -38,6 +38,12 @@ _eq_subscribed: frozenset = frozenset()
 _eq_consuming = threading.Event()
 
 
+def feed_key(segment, security_id) -> str:
+    """Key of an instrument's quotes and bars: the security id for NSE stocks, "<segment>:<id>" for
+    anything else (an NSE_FNO option is "2:39887"), since ids are only unique within a segment."""
+    return str(security_id) if int(segment) == marketfeed.NSE else f"{int(segment)}:{security_id}"
+
+
 def get_quote(security_id) -> dict:
     """Return latest Full-packet data for an equity security, or {} if not received yet."""
     return dict(_quote_store.get(str(security_id), {}))
@@ -48,7 +54,7 @@ def get_last_tick_time(security_id) -> datetime | None:
     return _quote_tick_time.get(str(security_id))
 
 
-_eq_watch: dict[str, frozenset] = {}  # who wants which equities: "algo" (Live Algos), "positions" (open trades)
+_eq_watch: dict[str, frozenset] = {}  # who wants what: "engine", "positions", "algo", "options", "options_positions"
 _eq_lock = threading.Lock()
 _eq_thread: threading.Thread | None = None
 
@@ -106,7 +112,7 @@ def _run_equity_feed() -> None:
                     continue
                 if not data or "security_id" not in data:
                     continue
-                sec_id = str(data["security_id"])
+                sec_id = feed_key(data.get("exchange_segment", marketfeed.NSE), data["security_id"])
                 depth = data.get("depth") or []
                 best = depth[0] if depth else {}
                 _quote_store[sec_id] = {

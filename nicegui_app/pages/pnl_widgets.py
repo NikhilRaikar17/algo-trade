@@ -164,7 +164,8 @@ def trades_table(trades: list[dict], show_stock: bool) -> str:
             + (td("Stock", escape(t.get("stock", ""))) if show_stock else "")
             + td("Strategy", escape(t["strategy"]))
             + td("Side", f'<b class="{side_cls}">{t["side"]}</b>')
-            + td("Qty", f'{t["qty"]:,}', "n")
+            + td("Qty", f'{t["qty"] // t["lot_size"]} × {t["lot_size"]}' if t.get("lot_size", 1) > 1
+                 else f'{t["qty"]:,}', "n")
             + td("Entry ₹", f'{float(t["entry"]):,.2f}', "n")
             + td("Exit ₹", f'{float(t["exit_price"]):,.2f}', "n")
             + td("Exit", exit_txt)

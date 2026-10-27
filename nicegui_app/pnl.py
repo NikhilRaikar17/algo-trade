@@ -192,35 +192,17 @@ def send_morning_message():
     print(f"  [telegram] Morning message sent for {today_str}")
 
 
-def send_daily_pnl_summary():
-    """Send intraday live-trading P&L summary at 3:30 PM on trading days, in rupees.
-    Trades come from the paper account's book (account.account_state()): only the signals it took,
-    at the size it took them.
-    """
-    now = now_ist()
-    today_str = now.strftime("%Y-%m-%d")
-    summary_key = f"daily_pnl_{today_str}"
-
-    if not _is_trading_day(now):
-        return
-    if now.hour < 15 or (now.hour == 15 and now.minute < 30):
-        return
-    if _is_already_sent(summary_key):
-        return
-
-    # Same trades and maths as the Live P&L page: the paper account's book (account.py) — only the
-    # signals it took, at the size it took them, compounding, net of brokerage and taxes.
-    from account import account_state, day_status
+def _account_summary(acct, now, title: str, what: str) -> str:
+    """The 3:30 PM message for one paper account (account.EQUITY or account.OPTIONS)."""
     from backtest_metrics import inr, rupees_text, sizing_label, summarize
     from brokerage import is_short
 
-    acct = account_state(now)
-    _, stopped = day_status(now)
-    today = [t for t in acct["sized"] if t["trade_date"] == today_str]
+    today_str = now.strftime("%Y-%m-%d")
+    state = acct.account_state(now)
+    _, stopped = acct.day_status(now)
+    today = [t for t in state["sized"] if t["trade_date"] == today_str]
     day = summarize(today)
     total_realized = day["net"]
-    total_unrealized = acct["unrealized"]
-    total_trades, winners, losers, win_rate = day["trades"], day["wins"], day["losses"], day["win_rate"]
 
     strat_lines = []
     for strat in sorted({t["strategy"] for t in today}):
@@ -240,33 +222,59 @@ def send_daily_pnl_summary():
 
     breakdown = "\n".join(strat_lines) if strat_lines else "  No trades today"
     trade_log = "\n".join(trade_log_lines) if trade_log_lines else "  No completed trades"
-
-    day_name = now.strftime("%A, %d %b %Y")
     result_emoji = "📈" if total_realized >= 0 else "📉"
 
-    from db import get_active_top_stocks
-    stocks = get_active_top_stocks()
-    stock_names = ", ".join(s["name"] for s in stocks) if stocks else "—"
-
-    msg = (
-        f"MARKET CLOSED — DAILY SUMMARY {result_emoji}\n"
-        f"{day_name}\n{'=' * 30}\n\n"
+    return (
+        f"{title} {result_emoji}\n"
+        f"{now.strftime('%A, %d %b %Y')}\n{'=' * 30}\n\n"
         f"Realized P&L:   {rupees_text(total_realized)} (after ₹{inr(day['charges'])} charges)\n"
-        f"Unrealized P&L: {rupees_text(total_unrealized)} ({acct['open']} open)\n"
-        f"Account:        ₹{inr(acct['balance'])} ({acct['return_pct']:+.2f}% since "
-        f"{acct['start']:%d %b}, started ₹{inr(acct['initial'])})\n"
-        f"Free funds:     ₹{inr(acct['free'])}\n"
+        f"Unrealized P&L: {rupees_text(state['unrealized'])} ({state['open']} open)\n"
+        f"Account:        ₹{inr(state['balance'])} ({state['return_pct']:+.2f}% since "
+        f"{state['start']:%d %b}, started ₹{inr(state['initial'])})\n"
+        f"Free funds:     ₹{inr(state['free'])}\n"
         f"Sizing:         {sizing_label(funds=None)}, compounding\n"
-        f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
-        f"Skipped:        {len(acct['skipped_today'])} signals not taken (limits / funds)\n"
+        f"Total Trades:   {day['trades']} | Win Rate: {day['win_rate']:.0f}%\n"
+        f"Skipped:        {len(state['skipped_today'])} signals not taken (limits / funds)\n"
         + (f"Day stopped:    {stopped}\n" if stopped else "") +
-        f"Winners/Losers: {winners}W / {losers}L\n"
-        f"\nStocks Monitored: {stock_names}\n"
+        f"Winners/Losers: {day['wins']}W / {day['losses']}L\n"
+        f"\n{what}\n"
         f"\nStrategy Breakdown:\n{breakdown}\n\n"
         f"Trade Log (last {min(10, len(today))}):\n{trade_log}\n\n"
         f"{'=' * 30}\n"
         f"Trading session complete. See you tomorrow!"
     )
-    _send_telegram(msg)
-    _mark_sent(summary_key)
-    print(f"  [telegram] Daily P&L summary sent for {today_str}")
+
+
+def send_daily_pnl_summary():
+    """Send intraday live-trading P&L summaries at 3:30 PM on trading days, in rupees: one for the
+    stock account, one for the options account. Trades come from each paper account's book
+    (account.py): only the signals it took, at the size it took them, compounding, net of brokerage
+    and taxes — the same trades and maths as the Live P&L pages.
+    """
+    now = now_ist()
+    today_str = now.strftime("%Y-%m-%d")
+
+    if not _is_trading_day(now):
+        return
+    if now.hour < 15 or (now.hour == 15 and now.minute < 30):
+        return
+
+    from account import EQUITY, OPTIONS
+
+    summary_key = f"daily_pnl_{today_str}"
+    if not _is_already_sent(summary_key):
+        from db import get_active_top_stocks
+        stocks = get_active_top_stocks()
+        stock_names = ", ".join(s["name"] for s in stocks) if stocks else "—"
+        _send_telegram(_account_summary(EQUITY, now, "MARKET CLOSED — DAILY SUMMARY",
+                                        f"Stocks Monitored: {stock_names}"))
+        _mark_sent(summary_key)
+        print(f"  [telegram] Daily P&L summary sent for {today_str}")
+
+    options_key = f"daily_pnl_options_{today_str}"
+    if not _is_already_sent(options_key):
+        from options_engine import snapshot
+        contracts = ", ".join(c["symbol"] for c in snapshot()["contracts"]) or "—"
+        _send_telegram(_account_summary(OPTIONS, now, "OPTIONS — DAILY SUMMARY", f"Contracts traded: {contracts}"))
+        _mark_sent(options_key)
+        print(f"  [telegram] Options P&L summary sent for {today_str}")

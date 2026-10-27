@@ -24,19 +24,20 @@ _EQ_EXCHANGE_PCT   = 0.000030699  # 0.0030699% NSE transaction charge, as Dhan l
 _EQ_STAMP_PCT      = 0.00003      # 0.003% on buy-side turnover
 
 # F&O (options) rates
-_FNO_STT_PCT       = 0.001      # 0.1% on sell-side premium (since Oct 2024)
+_FNO_STT_PCT       = 0.0015     # 0.15% on sell-side premium (Finance Act 2026, from 1 Apr 2026)
 _FNO_EXCHANGE_PCT  = 0.0003503  # 0.03503% NSE options transaction charge on premium
 _FNO_STAMP_PCT     = 0.00003    # 0.003% on buy-side premium
 
-# Standard lot sizes (current as of 2025-26 revision)
+# NSE lot sizes from Dhan's NSE_FNO instrument list (api.dhan.co/v2/instrument/NSE_FNO), 2026-10-27.
+# The live options engine reads them from that list each day (option_contracts.lot_size); these are
+# the fallback.
 LOT_SIZES: dict[str, int] = {
-    "NIFTY":      75,
-    "BANKNIFTY":  35,
-    "SENSEX":     10,
-    "FINNIFTY":   65,
-    "MIDCPNIFTY": 75,
+    "NIFTY":      65,
+    "BANKNIFTY":  30,
+    "FINNIFTY":   60,
+    "MIDCPNIFTY": 120,
 }
-DEFAULT_LOT_SIZE = 75  # fallback
+DEFAULT_LOT_SIZE = 65  # fallback
 
 
 def get_lot_size(instrument: str) -> int:

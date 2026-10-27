@@ -9,7 +9,7 @@ import talib
 
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT, now_ist
 from state import _is_already_sent, _mark_sent, _send_telegram, save_completed_trade
-from account import alert_day_stop, close_signal, closed_text, mark_price, open_signal, size_text
+from account import EQUITY, size_text
 from trade_desk import TAKEN
 
 _MARKET_CLOSE = _dtime(15, 30)
@@ -144,35 +144,42 @@ def _pattern_key(p):
     return f"{p['A']['time']}_{p['D']['time']}_{p['type']}"
 
 
-def _book_open(trade, price, strategy, symbol, alert):
+def _account(book):
+    """book=True → the stock account; a PaperAccount (account.OPTIONS) → that one."""
+    return EQUITY if book is True else book
+
+
+def _book_open(book, trade, price, strategy, symbol, alert):
     """An open signal, every tick: the first time, the paper account takes or skips it and Telegram
     says which (only a taken trade is a NEW TRADE); after that its price is tracked."""
+    acct = _account(book)
     trade["strategy"], trade["symbol"] = strategy, symbol
-    rec, new = open_signal(trade, strategy, symbol, price)
+    rec, new = acct.open_signal(trade, strategy, symbol, price)
     if rec is None:
         return
     if not new:
-        mark_price(trade, strategy, symbol, price)
+        acct.mark_price(trade, strategy, symbol, price)
     elif rec["verdict"] == TAKEN:
-        _send_telegram(f"NEW TRADE {alert}\nSize: {size_text(rec)}"
+        _send_telegram(f"{acct.tag}NEW TRADE {alert}\nSize: {size_text(rec)}"
                        + "".join(f"\nNote: {w}" for w in rec["warnings"]))
     else:
-        _send_telegram(f"SKIPPED {alert}\nNot taken: " + "; ".join(rec["reasons"]))
+        _send_telegram(f"{acct.tag}SKIPPED {alert}\nNot taken: " + "; ".join(rec["reasons"]))
 
 
-def _book_close(trade, price, strategy, symbol, history_key):
-    """A signal past its target or stop: saved to the signal history once; TRADE CLOSED only when it
-    closes a trade the account took (the live-tick monitor usually closes it first), with that
-    trade's own size and P&L."""
+def _book_close(book, trade, price, strategy, symbol, history_key):
+    """A signal past its target or stop: saved to the signal history once (stock signals only);
+    TRADE CLOSED only when it closes a trade the account took (the live-tick monitor usually closes it
+    first), with that trade's own size and P&L."""
+    acct = _account(book)
     trade["strategy"], trade["symbol"] = strategy, symbol
-    if not _is_already_sent(history_key):
+    if acct.history and not _is_already_sent(history_key):
         trade["trade_date"] = now_ist().strftime("%Y-%m-%d")
         save_completed_trade(history_key, trade)
         _mark_sent(history_key)
-    rec = close_signal(trade, strategy, symbol, price, trade["status"])
+    rec = acct.close_signal(trade, strategy, symbol, price, trade["status"])
     if rec:
-        _send_telegram(closed_text(rec))
-        alert_day_stop()
+        _send_telegram(acct.closed_text(rec))
+        acct.alert_day_stop()
 
 
 def classify_trades(patterns, current_price, contract_name="", book=True):
@@ -194,12 +201,12 @@ def classify_trades(patterns, current_price, contract_name="", book=True):
             p["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(p)
             if book:
-                _book_close(p, current_price, "ABCD", contract_name, history_key)
+                _book_close(book, p, current_price, "ABCD", contract_name, history_key)
         else:
             p["unrealized_pnl"] = round(pnl, 2)
             active.append(p)
             if book:
-                _book_open(p, current_price, "ABCD", contract_name,
+                _book_open(book, p, current_price, "ABCD", contract_name,
                            f"{about}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
                            f"BC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}")
     return active, completed
@@ -385,12 +392,12 @@ def classify_rsi_trades(signals, current_price, contract_name="", book=True):
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
             if book:
-                _book_close(s, current_price, "RSI+SMA", contract_name, history_key)
+                _book_close(book, s, current_price, "RSI+SMA", contract_name, history_key)
         else:
             s["unrealized_pnl"] = pnl
             active.append(s)
             if book:
-                _book_open(s, current_price, "RSI+SMA", contract_name,
+                _book_open(book, s, current_price, "RSI+SMA", contract_name,
                            f"{about}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
                            f"RSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}")
     return active, completed
@@ -1099,7 +1106,7 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
             if book:
-                _book_close(s, current_price, strategy_name, contract_name, history_key)
+                _book_close(book, s, current_price, strategy_name, contract_name, history_key)
         else:
             s["unrealized_pnl"] = pnl
             active.append(s)
@@ -1107,7 +1114,7 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
             if extra_alert_fn:
                 alert += extra_alert_fn(s)
             if book:
-                _book_open(s, current_price, strategy_name, contract_name, alert)
+                _book_open(book, s, current_price, strategy_name, contract_name, alert)
     return active, completed
 
 

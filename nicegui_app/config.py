@@ -64,6 +64,31 @@ RISK_LIMITS = {
     "square_off": "15:20",        # open trades are closed at the last price (intraday)
 }
 
+# ================= LIVE OPTIONS ACCOUNT =================
+# A second paper account (account.OPTIONS) that buys NIFTY / BANKNIFTY options on signals from the
+# options' own premium charts (options_engine.py). Same rules as the stock account, sized in whole lots.
+OPTIONS_LIMITS = {
+    **RISK_LIMITS,
+    "funds": 200_000,             # ₹ of its own, separate from the stock account's
+    "segment": "fno",            # brokerage and taxes as NSE options
+    "reward_risk_after_charges": True,  # R:R counts the round trip's charges (~₹90 a lot): (reward − charges) / (risk + charges)
+}
+
+OPTIONS_UNDERLYINGS = ["NIFTY", "BANKNIFTY"]
+
+# How option_contracts.select_contracts() picks the CE and PE to trade for each index
+OPTIONS_SELECTION = {
+    "expiry_skip": 1,             # expiries after today to pass over: 1 = next-to-next (today's expiry never counts)
+    "max_days_to_expiry": 45,     # unless that is further out than this (monthly-only BANKNIFTY): then the next one
+    "strikes_each_side": 4,       # strikes either side of the ATM to consider
+    "min_delta": 0.35,            # |delta| range: near the money, so the premium follows the index
+    "max_delta": 0.65,
+    "min_oi": 50_000,             # open interest (units) — enough positions to get out
+    "min_volume": 50_000,         # units traded today
+    "max_spread_pct": 1.0,        # bid-ask spread, % of the premium
+    "reselect_strikes": 3,        # pick again once the index has moved this many strikes from the chosen ATM
+}
+
 # Trade-store prefix / dropdown key → trade["strategy"] name used in P&L
 STRATEGY_NAMES = {
     "abcd":  "ABCD",

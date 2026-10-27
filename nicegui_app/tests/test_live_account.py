@@ -27,10 +27,10 @@ def _sig(hhmm, entry, stop, target, signal="SELL"):
 
 @pytest.fixture
 def acct(tmp_path, monkeypatch):
-    monkeypatch.setattr(account, "_FILE", str(tmp_path / "acct.json"))
-    monkeypatch.setattr(account, "_BOOK_FILE", str(tmp_path / "book.json"))
-    monkeypatch.setattr(account, "RISK_LIMITS", LIMITS)
-    with open(account._FILE, "w") as f:
+    monkeypatch.setattr(account.EQUITY, "file", str(tmp_path / "acct.json"))
+    monkeypatch.setattr(account.EQUITY, "book_file", str(tmp_path / "book.json"))
+    monkeypatch.setattr(account.EQUITY, "limits", LIMITS)
+    with open(account.EQUITY.file, "w") as f:
         f.write('{"start": "2026-10-27T09:00:00+05:30", "initial": 100000}')
     sent, marked = [], set()
     import state

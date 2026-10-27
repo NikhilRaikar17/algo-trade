@@ -678,6 +678,28 @@ def fetch_atm_option_15min_candles(index_name: str, expiry_idx: int, opt_type: s
     return contract_label, df
 
 
+def fetch_option_candles(security_id: str, interval: int = 5, retries: int = 3) -> pd.DataFrame:
+    """Today's (and the last week's) candles of one NIFTY / BANKNIFTY option by security_id — the live
+    options engine's REST seed for bars from before the contract was on the feed."""
+    today = now_ist().date()
+    to_date = pd.Timestamp(today).strftime("%Y-%m-%d")
+    from_date = (pd.Timestamp(today) - pd.Timedelta(days=7)).strftime("%Y-%m-%d")
+    cache_key = f"opt_candles_{security_id}:{interval}:{from_date}:{to_date}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    r = api_call(dhan.intraday_minute_data, str(security_id), "NSE_FNO", "OPTIDX",
+                 from_date, to_date, interval=interval, retries=retries, delay=1)
+    if r.get("status") != "success":
+        return pd.DataFrame()
+    d = r["data"]
+    df = pd.DataFrame({k: d.get(k, []) for k in ("timestamp", "open", "high", "low", "close")})
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
+    _cache_set(cache_key, df)
+    return df
+
+
 def resolve_option_label(index_name: str, expiry_idx: int, opt_type: str) -> str:
     """Resolve the real contract label (e.g. 'NIFTY 07APR 22350 CE') without fetching candles."""
     cfg = INDICES[index_name]

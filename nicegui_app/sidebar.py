@@ -129,6 +129,7 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             _section_label("OPTIONS")
             _nav_button("nifty",     "NIFTY 50",   "show_chart",        icon_color="icon-blue")
             _nav_button("banknifty", "BANK NIFTY", "candlestick_chart", icon_color="icon-blue")
+            _nav_button("pnl_options", "Live P&L Options", "account_balance_wallet", icon_color="icon-rose")
 
             ui.separator().style(_S["sep"])
 
