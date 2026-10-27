@@ -93,7 +93,7 @@ async def _start_scheduler():
                 send_morning_message()
                 send_daily_pnl_summary()
                 send_backtest_email_report()
-                # 15:45 live report + strategy analysis: it backtests every strategy, so off the event loop
+                # live report + strategy analysis from 15:45: it backtests every strategy, so off the event loop
                 await asyncio.get_event_loop().run_in_executor(None, send_strategy_analysis_email)
             except Exception as e:
                 print(f"  [scheduler error] {e}")

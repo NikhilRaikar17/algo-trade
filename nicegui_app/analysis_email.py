@@ -2,7 +2,8 @@
 Daily live report + strategy analysis email — one email, separate from the 4 PM backtest report
 (email_report.py).
 
-Sent once per trading day between 15:45 and 15:55 IST, after the close. The live report part is the
+Sent once per trading day from 15:45 IST, after the close (retried until 20:00 if a build fails or the
+app restarts mid-build; marked sent only once it has gone out). The live report part is the
 paper account and today's live trades, trade by trade; the analysis part answers "what went right,
 what went wrong, which strategies work" from three things:
 
@@ -15,6 +16,7 @@ gather() does the I/O; insights() and build_html() are pure, so the email can be
 without sending anything.
 """
 
+import threading
 from collections import defaultdict
 from html import escape
 
@@ -25,7 +27,8 @@ from config import STRATEGY_REVIEW, _is_trading_day, now_ist
 from state import _is_already_sent, _mark_sent
 from strategy_review import GOOD, NOT_GOOD, TOO_EARLY, WATCH, build_reviews
 
-SEND_WINDOW = ((15, 45), (15, 55))  # after the 15:30 close, before the 4 PM backtest report
+SEND_WINDOW = ((15, 45), (20, 0))   # from after the 15:30 close; later minutes are retries
+MAX_ATTEMPTS = 3                    # builds per day (each backtests every top stock)
 _CHARGES_HEAVY = 0.30               # flag a day when charges eat more than 30% of the gross profit
 
 _GREEN, _RED, _AMBER, _GREY, _INK = "#1e8449", "#c0392b", "#b9770e", "#7f8c8d", "#2c3e50"
@@ -273,15 +276,26 @@ def send_strategy_analysis_email():
     from email_report import _send_email  # noqa: PLC0415
 
     now = now_ist()
-    key = f"analysis_email_{now:%Y-%m-%d}"
+    day = f"{now:%Y-%m-%d}"
+    key = f"analysis_email_sent_{day}"  # written only after the email went out
     (h0, m0), (h1, m1) = SEND_WINDOW
     if not ((h0, m0) <= (now.hour, now.minute) <= (h1, m1)) or not _is_trading_day(now):
         return
-    if _is_already_sent(key):
+    if _is_already_sent(key) or _attempts.get(day, 0) >= MAX_ATTEMPTS:
         return
-    _mark_sent(key)  # mark first: a slow build must not start a second one on the next tick
+    if not _building.acquire(blocking=False):  # a slow build is still running from an earlier tick
+        return
     try:
+        _attempts[day] = _attempts.get(day, 0) + 1
         ins = insights(gather(now))
-        _send_email(build_subject(ins), build_html(ins, now.strftime("%A, %d %b %Y")), None, None)
+        _send_email(build_subject(ins), build_html(ins, now.strftime("%A, %d %b %Y")), None, None)  # raises if it fails
+        _mark_sent(key)
+        print(f"  [analysis_email] sent for {day}")
     except Exception as e:
-        print(f"  [analysis_email] failed: {e}")
+        print(f"  [analysis_email] attempt {_attempts[day]}/{MAX_ATTEMPTS} failed: {e}")
+    finally:
+        _building.release()
+
+
+_building = threading.Lock()
+_attempts: dict[str, int] = {}  # day → builds tried (in memory: a restart allows MAX_ATTEMPTS more)
