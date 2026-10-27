@@ -157,7 +157,11 @@ def _token_alert(error):
     send_alert_to_all(f"⚠️ Dhan token refresh failed: {error}", RECEIVER_CHAT_IDS, BOT_TOKEN)
 
 
-if os.getenv("DHAN_TOTP_SECRET"):
+# A new token cancels the old one, so only one machine may refresh: the live server. Set
+# DHAN_AUTO_REFRESH=false in a local .env and copy the server's token in instead.
+AUTO_REFRESH_TOKEN = os.getenv("DHAN_AUTO_REFRESH", "true").strip().lower() not in ("false", "0", "no", "off")
+
+if os.getenv("DHAN_TOTP_SECRET") and AUTO_REFRESH_TOKEN:
     dhan_auth.ensure_fresh_token(ENV_FILE)
     dhan_auth.start_refresher(ENV_FILE, on_error=_token_alert)
 
