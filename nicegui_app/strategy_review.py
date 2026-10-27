@@ -13,9 +13,11 @@ A source with fewer than STRATEGY_REVIEW["min_trades"] trades is "too few to jud
     Too early  — neither source has enough trades
 """
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 
-from backtest_metrics import summarize
+from backtest_metrics import DEFAULT_FUNDS, DEFAULT_MODE, DEFAULT_SIZING, size_trades, summarize
+from config import STRATEGY_NAMES, STRATEGY_REVIEW
 
 NOT_GOOD, WATCH, GOOD, TOO_EARLY = "Not good", "Watch", "Good", "Too early"
 
@@ -77,3 +79,30 @@ def verdict(backtest: SourceResult, live: SourceResult, rules: dict) -> tuple[st
     if all(j == "pass" for j in judged):
         return GOOD, reasons
     return WATCH, reasons
+
+
+def _name_to_key() -> dict[str, str]:
+    """Live trades are tagged with config.STRATEGY_NAMES values; map them back to keys."""
+    return {v: k for k, v in STRATEGY_NAMES.items()}
+
+
+def build_reviews(backtest_trades: list[dict], live_trades: list[dict], strategy_rows: list[dict],
+                  live_funds: float) -> list[StrategyReview]:
+    """One review per strategy. Each source is sized as its own account: risk the max loss at the
+    stop, cut to the funds, compounding, after charges."""
+    mode, amount, rules = DEFAULT_MODE, DEFAULT_SIZING[DEFAULT_MODE], STRATEGY_REVIEW
+    by_key_bt, by_key_live = defaultdict(list), defaultdict(list)
+    for t in backtest_trades:
+        by_key_bt[t.get("strategy_key")].append(t)
+    names = _name_to_key()
+    for t in live_trades:
+        by_key_live[names.get(t.get("strategy"), t.get("strategy"))].append(t)
+    out = []
+    for row in strategy_rows:
+        k = row["key"]
+        bt = judge_source(size_trades(by_key_bt[k], mode, amount, DEFAULT_FUNDS, compound=True), rules, DEFAULT_FUNDS)
+        lv = judge_source(size_trades(by_key_live[k], mode, amount, live_funds, compound=True), rules, live_funds)
+        v, reasons = verdict(bt, lv, rules)
+        out.append(StrategyReview(key=k, name=row["display_name"], backtest=bt, live=lv, verdict=v, reasons=reasons))
+    order = {NOT_GOOD: 0, WATCH: 1, GOOD: 2, TOO_EARLY: 3}
+    return sorted(out, key=lambda r: (order[r.verdict], -r.backtest.trades))

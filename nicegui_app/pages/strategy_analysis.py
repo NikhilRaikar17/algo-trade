@@ -13,15 +13,15 @@ from html import escape
 from nicegui import ui
 
 from account import get_settings, in_account
-from backtest_metrics import DEFAULT_FUNDS, DEFAULT_MODE, DEFAULT_SIZING, size_trades, sizing_label
-from config import STRATEGY_NAMES, STRATEGY_REVIEW, now_ist
+from backtest_metrics import sizing_label
+from config import STRATEGY_REVIEW, now_ist
 from db import get_active_top_stocks
 from live_trades import load_live_trades
 from pages.backtest_pnl_tab import _fetch_all_stocks_trades
 from pages.pnl_widgets import CSS, rs, td, tone
 from state import is_market_open
 from strategy_registry import get_strategy_rows
-from strategy_review import GOOD, NOT_GOOD, TOO_EARLY, WATCH, judge_source, verdict, StrategyReview
+from strategy_review import GOOD, NOT_GOOD, TOO_EARLY, WATCH, StrategyReview, build_reviews
 
 _CACHE_SECONDS = 300
 _VERDICT_CLS = {NOT_GOOD: "bt-down", WATCH: "bt-warn", GOOD: "bt-up", TOO_EARLY: "bt-dim"}
@@ -44,11 +44,6 @@ _PAGE_CSS = """
   @media (max-width: 899px) { .bt-table td.sa-verdict { grid-column:1 / -1; min-width:0; } .sa-rate { justify-content:flex-start; } }
 </style>
 """
-
-
-def _name_to_key() -> dict[str, str]:
-    """Live trades are tagged with config.STRATEGY_NAMES values; map them back to keys."""
-    return {v: k for k, v in STRATEGY_NAMES.items()}
 
 
 def _rate_cell(src, limit) -> str:
@@ -90,28 +85,6 @@ def _table(reviews: list[StrategyReview], flags: dict) -> str:
             + "</tr>"
         )
     return f'<div class="bt-wrap"><table class="bt-table"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>'
-
-
-def build_reviews(backtest_trades: list[dict], live_trades: list[dict], strategy_rows: list[dict],
-                  live_funds: float) -> list[StrategyReview]:
-    """One review per strategy. Each source is sized as its own account: risk the max loss at the
-    stop, cut to the funds, compounding, after charges."""
-    mode, amount, rules = DEFAULT_MODE, DEFAULT_SIZING[DEFAULT_MODE], STRATEGY_REVIEW
-    by_key_bt, by_key_live = defaultdict(list), defaultdict(list)
-    for t in backtest_trades:
-        by_key_bt[t.get("strategy_key")].append(t)
-    names = _name_to_key()
-    for t in live_trades:
-        by_key_live[names.get(t.get("strategy"), t.get("strategy"))].append(t)
-    out = []
-    for row in strategy_rows:
-        k = row["key"]
-        bt = judge_source(size_trades(by_key_bt[k], mode, amount, DEFAULT_FUNDS, compound=True), rules, DEFAULT_FUNDS)
-        lv = judge_source(size_trades(by_key_live[k], mode, amount, live_funds, compound=True), rules, live_funds)
-        v, reasons = verdict(bt, lv, rules)
-        out.append(StrategyReview(key=k, name=row["display_name"], backtest=bt, live=lv, verdict=v, reasons=reasons))
-    order = {NOT_GOOD: 0, WATCH: 1, GOOD: 2, TOO_EARLY: 3}
-    return sorted(out, key=lambda r: (order[r.verdict], -r.backtest.trades))
 
 
 def render_strategy_analysis_tab(container):

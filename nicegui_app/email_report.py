@@ -579,11 +579,12 @@ def _send_email(subject, body, attachment_bytes, filename):
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "html"))
 
-    part = MIMEBase("application", "octet-stream")
-    part.set_payload(attachment_bytes)
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
-    msg.attach(part)
+    if attachment_bytes is not None:  # the strategy analysis email has none
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(attachment_bytes)
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
+        msg.attach(part)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(gmail_user, app_password)

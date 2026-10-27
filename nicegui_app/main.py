@@ -24,6 +24,7 @@ from strategy_registry import get_backtest_strategy_keys
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
 from trading_engine import run_trading_engine
 from email_report import send_backtest_email_report
+from analysis_email import send_strategy_analysis_email
 from ws_feed import start_ws_feed
 from global_feed import start_global_feed
 from pages.login import render_login_page
@@ -88,6 +89,8 @@ async def _start_scheduler():
                 send_morning_message()
                 send_daily_pnl_summary()
                 send_backtest_email_report()
+                # 15:45 live report + strategy analysis: it backtests every strategy, so off the event loop
+                await asyncio.get_event_loop().run_in_executor(None, send_strategy_analysis_email)
             except Exception as e:
                 print(f"  [scheduler error] {e}")
 
