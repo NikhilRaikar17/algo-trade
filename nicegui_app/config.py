@@ -195,7 +195,11 @@ def reinit_dhan():
         "0",
         "no",
     )
-    dhan = dhanhq(CLIENT_ID, ACCESS_TOKEN)
+    # Update the existing client in place: data.py and pages use `from config import dhan`,
+    # so a new object would leave them calling Dhan with the old token until a restart.
+    dhan.client_id = str(CLIENT_ID)
+    dhan.access_token = ACCESS_TOKEN
+    dhan.header["access-token"] = ACCESS_TOKEN
 
 
 def _watch_env_file():
