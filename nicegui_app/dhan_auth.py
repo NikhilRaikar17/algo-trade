@@ -37,15 +37,21 @@ MIN_REMAINING = timedelta(minutes=10)
 
 _lock = threading.Lock()
 _validity_cache: dict = {}  # {token: datetime} — only the current token is kept
+# Why the last fetch_token_validity() returned None: "rejected" (Dhan refused the token, e.g. it was
+# replaced by a newer one or expired), "unreachable" (network / unexpected reply), or None after a success.
+last_validity_error: str | None = None
 
 
 def fetch_token_validity() -> datetime | None:
     """Expiry of the current token as reported by Dhan's profile API (`tokenValidity`).
 
-    Cached per token, since a token's expiry never changes. None if Dhan can't be reached.
+    Cached per token, since a token's expiry never changes. None if Dhan rejects the token or can't
+    be reached; last_validity_error says which.
     """
+    global last_validity_error
     token = os.getenv("DHAN_TOKEN_ID", "")
     if not token:
+        last_validity_error = "rejected"
         return None
     if token in _validity_cache:
         return _validity_cache[token]
@@ -55,11 +61,17 @@ def fetch_token_validity() -> datetime | None:
             headers={"access-token": token, "Accept": "application/json"},
             timeout=10,
         )
+        if resp.status_code in (401, 403):
+            last_validity_error = "rejected"
+            print(f"  [dhan_auth] token rejected by Dhan (HTTP {resp.status_code})")
+            return None
         raw = resp.json().get("tokenValidity")  # e.g. "27/10/2026 19:55", IST
         validity = _ist().localize(datetime.strptime(raw, "%d/%m/%Y %H:%M"))
     except Exception as e:
+        last_validity_error = "unreachable"
         print(f"  [dhan_auth] could not read token validity: {e}")
         return None
+    last_validity_error = None
     _validity_cache.clear()
     _validity_cache[token] = validity
     return validity

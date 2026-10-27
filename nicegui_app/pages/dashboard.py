@@ -2,6 +2,7 @@
 Dashboard page: clocks (IST / CEST) and market price cards.
 """
 
+import os
 import time
 import asyncio
 import json
@@ -439,6 +440,36 @@ def render_dashboard(container):
 
     page_client = context.client
 
+    async def _update_token():
+        """Token label: Dhan's own expiry; if Dhan can't be reached, the expiry inside the token;
+        red if Dhan rejects the token (expired, or replaced by a newer one)."""
+        validity = await asyncio.get_running_loop().run_in_executor(None, dhan_auth.fetch_token_validity)
+        if page_client._deleted:
+            return
+        note = ""
+        if validity is None and dhan_auth.last_validity_error != "rejected":
+            validity = dhan_auth.token_expiry(os.getenv("DHAN_TOKEN_ID", ""))
+            note = " (from token, Dhan not reachable)" if validity else ""
+        if validity is None:
+            rejected = dhan_auth.last_validity_error == "rejected"
+            token_text = "Token · Rejected by Dhan" if rejected else "Token · Expiry unknown"
+            token_cls = "text-red-600" if rejected else "text-gray-500"
+        else:
+            left = validity - now_ist()
+            if left.total_seconds() <= 0:
+                token_text, token_cls = f"Token · Expired {validity:%d %b %H:%M} IST", "text-red-600"
+            else:
+                token_text = f"Token · Expires {validity:%d %b %H:%M} IST{note}"
+                token_cls = "text-amber-600" if left.total_seconds() < 2 * 3600 else "text-green-600"
+        _token_label.set_text(token_text)
+        _token_label.classes(token_cls, remove="text-green-600 text-amber-600 text-red-600 text-gray-500")
+        _token_icon.classes(token_cls, remove="text-green-600 text-amber-600 text-red-600 text-gray-400 text-gray-500")
+
+    # Re-check every 5 minutes: a failed check no longer sticks until the next navigation, and a
+    # token refreshed in the background shows up. Cheap — the expiry is cached per token.
+    with page_client:
+        ui.timer(300, _update_token)
+
     async def refresh():
         prices = await asyncio.get_running_loop().run_in_executor(
             None, fetch_dashboard_prices
@@ -459,24 +490,7 @@ def render_dashboard(container):
             _api_label.set_text("Dhan API · Error")
             _api_label.classes("text-red-600", remove="text-green-600 text-gray-500")
 
-        # Update token expiry
-        validity = await asyncio.get_running_loop().run_in_executor(
-            None, dhan_auth.fetch_token_validity
-        )
-        if page_client._deleted:
-            return
-        if validity is None:
-            token_text, token_cls = "Token · Expiry unknown", "text-gray-500"
-        else:
-            left = validity - now_ist()
-            if left.total_seconds() <= 0:
-                token_text, token_cls = f"Token · Expired {validity:%d %b %H:%M} IST", "text-red-600"
-            else:
-                token_text = f"Token · Expires {validity:%d %b %H:%M} IST"
-                token_cls = "text-amber-600" if left.total_seconds() < 2 * 3600 else "text-green-600"
-        _token_label.set_text(token_text)
-        _token_label.classes(token_cls, remove="text-green-600 text-amber-600 text-red-600 text-gray-500")
-        _token_icon.classes(token_cls, remove="text-green-600 text-amber-600 text-red-600 text-gray-400 text-gray-500")
+        await _update_token()
 
         # Update FUT card labels in-place
         for name in ["NIFTY", "BANKNIFTY"]:
