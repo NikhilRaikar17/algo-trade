@@ -16,8 +16,8 @@ from datetime import time
 
 from nicegui import ui
 
-from account import current_state, decisions
-from backtest_metrics import inr
+from account import current_state, day_status, decisions
+from backtest_metrics import inr, rupees_text
 from config import RISK_LIMITS, now_ist
 from data import fetch_stock_candles_history
 from live_signals import get_today_signals
@@ -87,14 +87,16 @@ def render_trade_desk_tab(container):
     """Build the Trade Desk page. Returns an async refresh() closure."""
     odds_cache: dict[str, dict] = {}       # row key → {"target", "stop", "label"} or {"error"}
     history_cache: dict[tuple, object] = {}  # (security_id, date) → candles DataFrame
-    state = {"busy": False, "rows": []}
+    state = {"busy": False, "rows": [], "day_net": 0.0, "stopped": ""}
 
     lim = dict(RISK_LIMITS)  # "funds" is replaced by the paper account's balance on every refresh
 
     def _limits_text():
         return (f"LIMITS · funds ₹{inr(lim['funds'])} (account balance) · max loss ₹{lim['max_loss_per_trade']:,}/trade · "
-                f"≤{lim['max_capital_pct']}% of funds/trade · {lim['max_trades_per_day']} trades/day · "
-                f"₹{lim['max_daily_loss']:,}/day · reward:risk ≥ {lim['min_reward_risk']} · "
+                f"≤{lim['max_capital_pct']}% of funds/trade · "
+                + (f"{lim['max_trades_per_day']} trades/day · " if lim.get("max_trades_per_day") else "")
+                + f"stop the day at −₹{lim['max_daily_loss']:,} or {lim['max_losing_streak']} losses in a row · "
+                f"reward:risk ≥ {lim['min_reward_risk']} · "
                 f"entries {lim['no_entries_before']}–{lim['no_entries_after']} · edit in config.RISK_LIMITS")
 
     with container:
@@ -118,10 +120,11 @@ def render_trade_desk_tab(container):
             <div class="td-tiles">
               <div class="td-tile"><div class="td-k">Signals today</div><div class="td-v">{s['signals']}</div>
                 <div class="td-s">{s['passed']} taken · {s['blocked']} skipped</div></div>
-              <div class="td-tile"><div class="td-k">Trades used</div><div class="td-v">{s['trades_used']} / {s['trades_limit']}</div>
-                <div class="td-s">taken by the paper account</div></div>
-              <div class="td-tile"><div class="td-k">Loss at risk</div><div class="td-v">₹{s['loss_used']:,.0f}</div>
-                <div class="td-s">of ₹{s['loss_limit']:,} daily limit</div></div>
+              <div class="td-tile"><div class="td-k">Trades taken</div><div class="td-v">{s['trades_used']}</div>
+                <div class="td-s">by the paper account</div></div>
+              <div class="td-tile"><div class="td-k">Today's P&amp;L</div><div class="td-v">{rupees_text(state['day_net'])}</div>
+                <div class="td-s">{('<span class="td-block">STOPPED · ' + state['stopped'] + '</span>') if state['stopped']
+                                   else f"closed trades, net · stops at −₹{inr(lim['max_daily_loss'])}"}</div></div>
               <div class="td-tile"><div class="td-k">Capital in taken</div><div class="td-v">₹{s['capital_passed']:,.0f}</div>
                 <div class="td-s">qty × entry · funds ₹{inr(lim['funds'])}</div></div>
             </div>""")
@@ -211,6 +214,7 @@ def render_trade_desk_tab(container):
             active, completed, source = await loop.run_in_executor(None, get_today_signals)
             try:
                 lim["funds"] = (await loop.run_in_executor(None, current_state))["balance"]
+                state["day_net"], state["stopped"] = await loop.run_in_executor(None, day_status)
             except Exception as e:  # keep the last known funds rather than block the desk
                 print(f"  [trade_desk] account: {e}")
             if container.client._deleted:

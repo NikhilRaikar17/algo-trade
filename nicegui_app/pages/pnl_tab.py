@@ -22,6 +22,8 @@ from pages.pnl_widgets import (
 )
 from strategy_registry import get_live_strategy_names
 
+LIVE_SECONDS = 5  # how often the open trades and account card pick up live prices
+
 
 def _positions_table(positions: list[dict]) -> tuple[str, float]:
     """(table html, total unrealised ₹ before charges) for the account's open trades."""
@@ -69,6 +71,7 @@ def render_pnl_tab(container):
 
     st = {"strategy": "All", "date": "All", "stock": "All", "view": "strategy"}
     data = {"completed": [], "active": [], "at": None, "account": None}
+    live = {"box": None}  # the open-trades card, redrawn on its own between full refreshes
     is_admin = app.storage.user.get("username") == "nikhil"
 
     with container:
@@ -115,6 +118,20 @@ def render_pnl_tab(container):
             parts.append(f"updated {data['at'].strftime('%H:%M')}")
         status.set_content(" · ".join(parts))
 
+    def _render_live():
+        """The open trades card: redrawn every LIVE_SECONDS with the monitor's latest prices."""
+        live["box"].clear()
+        positions = _filtered(data["active"], date=False)
+        if not positions:
+            return
+        html, unreal = _positions_table(positions)
+        with live["box"], ui.element("div").classes("bt-card w-full mb-3"):
+            ui.html(f'<div class="bt-h">Open now · <span class="{tone(unreal)}">{rs(unreal, sign=True)}</span> '
+                    f'unrealised</div><div class="bt-hs">{len(positions)} position'
+                    f'{"s" if len(positions) != 1 else ""}, before charges, at live prices (updated '
+                    f'{data["at"]:%H:%M:%S}). Not in the totals below until closed.</div>')
+            ui.html(html)
+
     def _render():
         _status_line()
         account_box.clear()
@@ -122,21 +139,15 @@ def render_pnl_tab(container):
             with account_box:
                 ui.html(account_card(data["account"]))
         body.clear()
+        live["box"] = None
         with body:
             if not get_live_strategy_names():
                 ui.html('<div class="bt-card bt-empty">No strategies are switched on for Live. '
                         'Turn some on in <b>Strategies</b>.</div>')
                 return
 
-            positions = _filtered(data["active"], date=False)
-            if positions:
-                html, unreal = _positions_table(positions)
-                with ui.element("div").classes("bt-card w-full mb-3"):
-                    ui.html(f'<div class="bt-h">Open now · <span class="{tone(unreal)}">{rs(unreal, sign=True)}</span> '
-                            f'unrealised</div><div class="bt-hs">{len(positions)} position'
-                            f'{"s" if len(positions) != 1 else ""}, before charges. Not in the totals below until closed.'
-                            '</div>')
-                    ui.html(html)
+            live["box"] = ui.element("div").classes("w-full")
+            _render_live()
 
             skipped = _filtered(data["account"]["skipped_today"], date=False)
             if skipped:
@@ -222,6 +233,28 @@ def render_pnl_tab(container):
         _render()
 
     refresh_btn.on_click(refresh)
+
+    async def _live_tick():
+        """Live prices without redrawing the whole page; a full refresh when a trade opened or closed."""
+        old = data["account"]
+        if old is None or not container.visible or body.client._deleted:
+            return
+        acct = await asyncio.get_event_loop().run_in_executor(None, account_state)
+        if body.client._deleted:
+            return
+        if ([p["key"] for p in acct["positions"]] != [p["key"] for p in old["positions"]]
+                or acct["trades"] != old["trades"] or len(acct["skipped_today"]) != len(old["skipped_today"])):
+            await refresh()
+            return
+        data.update(active=acct["positions"], account=acct, at=now_ist())
+        account_box.clear()
+        with account_box:
+            ui.html(account_card(acct))
+        if live["box"] is not None:
+            _render_live()
+
+    with container:
+        ui.timer(LIVE_SECONDS, _live_tick)
 
     with ui.dialog() as confirm, ui.card().classes("p-4"):
         ui.label("Reset the paper account?").classes("text-base font-bold")

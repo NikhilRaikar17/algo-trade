@@ -55,8 +55,9 @@ RISK_LIMITS = {
     "max_loss_per_trade": 250,    # ₹ lost if the stop fills at the stop price; sets the quantity
     "max_capital_pct": 33,        # % of the balance one trade may use, so one tight stop can't take it all
     "min_risk_pct": 50,           # skip a trade cut by the funds below this % of max_loss_per_trade
-    "max_trades_per_day": 3,      # taken trades per day
-    "max_daily_loss": 750,        # ₹, sum of the max losses of the day's taken trades
+    "max_trades_per_day": None,   # taken trades per day; None = no limit
+    "max_daily_loss": 750,        # ₹ net loss (after charges) of the day's closed trades that ends the day
+    "max_losing_streak": 3,       # losing trades in a row (net after charges) that end the day
     "min_reward_risk": 1.0,       # (target − entry) / (entry − stop), absolute
     "no_entries_before": "09:20",
     "no_entries_after": "15:00",  # matches algo_strategies._NO_NEW_TRADE_AFTER

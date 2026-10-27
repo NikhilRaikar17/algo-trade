@@ -6,7 +6,7 @@ import ssl
 import urllib.request
 import xml.etree.ElementTree as ET
 
-from config import now_ist, _is_trading_day, is_nse_holiday, REFRESH_SECONDS, STRATEGY_NAMES
+from config import now_ist, _is_trading_day, is_nse_holiday, STRATEGY_NAMES
 from state import _trade_store, _is_already_sent, _mark_sent, _send_telegram
 from strategy_registry import get_live_strategy_names
 
@@ -183,9 +183,9 @@ def send_morning_message():
     _send_telegram(
         f"ALGO TRADING STARTING | {day_name}\n{'=' * 30}\n"
         f"Strategies: {live_names}\n"
-        f"Monitoring: Top Stocks (5-min equity candles)\n"
+        f"Monitoring: Top Stocks on the live feed\n"
         f"Stocks ({len(stocks)}): {stock_names}\n"
-        f"Refresh interval: {REFRESH_SECONDS}s\n"
+        f"Signals: at every 5-min bar close · exits: on live ticks\n"
         f"Market opens at 9:15 AM IST. Let's go!"
     )
     _mark_sent(morning_key)
@@ -210,11 +210,12 @@ def send_daily_pnl_summary():
 
     # Same trades and maths as the Live P&L page: the paper account's book (account.py) — only the
     # signals it took, at the size it took them, compounding, net of brokerage and taxes.
-    from account import account_state
+    from account import account_state, day_status
     from backtest_metrics import inr, rupees_text, sizing_label, summarize
     from brokerage import is_short
 
     acct = account_state(now)
+    _, stopped = day_status(now)
     today = [t for t in acct["sized"] if t["trade_date"] == today_str]
     day = summarize(today)
     total_realized = day["net"]
@@ -258,6 +259,7 @@ def send_daily_pnl_summary():
         f"Sizing:         {sizing_label(funds=None)}, compounding\n"
         f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
         f"Skipped:        {len(acct['skipped_today'])} signals not taken (limits / funds)\n"
+        + (f"Day stopped:    {stopped}\n" if stopped else "") +
         f"Winners/Losers: {winners}W / {losers}L\n"
         f"\nStocks Monitored: {stock_names}\n"
         f"\nStrategy Breakdown:\n{breakdown}\n\n"

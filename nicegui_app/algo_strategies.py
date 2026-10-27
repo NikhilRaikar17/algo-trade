@@ -9,7 +9,7 @@ import talib
 
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT, now_ist
 from state import _is_already_sent, _mark_sent, _send_telegram, save_completed_trade
-from account import close_signal, mark_price, open_signal, pnl_text, size_text
+from account import alert_day_stop, close_signal, closed_text, mark_price, open_signal, size_text
 from trade_desk import TAKEN
 
 _MARKET_CLOSE = _dtime(15, 30)
@@ -160,9 +160,10 @@ def _book_open(trade, price, strategy, symbol, alert):
         _send_telegram(f"SKIPPED {alert}\nNot taken: " + "; ".join(rec["reasons"]))
 
 
-def _book_close(trade, price, strategy, symbol, history_key, alert):
+def _book_close(trade, price, strategy, symbol, history_key):
     """A signal past its target or stop: saved to the signal history once; TRADE CLOSED only when it
-    closes a trade the account took, with that trade's own size and P&L."""
+    closes a trade the account took (the live-tick monitor usually closes it first), with that
+    trade's own size and P&L."""
     trade["strategy"], trade["symbol"] = strategy, symbol
     if not _is_already_sent(history_key):
         trade["trade_date"] = now_ist().strftime("%Y-%m-%d")
@@ -170,10 +171,11 @@ def _book_close(trade, price, strategy, symbol, history_key, alert):
         _mark_sent(history_key)
     rec = close_signal(trade, strategy, symbol, price, trade["status"])
     if rec:
-        _send_telegram(f"TRADE CLOSED {alert}\nPnL: {pnl_text(rec)}\nStatus: {trade['status']}")
+        _send_telegram(closed_text(rec))
+        alert_day_stop()
 
 
-def classify_trades(patterns, current_price, contract_name=""):
+def classify_trades(patterns, current_price, contract_name="", book=True):
     active = []
     completed = []
     for p in patterns:
@@ -191,14 +193,15 @@ def classify_trades(patterns, current_price, contract_name=""):
             p["pnl"] = round(pnl, 2)
             p["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(p)
-            _book_close(p, current_price, "ABCD", contract_name, history_key,
-                        f"{about}\nEntry: {entry:.2f} | Exit: {current_price:.2f}")
+            if book:
+                _book_close(p, current_price, "ABCD", contract_name, history_key)
         else:
             p["unrealized_pnl"] = round(pnl, 2)
             active.append(p)
-            _book_open(p, current_price, "ABCD", contract_name,
-                       f"{about}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
-                       f"BC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}")
+            if book:
+                _book_open(p, current_price, "ABCD", contract_name,
+                           f"{about}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
+                           f"BC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}")
     return active, completed
 
 
@@ -358,7 +361,7 @@ def _rsi_signal_key(s):
     return f"rsi_{s['time']}_{s['type']}"
 
 
-def classify_rsi_trades(signals, current_price, contract_name=""):
+def classify_rsi_trades(signals, current_price, contract_name="", book=True):
     active = []
     completed = []
     for s in signals:
@@ -381,14 +384,15 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
             s["pnl"] = pnl
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
-            _book_close(s, current_price, "RSI+SMA", contract_name, history_key,
-                        f"{about}\nEntry: {entry:.2f} | Exit: {current_price:.2f}")
+            if book:
+                _book_close(s, current_price, "RSI+SMA", contract_name, history_key)
         else:
             s["unrealized_pnl"] = pnl
             active.append(s)
-            _book_open(s, current_price, "RSI+SMA", contract_name,
-                       f"{about}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
-                       f"RSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}")
+            if book:
+                _book_open(s, current_price, "RSI+SMA", contract_name,
+                           f"{about}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
+                           f"RSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}")
     return active, completed
 
 
@@ -682,9 +686,8 @@ def backtest_double_top_standard(signals, candles):
     return trades
 
 
-def classify_double_top_standard_trades(signals, current_price, contract_name=""):
-    return _classify_generic(signals, current_price, contract_name, "Double Top Standard", "dts",
-                             lambda s: s["entry"])
+def classify_double_top_standard_trades(signals, current_price, contract_name="", book=True):
+    return _classify_generic(signals, current_price, contract_name, "Double Top Standard", "dts", book=book)
 
 
 def detect_double_bottom_signals(candles, max_trough_diff_pct=0.0015, min_bars_between=5):
@@ -1070,7 +1073,8 @@ def backtest_sma50(signals, candles):
 
 # ================= LIVE CLASSIFY HELPERS =================
 
-def _classify_generic(signals, current_price, contract_name, strategy_name, store_prefix, extra_alert_fn=None):
+def _classify_generic(signals, current_price, contract_name, strategy_name, store_prefix, extra_alert_fn=None,
+                      book=True):
     active = []
     completed = []
     for s in signals:
@@ -1094,36 +1098,37 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
             s["pnl"] = pnl
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
-            _book_close(s, current_price, strategy_name, contract_name, history_key,
-                        "{}\nEntry: {:.2f} | Exit: {:.2f}".format(about, entry, current_price))
+            if book:
+                _book_close(s, current_price, strategy_name, contract_name, history_key)
         else:
             s["unrealized_pnl"] = pnl
             active.append(s)
             alert = "{}\nEntry: {:.2f} | Target: {:.2f} | SL: {:.2f}".format(about, entry, target, sl)
             if extra_alert_fn:
                 alert += extra_alert_fn(s)
-            _book_open(s, current_price, strategy_name, contract_name, alert)
+            if book:
+                _book_open(s, current_price, strategy_name, contract_name, alert)
     return active, completed
 
 
-def classify_double_top_custom_trades(signals, current_price, contract_name=""):
+def classify_double_top_custom_trades(signals, current_price, contract_name="", book=True):
     return _classify_generic(signals, current_price, contract_name, "Double Top Customized", "dtc",
-        extra_alert_fn=lambda s: "\nNeckline: {} | Height: {}".format(s.get("neckline", "-"), s.get("height", "-")))
+        extra_alert_fn=lambda s: "\nNeckline: {} | Height: {}".format(s.get("neckline", "-"), s.get("height", "-")), book=book)
 
 
-def classify_double_bottom_trades(signals, current_price, contract_name=""):
+def classify_double_bottom_trades(signals, current_price, contract_name="", book=True):
     return _classify_generic(signals, current_price, contract_name, "Double Bottom", "db",
-        extra_alert_fn=lambda s: "\nNeckline: {} | Height: {}".format(s.get("neckline", "-"), s.get("height", "-")))
+        extra_alert_fn=lambda s: "\nNeckline: {} | Height: {}".format(s.get("neckline", "-"), s.get("height", "-")), book=book)
 
 
-def classify_ema10_trades(signals, current_price, contract_name=""):
+def classify_ema10_trades(signals, current_price, contract_name="", book=True):
     return _classify_generic(signals, current_price, contract_name, "EMA10", "ema10",
-        extra_alert_fn=lambda s: "\nEMA10: {}".format(s.get("ema10", "-")))
+        extra_alert_fn=lambda s: "\nEMA10: {}".format(s.get("ema10", "-")), book=book)
 
 
-def classify_sma50_trades(signals, current_price, contract_name=""):
+def classify_sma50_trades(signals, current_price, contract_name="", book=True):
     return _classify_generic(signals, current_price, contract_name, "SMA50", "sma50",
-        extra_alert_fn=lambda s: "\nSMA50: {}".format(s.get("sma50", "-")))
+        extra_alert_fn=lambda s: "\nSMA50: {}".format(s.get("sma50", "-")), book=book)
 
 
 # ================= SWING TRADE SIGNAL DETECTION =================

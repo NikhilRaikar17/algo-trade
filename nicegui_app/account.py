@@ -25,7 +25,7 @@ import pandas as pd
 from backtest_metrics import _CHARGE_KEYS, inr, rupees_text
 from brokerage import calculate_brokerage
 from config import IST, RISK_LIMITS, now_ist
-from trade_desk import SKIPPED, TAKEN, Book, _hhmm, check, signal_key, to_row
+from trade_desk import SKIPPED, TAKEN, Book, _hhmm, check, day_stop, signal_key, to_row
 
 _FILE = os.path.join(os.path.dirname(__file__), ".live_account.json")
 _BOOK_FILE = os.path.join(os.path.dirname(__file__), ".live_book.json")
@@ -112,8 +112,17 @@ def _holdings(recs: list[dict], today: str) -> Book:
         open_capital=sum(r["capital"] for r in open_),
         open_symbols={r["symbol"] for r in open_},
         taken_today=len(taken_today),
-        risk_today=sum(r["max_loss"] for r in taken_today),
+        day_stopped=day_stop([r for r in taken_today if r["status"] != "Open"], RISK_LIMITS),
     )
+
+
+def day_status(now: datetime | None = None) -> tuple[float, str]:
+    """(today's net P&L of closed trades, why trading is over for today or "")."""
+    today = (now or now_ist()).strftime("%Y-%m-%d")
+    with _lock:
+        recs = _counted(_load_book())
+    closed = [r for r in recs if r["verdict"] == TAKEN and r["trade_date"] == today and r["status"] != "Open"]
+    return sum(r["net"] for r in closed), day_stop(closed, RISK_LIMITS)
 
 
 def _plan(trade: dict) -> dict:
@@ -173,10 +182,45 @@ def _close(r: dict, exit_price: float, status: str, now: datetime) -> None:
              exit_time=now.isoformat(timespec="seconds"), **_pnl(r, float(exit_price)))
 
 
+def _level(r: dict, status: str) -> float:
+    """Where a bracket order fills: at the target or at the stop."""
+    return float(r["target"] if status == "Target Hit" else r["stop_loss"])
+
+
+def on_tick(key: str, price: float, now: datetime | None = None) -> dict | None:
+    """A live price for an open taken trade: closes it at the target or stop the moment the price
+    reaches it (→ the book entry), else records the price (→ None)."""
+    now = now or now_ist()
+    with _lock:
+        book = _load_book()
+        r = book.get(key)
+        if not r or not _is_open(r):
+            return None
+        buy = r["side"] == "BUY"
+        status = ("Target Hit" if (price >= r["target"] if buy else price <= r["target"])
+                  else "SL Hit" if (price <= r["stop_loss"] if buy else price >= r["stop_loss"]) else None)
+        if status:
+            _close(r, _level(r, status), status, now)
+        elif r["last_price"] == price:
+            return None
+        else:
+            r["last_price"] = price
+        _save_book(book)
+    return r if status else None
+
+
+def open_trades() -> list[dict]:
+    """Open taken trades counted in the account."""
+    with _lock:
+        return [r for r in _counted(_load_book()) if _is_open(r)]
+
+
 def close_signal(trade: dict, strategy: str, symbol: str, exit_price: float, status: str,
                  now: datetime | None = None) -> dict | None:
-    """The signal hit its target or stop. → its book entry if this closed a taken trade, else None.
-    A signal never seen open (already past its target or stop at first sight) is booked as skipped."""
+    """The engine's candle check found the signal past its target or stop (the live-tick monitor,
+    on_tick, usually gets there first). Fills at the target or stop level, as a bracket order would.
+    → its book entry if this closed a taken trade, else None. A signal never seen open (already past
+    its target or stop at first sight) is booked as skipped."""
     now = now or now_ist()
     key = signal_key(trade, strategy, symbol)
     if key is None:
@@ -194,7 +238,7 @@ def close_signal(trade: dict, strategy: str, symbol: str, exit_price: float, sta
             return None
         if not _is_open(r):
             return None
-        _close(r, exit_price, status, now)
+        _close(r, _level(r, status), status, now)
         _save_book(book)
     return r
 
@@ -219,6 +263,25 @@ def square_off(now: datetime | None = None) -> list[dict]:
         _send_telegram(f"SQUARED OFF [{r['strategy']}] | {r['symbol']}\n{r['side']} {r['qty']:,} @ {r['entry']:,.2f} "
                        f"→ {r['exit_price']:,.2f} at {RISK_LIMITS['square_off']}\nPnL: {pnl_text(r)}")
     return closed
+
+
+def closed_text(r: dict) -> str:
+    """TRADE CLOSED alert for a taken trade."""
+    return (f"TRADE CLOSED [{r['strategy']}] | {r['symbol']}\n{r['side']} {r['qty']:,} @ {r['entry']:,.2f} "
+            f"→ {r['exit_price']:,.2f}\nPnL: {pnl_text(r)}\nStatus: {r['status']}")
+
+
+def alert_day_stop(now: datetime | None = None) -> None:
+    """Telegram once when today's trading stops (losing streak or daily loss)."""
+    from state import _is_already_sent, _mark_sent, _send_telegram  # noqa: PLC0415
+
+    now = now or now_ist()
+    day_net, stopped = day_status(now)
+    key = f"day_stopped_{now:%Y-%m-%d}"
+    if stopped and not _is_already_sent(key):
+        _mark_sent(key)
+        _send_telegram(f"TRADING STOPPED FOR TODAY\n{stopped}\nToday's P&L: {rupees_text(day_net)} net"
+                       "\nNo new trades until tomorrow; open trades run to their target, stop or square-off.")
 
 
 def size_text(r: dict) -> str:

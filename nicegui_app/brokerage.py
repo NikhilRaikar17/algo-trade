@@ -12,15 +12,16 @@ All amounts in ₹.
 
 # ---------- constants ----------------------------------------------------------------
 
-_BROKERAGE_FLAT = 20.0          # ₹ per order (Dhan flat-fee)
-_BROKERAGE_PCT  = 0.0003        # 0.03% — fallback; take whichever is lower
-_GST_PCT        = 0.18          # 18% on (brokerage + exchange charges)
+_BROKERAGE_FLAT = 20.0          # ₹ per executed order (Dhan flat fee; F&O always pays it)
+_BROKERAGE_PCT  = 0.0003        # 0.03% — equity intraday pays whichever of the two is lower
+_GST_PCT        = 0.18          # 18% on (brokerage + exchange charges + SEBI fees + IPFT)
 _SEBI_PER_CRORE = 10.0          # ₹10 per crore of turnover
+_IPFT_PCT       = 0.000000001   # 0.0000001% of turnover (IPFT contribution), shown under exchange
 
-# Equity intraday (MIS) rates
-_EQ_STT_PCT        = 0.00025    # 0.025% on sell-side turnover
-_EQ_EXCHANGE_PCT   = 0.0000297  # 0.00297% NSE equity transaction charge (since Oct 2024)
-_EQ_STAMP_PCT      = 0.00003    # 0.003% on buy-side turnover
+# Equity intraday (MIS) rates — dhan.co/pricing, checked 2026-10-27
+_EQ_STT_PCT        = 0.00025      # 0.025% on sell-side turnover
+_EQ_EXCHANGE_PCT   = 0.000030699  # 0.0030699% NSE transaction charge, as Dhan lists it
+_EQ_STAMP_PCT      = 0.00003      # 0.003% on buy-side turnover
 
 # F&O (options) rates
 _FNO_STT_PCT       = 0.001      # 0.1% on sell-side premium (since Oct 2024)
@@ -44,6 +45,11 @@ def get_lot_size(instrument: str) -> int:
 
 
 # ---------- core calculation ---------------------------------------------------------
+
+def _rupee(x: float) -> float:
+    """Nearest rupee, halves up (Dhan rounds STT and stamp duty this way)."""
+    return float(int(x + 0.5))
+
 
 def calculate_brokerage(
     entry_price: float,
@@ -91,26 +97,29 @@ def calculate_brokerage(
     buy_turnover  = buy_price  * units
     sell_turnover = sell_price * units
 
-    # Brokerage: ₹20 flat or 0.03% of turnover, whichever is lower — per order
-    brokerage_buy  = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * buy_turnover)
-    brokerage_sell = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * sell_turnover)
+    # Brokerage per order: equity intraday ₹20 or 0.03% of turnover, whichever is lower; F&O flat ₹20
+    if segment == "equity_intraday":
+        brokerage_buy  = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * buy_turnover)
+        brokerage_sell = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * sell_turnover)
+    else:
+        brokerage_buy = brokerage_sell = _BROKERAGE_FLAT
     brokerage = brokerage_buy + brokerage_sell
 
-    # STT — only on sell side
-    stt = stt_pct * sell_turnover
+    # STT — only on sell side, rounded to the rupee as on the contract note
+    stt = _rupee(stt_pct * sell_turnover)
 
-    # Exchange transaction charge (both sides)
-    exchange = exchange_pct * (buy_turnover + sell_turnover)
+    # Exchange transaction charge + IPFT (both sides)
+    total_turnover = buy_turnover + sell_turnover
+    exchange = (exchange_pct + _IPFT_PCT) * total_turnover
 
     # SEBI charges (₹10 per crore)
-    total_turnover = buy_turnover + sell_turnover
     sebi = _SEBI_PER_CRORE * total_turnover / 1_00_00_000
 
-    # GST on brokerage + exchange + SEBI charges
+    # GST on brokerage + exchange (incl. IPFT) + SEBI charges
     gst = _GST_PCT * (brokerage + exchange + sebi)
 
-    # Stamp duty — on buy side only
-    stamp = stamp_pct * buy_turnover
+    # Stamp duty — on buy side only, rounded to the rupee
+    stamp = _rupee(stamp_pct * buy_turnover)
 
     total_charges = brokerage + stt + exchange + gst + sebi + stamp
     gross_pnl = (sell_price - buy_price) * units

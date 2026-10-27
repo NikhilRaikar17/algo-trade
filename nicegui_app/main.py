@@ -22,7 +22,7 @@ from state import is_market_open, get_next_market_open
 from sidebar import build_sidebar
 from strategy_registry import get_backtest_strategy_keys
 from pnl import send_daily_pnl_summary, send_morning_message, send_premarket_alert
-from trading_engine import run_trading_engine
+from trading_engine import run_position_monitor, run_trading_engine
 from email_report import send_backtest_email_report
 from analysis_email import send_strategy_analysis_email
 from ws_feed import start_ws_feed
@@ -126,6 +126,7 @@ async def _start_scheduler():
 
     asyncio.create_task(_loop())
     asyncio.create_task(run_trading_engine())
+    asyncio.create_task(run_position_monitor())
     asyncio.create_task(_top_stocks_loop())
     asyncio.create_task(start_ws_feed())
     asyncio.create_task(start_global_feed())

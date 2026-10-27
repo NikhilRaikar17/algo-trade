@@ -46,7 +46,7 @@ class Book:
     open_capital: float = 0.0      # capital of taken trades still open
     open_symbols: set = field(default_factory=set)
     taken_today: int = 0
-    risk_today: float = 0.0        # sum of the max losses of today's taken trades
+    day_stopped: str = ""          # why trading is over for today ("" = still trading)
 
 
 def _hhmm(s: str) -> time:
@@ -153,11 +153,11 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
                          f"{limits['no_entries_before']}–{limits['no_entries_after']}")
     if r.symbol in book.open_symbols:
         r.reasons.append(f"already holding {r.symbol}")
-    if book.taken_today >= limits["max_trades_per_day"]:
-        r.reasons.append(f"daily limit reached: {book.taken_today} of {limits['max_trades_per_day']} trades taken")
-    elif book.risk_today + r.max_loss > limits["max_daily_loss"]:
-        r.reasons.append(f"daily loss limit: ₹{book.risk_today:,.0f} already at risk + ₹{r.max_loss:,.0f} "
-                         f"is over ₹{limits['max_daily_loss']:,.0f}")
+    if book.day_stopped:
+        r.reasons.append(f"trading stopped for today: {book.day_stopped}")
+    max_trades = limits.get("max_trades_per_day")
+    if max_trades and book.taken_today >= max_trades:
+        r.reasons.append(f"daily limit reached: {book.taken_today} of {max_trades} trades taken")
 
     if r.current_price is not None:
         moved = (r.current_price - r.entry) if r.side == "BUY" else (r.entry - r.current_price)
@@ -168,6 +168,21 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
     return r
 
 
+def day_stop(closed: list[dict], limits: dict) -> str:
+    """Why trading is over for the day, from the day's closed trades ({"net", "exit_time"}), or "".
+    Once a limit is hit the day stays stopped, whatever the trades still open do afterwards."""
+    streak, total = 0, 0.0
+    max_streak, max_loss = limits.get("max_losing_streak"), limits.get("max_daily_loss")
+    for t in sorted(closed, key=lambda t: t["exit_time"]):
+        total += t["net"]
+        streak = streak + 1 if t["net"] < 0 else 0
+        if max_streak and streak >= max_streak:
+            return f"{streak} losing trades in a row"
+        if max_loss and total <= -max_loss:
+            return f"down ₹{-total:,.0f} today, the daily loss limit is ₹{max_loss:,.0f}"
+    return ""
+
+
 def day_summary(rows: list[DeskRow], limits: dict) -> dict:
     taken = [r for r in rows if r.verdict == TAKEN]
     return {
@@ -176,8 +191,6 @@ def day_summary(rows: list[DeskRow], limits: dict) -> dict:
         "blocked": sum(1 for r in rows if r.verdict == SKIPPED),
         "pending": sum(1 for r in rows if not r.verdict),
         "trades_used": len(taken),
-        "trades_limit": limits["max_trades_per_day"],
         "loss_used": round(sum(r.max_loss for r in taken), 2),
-        "loss_limit": limits["max_daily_loss"],
         "capital_passed": round(sum(r.capital for r in taken), 2),
     }

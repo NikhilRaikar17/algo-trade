@@ -14,11 +14,13 @@ Usage (called once from main.py):
 import asyncio
 import os
 import threading
+import time
 from datetime import datetime
 
 from dhanhq import marketfeed
 from dotenv import load_dotenv
 
+import live_candles
 import state
 
 load_dotenv()
@@ -46,40 +48,62 @@ def get_last_tick_time(security_id) -> datetime | None:
     return _quote_tick_time.get(str(security_id))
 
 
+_eq_watch: dict[str, frozenset] = {}  # who wants which equities: "algo" (Live Algos), "positions" (open trades)
+_eq_lock = threading.Lock()
+_eq_thread: threading.Thread | None = None
+
+
+def watch(source: str, securities: list) -> None:
+    """Set the equities `source` wants live quotes for; the feed carries the union of all sources.
+
+    securities: list of (segment_int, security_id_str), e.g. [(marketfeed.NSE, "2885")].
+    Non-blocking. One feed thread serves everyone and reconnects when the union changes."""
+    global _eq_thread
+    with _eq_lock:
+        _eq_watch[source] = frozenset((int(seg), str(sid)) for seg, sid in securities)
+        if _eq_thread is None or not _eq_thread.is_alive():
+            _eq_thread = threading.Thread(target=_run_equity_feed, daemon=True, name="ws-feed-equity")
+            _eq_thread.start()
+
+
 def subscribe(securities: list) -> None:
-    """
-    Start (or restart) the equity Full-packet feed in a background daemon thread.
+    """Live Algos: quotes for the stock on screen (replaces its previous choice)."""
+    watch("algo", securities)
 
-    securities: list of (segment_int, security_id_str)
-      e.g. [(marketfeed.NSE, "2885")]
 
-    Non-blocking — returns immediately. If the same set is already running, no-op.
-    """
+def _wanted() -> frozenset:
+    with _eq_lock:
+        return frozenset().union(*_eq_watch.values())
+
+
+def _run_equity_feed() -> None:
+    """Feed thread: connect for the wanted set, store ticks, reconnect when the set changes or the
+    connection drops. Isolated event loop — never touches NiceGUI's asyncio loop."""
     global _eq_subscribed
-
-    new_set = frozenset((int(seg), str(sid)) for seg, sid in securities)
-    if new_set == _eq_subscribed and _eq_consuming.is_set():
-        return
-
-    _eq_subscribed = new_set
-    _eq_consuming.clear()
-
-    _eq_client_id    = os.getenv("DHAN_CLIENT_CODE", "")
-    _eq_access_token = os.getenv("DHAN_TOKEN_ID", "")
-
-    def _run():
-        # Isolated event loop — never touches NiceGUI's asyncio loop.
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    backoff = 2
+    while True:
+        wanted = _wanted()
+        if not wanted:
+            _eq_consuming.clear()
+            time.sleep(1)
+            continue
+        feed = None
         try:
-            instruments = [(seg, str(sid), marketfeed.Full) for seg, sid in securities]
-            feed = marketfeed.DhanFeed(_eq_client_id, _eq_access_token, instruments, version="v2")
+            instruments = [(seg, sid, marketfeed.Full) for seg, sid in sorted(wanted)]
+            feed = marketfeed.DhanFeed(os.getenv("DHAN_CLIENT_CODE", ""), os.getenv("DHAN_TOKEN_ID", ""),
+                                       instruments, version="v2")
             loop.run_until_complete(feed.connect())
+            _eq_subscribed = wanted
             _eq_consuming.set()
-            ids = [str(s) for _, s in securities]
-            print(f"  [ws_feed equity] connected — consuming {ids}")
-            while True:
-                data = loop.run_until_complete(feed.get_instrument_data())
+            backoff = 2
+            print(f"  [ws_feed equity] connected — consuming {sorted(s for _, s in wanted)}")
+            while _wanted() == wanted:
+                try:
+                    data = loop.run_until_complete(asyncio.wait_for(feed.get_instrument_data(), 1))
+                except asyncio.TimeoutError:
+                    continue
                 if not data or "security_id" not in data:
                     continue
                 sec_id = str(data["security_id"])
@@ -95,13 +119,18 @@ def subscribe(securities: list) -> None:
                     "volume":  int(data.get("volume") or 0),
                 }
                 _quote_tick_time[sec_id] = datetime.now()
+                live_candles.on_tick(sec_id, _quote_store[sec_id]["ltp"])
         except Exception as e:
-            print(f"  [ws_feed equity] feed error: {e}")
+            print(f"  [ws_feed equity] feed error: {e} — retrying in {backoff}s")
             _eq_consuming.clear()
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
         finally:
-            loop.close()
-
-    threading.Thread(target=_run, daemon=True, name="ws-feed-equity").start()
+            if feed is not None and feed.ws is not None:
+                try:
+                    loop.run_until_complete(feed.ws.close())
+                except Exception:
+                    pass
 
 # ─────────────────────────────────────────────────────────────────────────────
 

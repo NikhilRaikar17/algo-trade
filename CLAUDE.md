@@ -32,6 +32,15 @@ Browser → main.py (refresh every 120s) → data.py → Dhan REST API
                                         → pnl.py → Telegram alerts
 ```
 
+### Live algo engine (feed-driven)
+
+Live trading runs on the Dhan websocket feed, not REST polling:
+- `ws_feed.py` — one equity feed for the union of `watch(source, …)` lists ("engine", "positions", "algo"); every tick goes to `live_candles.on_tick()`.
+- `live_candles.py` — 5-min bars built from ticks; bars from before a stock was subscribed are seeded once from REST (`seed()`), re-seeded only if its ticks stop.
+- `trading_engine.py` — runs strategies just after each 5-min bar closes, on finished bars at the live price; `run_position_monitor()` closes open trades at target/stop on ticks.
+- `account.py` — the paper account's book (`.live_book.json`): each signal is TAKEN or SKIPPED once (`trade_desk.check()`), only taken trades are alerted and counted. Limits in `config.RISK_LIMITS`.
+- The Live Algos page only displays (classifiers called with `book=False`).
+
 ### Key Files in `nicegui_app/`
 
 | File | Role |

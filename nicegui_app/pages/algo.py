@@ -1,20 +1,20 @@
 """
 Live algo trading tab — all strategies, top-stocks equity selector, 0.5s WS ticker.
 
-Candles are fetched once on initial load (or when stock/strategy changes).
-A 30s timer checks if a new 5-min candle has closed via the WS feed and
-appends it in-place, then re-runs signals without a full page re-render.
+Everything comes from the websocket feed: the chart shows the same 5-minute bars the live engine
+trades on (live_candles, built from ticks; earlier bars seeded once over REST), and a 2s timer
+redraws the strategy when a bar closes. The page only displays: the engine (trading_engine) is what
+takes trades, alerts and books them, so signals here are classified with book=False.
 The global 120s refresh is a no-op for this tab.
 """
 
 import asyncio
-import pandas as pd
 from nicegui import ui
 from dhanhq import marketfeed as mf
 
-from config import now_ist
-from state import _trade_store
-from data import _fetch_any_stock_candles, STOCK_WATCH_GROUPS
+from data import STOCK_WATCH_GROUPS
+import live_candles
+from trading_engine import feed_candles
 from algo_strategies import (
     # ABCD
     find_swing_points,
@@ -203,8 +203,7 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
         render_tv_abcd_chart(candles, swings, patterns, stock_name, current_price)
         if not patterns:
             ui.label("No ABCD patterns detected today.").classes("text-gray-500 italic")
-        active, completed = classify_trades(patterns, current_price, stock_name)
-        _trade_store[f"abcd_trades_{stock_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_trades(patterns, current_price, stock_name, book=False)
         _render_trade_tabs(active, completed, current_price, "abcd")
         with ui.expansion("Swing Points & Pattern Details").classes("w-full mt-2"):
             for s in swings:
@@ -223,8 +222,7 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
         render_tv_double_top_custom_chart(candles, signals)
         if not signals:
             ui.label("No Double Top Customized signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_double_top_custom_trades(signals, current_price, stock_name)
-        _trade_store[f"dtc_trades_{stock_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_double_top_custom_trades(signals, current_price, stock_name, book=False)
         _render_trade_tabs(active, completed, current_price, "dtc")
 
     elif algo_type == "db":
@@ -233,8 +231,7 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
         render_tv_double_bottom_chart(candles, signals)
         if not signals:
             ui.label("No Double Bottom signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_double_bottom_trades(signals, current_price, stock_name)
-        _trade_store[f"db_trades_{stock_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_double_bottom_trades(signals, current_price, stock_name, book=False)
         _render_trade_tabs(active, completed, current_price, "db")
 
     elif algo_type == "ema10":
@@ -243,8 +240,7 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
         render_tv_ema10_chart(candles, df_ind, signals)
         if not signals:
             ui.label("No EMA10 signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_ema10_trades(signals, current_price, stock_name)
-        _trade_store[f"ema10_trades_{stock_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_ema10_trades(signals, current_price, stock_name, book=False)
         _render_trade_tabs(active, completed, current_price, "ema10")
 
     elif algo_type == "sma50":
@@ -253,8 +249,7 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
         render_tv_sma50_chart(candles, df_ind, signals)
         if not signals:
             ui.label("No SMA50 signals detected today.").classes("text-gray-500 italic")
-        active, completed = classify_sma50_trades(signals, current_price, stock_name)
-        _trade_store[f"sma50_trades_{stock_name}"] = {"active": active, "completed": completed}
+        active, completed = classify_sma50_trades(signals, current_price, stock_name, book=False)
         _render_trade_tabs(active, completed, current_price, "sma50")
 
 
@@ -341,10 +336,9 @@ def render_algo_tab(container, algo_type="abcd"):
             strat_label = dict((k, v) for v, k in strategies).get(strat, strat)
             ui.label(f"Loading {stock_name} — {strat_label}…").classes("text-gray-500 text-center w-full")
 
+        ws_feed.subscribe([(mf.NSE, sid)])  # ticks build this stock's bars from now on
         try:
-            candles = await loop.run_in_executor(
-                None, lambda: _fetch_any_stock_candles(sid, interval=5)
-            )
+            candles = await loop.run_in_executor(None, feed_candles, sid)
         except Exception as e:
             if not content_container.client._deleted:
                 content_container.clear()
@@ -354,14 +348,6 @@ def render_algo_tab(container, algo_type="abcd"):
 
         if content_container.client._deleted:
             return
-
-        # Filter to today
-        today_date = now_ist().date()
-        if candles is not None and not candles.empty:
-            candles = candles[candles["timestamp"].dt.date == today_date].reset_index(drop=True)
-
-        # Subscribe WS for live price
-        ws_feed.subscribe([(mf.NSE, sid)])
 
         _cancel_timers()
         content_container.clear()
@@ -374,7 +360,8 @@ def render_algo_tab(container, algo_type="abcd"):
         _state["candles"] = candles
         _state["last_candle_min"] = _candle_minute(candles["timestamp"].iloc[-1])
 
-        current_price = round(float(candles["close"].iloc[-1]), 2)
+        live = live_candles.last_price(sid)
+        current_price = round(live if live is not None else float(candles["close"].iloc[-1]), 2)
 
         with content_container:
             with ui.row().classes("gap-4 sm:gap-8 flex-wrap items-center mb-2"):
@@ -398,70 +385,33 @@ def render_algo_tab(container, algo_type="abcd"):
         await flush_pending_js()
         _state["loaded"] = True
 
-        # ── candle-close watcher — fires every 30s ─────────────────────────────
+        # ── bar-close watcher: LTP from the feed, redraw when a new 5-min bar has closed ──
         def _check_new_candle():
-            if content_container.client._deleted:
+            if content_container.client._deleted or not _state["loaded"]:
                 return
-            if not _state["loaded"]:
-                return
-
-            q = ws_feed.get_quote(_state["security_id"])
-            if not q:
-                return
-
-            ltp = q.get("ltp", 0)
-            tick_dt = ws_feed.get_last_tick_time(_state["security_id"])
-            if tick_dt is None:
-                return
-
-            # Update LTP header label
-            if _state["ltp_label"] is not None:
+            sid_now = _state["security_id"]
+            ltp = live_candles.last_price(sid_now)
+            if ltp is not None and _state["ltp_label"] is not None:
                 _state["ltp_label"].set_text(f"LTP: ₹{ltp:,.2f}")
 
-            # Detect new 5-min candle close: tick is in a different 5-min bucket
-            tick_min_bucket = (tick_dt.hour * 60 + tick_dt.minute) // 5
-            last_candles = _state["candles"]
-            if last_candles is None or last_candles.empty:
+            updated = live_candles.candles(sid_now)
+            if updated.empty or len(updated) <= len(_state["candles"]):
                 return
-
-            last_ts = last_candles["timestamp"].iloc[-1]
-            last_min_bucket = (last_ts.hour * 60 + last_ts.minute) // 5
-
-            if tick_min_bucket <= last_min_bucket:
-                return  # same bucket — no new candle yet
-
-            # New 5-min candle has closed — build a synthetic row from WS data
-            # The candle open = last close, high/low/close approximate from LTP
-            prev_close = float(last_candles["close"].iloc[-1])
-            new_ts = pd.Timestamp(tick_dt).tz_localize("Asia/Kolkata") if tick_dt.tzinfo is None else pd.Timestamp(tick_dt).tz_convert("Asia/Kolkata")
-            # Align timestamp to 5-min boundary
-            aligned_min = tick_min_bucket * 5
-            new_ts = new_ts.replace(hour=aligned_min // 60, minute=aligned_min % 60, second=0, microsecond=0)
-
-            new_row = pd.DataFrame([{
-                "timestamp": new_ts,
-                "open":  prev_close,
-                "high":  max(prev_close, ltp),
-                "low":   min(prev_close, ltp),
-                "close": ltp,
-            }])
-            updated = pd.concat([last_candles, new_row], ignore_index=True)
             _state["candles"] = updated
-            _state["last_candle_min"] = tick_min_bucket * 5
+            last_ts = updated["timestamp"].iloc[-1]
+            _state["last_candle_min"] = _candle_minute(last_ts)
 
-            # Re-render strategy section only
             sc = _state["strategy_container"]
             if sc is None:
                 return
+            price = round(ltp if ltp is not None else float(updated["close"].iloc[-1]), 2)
             sc.clear()
             with sc:
-                _run_strategy(_state["algo"], updated, round(ltp, 2), stock_name)
-
-            candle_status.set_text(f"New candle at {new_ts.strftime('%H:%M')}")
-
+                _run_strategy(_state["algo"], updated, price, stock_name)
+            candle_status.set_text(f"Bar {last_ts:%H:%M} closed")
             asyncio.ensure_future(flush_pending_js())
 
-        t = ui.timer(30, _check_new_candle)
+        t = ui.timer(2, _check_new_candle)
         active_timers.append(t)
 
     # Dropdown changes trigger a full reload
