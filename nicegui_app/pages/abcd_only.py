@@ -10,7 +10,7 @@ from nicegui import ui
 from data import _fetch_any_stock_candles
 from db import get_active_top_stocks
 from algo_strategies import find_swing_points, detect_abcd_patterns, backtest_abcd
-from backtest_metrics import net_rupees, rupees_text
+from backtest_metrics import DEFAULT_SIZING, inr, net_rupees, rupees_text
 from tv_charts import render_tv_abcd_chart
 
 
@@ -142,7 +142,7 @@ def _build_abcd_content(container, label, candles):
         completed = [t for t in trades if t["status"] != "Open"]
         open_trades = [t for t in trades if t["status"] == "Open"]
         for t in trades:
-            t["pnl_rs"] = net_rupees(t)  # risk ₹1,000 at the stop, after charges
+            t["pnl_rs"] = net_rupees(t)  # risk the max loss at the stop, after charges
         total_pnl = sum(t["pnl_rs"] or 0 for t in completed)
         winners = sum(1 for t in completed if (t["pnl_rs"] or 0) > 0)
         losers = sum(1 for t in completed if (t["pnl_rs"] or 0) < 0)
@@ -155,7 +155,7 @@ def _build_abcd_content(container, label, candles):
             _stat_card("Winners / Losers", f"{winners}W / {losers}L")
             pnl_color = "text-green-700" if total_pnl >= 0 else "text-red-700"
             _stat_card(
-                "Net P&L · ₹1,000 risk/trade",
+                f"Net P&L · ₹{inr(DEFAULT_SIZING['risk'])} risk/trade",
                 rupees_text(total_pnl),
                 value_class=pnl_color,
             )

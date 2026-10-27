@@ -46,10 +46,10 @@ def gather(now) -> dict:
     rows = get_strategy_rows()
     report: dict = {}
     backtest = _fetch_all_stocks_trades(get_active_top_stocks(), report, keys=[r["key"] for r in rows])
-    completed, positions, _ = load_live_trades()
+    completed, _, _ = load_live_trades()
     return {
         "now": now, "rows": rows, "backtest": backtest, "backtest_report": report,
-        "live": in_account(completed), "account": account_state(completed, positions),
+        "live": in_account(completed), "account": account_state(now),
     }
 
 

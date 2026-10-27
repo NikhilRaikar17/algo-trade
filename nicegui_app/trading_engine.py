@@ -11,6 +11,7 @@ import asyncio
 import time
 import traceback
 
+from account import square_off
 from config import now_ist, REFRESH_SECONDS
 from state import _trade_store, is_market_open
 from data import _fetch_any_stock_candles, NIFTY50_STOCKS, STOCK_WATCH_GROUPS
@@ -101,6 +102,9 @@ def _run_engine_tick():
             print(f"  [engine] {name} @ {current_price:.2f} — strategies updated")
         except Exception as e:
             print(f"  [engine:{name}] candles/classify failed: {e}")
+
+    for r in square_off():
+        print(f"  [engine] squared off {r['symbol']} ({r['strategy']}) at {r['exit_price']:.2f}")
 
 
 async def run_trading_engine():

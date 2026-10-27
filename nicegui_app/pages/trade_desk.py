@@ -2,9 +2,10 @@
 Trade Desk — today's live signals with odds, size and a risk check, in one table.
 
 For every signal the live engine found today (Live Algos strategies): the replay odds from
-replay_engine (open signals only), the quantity that keeps the loss at the stop inside the
-max loss per trade, and PASS/BLOCK against config.RISK_LIMITS (trade_desk.py). Nothing is
-placed: daily limits assume every PASSED signal is taken, in signal-time order.
+replay_engine (open signals only), and the paper account's decision — TAKEN at a size that keeps
+the loss at the stop inside the max loss per trade, or SKIPPED with the reason. Each decision was
+made once, when the engine first saw the signal (account.open_signal), and never changes. Nothing
+is placed.
 
 Signals come from live_signals.get_today_signals(): the engine's memory, or a read-only
 rebuild from today's candles when the engine isn't scanning.
@@ -15,13 +16,13 @@ from datetime import time
 
 from nicegui import ui
 
-from account import current_state
+from account import current_state, decisions
 from backtest_metrics import inr
 from config import RISK_LIMITS, now_ist
 from data import fetch_stock_candles_history
 from live_signals import get_today_signals
 from replay_engine import Plan, ReplayError, run_replay
-from trade_desk import build_rows, evaluate, day_summary
+from trade_desk import TAKEN, build_rows, day_summary
 from pages.trade_replay import _stock_options
 
 _ODDS_REPLAYS = 2000
@@ -92,7 +93,7 @@ def render_trade_desk_tab(container):
 
     def _limits_text():
         return (f"LIMITS · funds ₹{inr(lim['funds'])} (account balance) · max loss ₹{lim['max_loss_per_trade']:,}/trade · "
-                f"{lim['max_trades_per_day']} trades/day · "
+                f"≤{lim['max_capital_pct']}% of funds/trade · {lim['max_trades_per_day']} trades/day · "
                 f"₹{lim['max_daily_loss']:,}/day · reward:risk ≥ {lim['min_reward_risk']} · "
                 f"entries {lim['no_entries_before']}–{lim['no_entries_after']} · edit in config.RISK_LIMITS")
 
@@ -100,8 +101,8 @@ def render_trade_desk_tab(container):
         ui.add_head_html(_CSS)
         ui.label("Trade Desk").classes("text-xl font-bold mb-1")
         ui.label(
-            "Today's live signals with their odds, a suggested size and a risk check. "
-            "Nothing is placed: you trade in Dhan. Daily limits assume you take every PASSED signal, in order."
+            "Today's live signals with their odds and what the paper account did with each: taken (at what size) "
+            "or skipped (and why), decided once when the engine first saw it. Nothing is placed: you trade in Dhan."
         ).classes("text-sm text-gray-500 mb-1")
         limits_lbl = ui.label(_limits_text()).classes("td-limits mb-3")
         tiles = ui.element("div").classes("w-full mb-3")
@@ -116,12 +117,12 @@ def render_trade_desk_tab(container):
             ui.html(f"""
             <div class="td-tiles">
               <div class="td-tile"><div class="td-k">Signals today</div><div class="td-v">{s['signals']}</div>
-                <div class="td-s">{s['passed']} passed · {s['blocked']} blocked</div></div>
+                <div class="td-s">{s['passed']} taken · {s['blocked']} skipped</div></div>
               <div class="td-tile"><div class="td-k">Trades used</div><div class="td-v">{s['trades_used']} / {s['trades_limit']}</div>
-                <div class="td-s">passed signals count as taken</div></div>
+                <div class="td-s">taken by the paper account</div></div>
               <div class="td-tile"><div class="td-k">Loss at risk</div><div class="td-v">₹{s['loss_used']:,.0f}</div>
                 <div class="td-s">of ₹{s['loss_limit']:,} daily limit</div></div>
-              <div class="td-tile"><div class="td-k">Capital in passed</div><div class="td-v">₹{s['capital_passed']:,.0f}</div>
+              <div class="td-tile"><div class="td-k">Capital in taken</div><div class="td-v">₹{s['capital_passed']:,.0f}</div>
                 <div class="td-s">qty × entry · funds ₹{inr(lim['funds'])}</div></div>
             </div>""")
 
@@ -145,8 +146,13 @@ def render_trade_desk_tab(container):
                 else:
                     odds = (f'{o["target"]:.0f}% / {o["stop"]:.0f}%'
                             f'<div class="td-why">{o["label"]}</div>')
-                badge = ('<span class="td-badge td-pass">✓ PASS</span>' if r.verdict == "PASS"
-                         else '<span class="td-badge td-block">✕ BLOCK</span>')
+                if not r.verdict:
+                    badge = '<span class="td-badge td-dim">not decided</span>'
+                    r.reasons = ["the live engine has not seen this signal (it was not scanning)"]
+                elif r.verdict == TAKEN:
+                    badge = f'<span class="td-badge td-pass">✓ TAKEN {r.decided_at:%H:%M}</span>'
+                else:
+                    badge = f'<span class="td-badge td-block">✕ SKIPPED {r.decided_at:%H:%M}</span>'
                 why = "".join(f'<div class="td-why">{x}</div>' for x in r.reasons)
                 warn = "".join(f'<div class="td-warn">⚠ {x}</div>' for x in r.warnings)
                 label = r.status
@@ -210,7 +216,8 @@ def render_trade_desk_tab(container):
             if container.client._deleted:
                 return
             limits_lbl.set_text(_limits_text())
-            state["rows"] = evaluate(build_rows(active, completed), lim)
+            book = await loop.run_in_executor(None, decisions)
+            state["rows"] = build_rows(active, completed, book)
             _render()
             status.set_text(f"Updated {now_ist():%H:%M:%S} · source: {source} · refreshes every {_REFRESH_SECONDS}s "
                             f"while open · odds from {_ODDS_REPLAYS:,} replays of the last 60 days, exit 15:15, seed 19")

@@ -1,21 +1,21 @@
 """
 Live P&L — what the live engine's trades made, after charges, for the strategies switched on for Live.
 
-Trades come from live_trades.load_live_trades() and are run through the paper account (account.py):
-it starts with RISK_LIMITS["funds"], compounds every closed trade's net P&L after brokerage and taxes,
-sizes each trade to risk the max loss at the stop and cuts it to the free balance.
+Trades come from the paper account's book (account.py): each live signal was taken or skipped once,
+when the engine first saw it, sized to risk the max loss at the stop within the free balance. The
+account starts with RISK_LIMITS["funds"] and compounds every closed trade's net P&L after brokerage
+and taxes.
 """
 
+import asyncio
 from datetime import datetime
 from html import escape
 
 from nicegui import app, ui
 
 from account import account_state, reset_account
-from backtest_metrics import DEFAULT_MODE, DEFAULT_SIZING, group_by, size_open_positions, sizing_label, summarize
-from brokerage import is_short
+from backtest_metrics import group_by, sizing_label, summarize
 from config import RISK_LIMITS, now_ist
-from live_trades import load_live_trades
 from pages.pnl_widgets import (
     CSS, account_card, charges_html, equity_figure, kpi_tiles, rs, strategy_table, summary_table, td, tone,
     trades_table,
@@ -23,45 +23,52 @@ from pages.pnl_widgets import (
 from strategy_registry import get_live_strategy_names
 
 
-def _positions_table(positions: list[dict], mode: str, amount: float, funds: float) -> tuple[str, float, int]:
-    """(table html, total unrealised ₹ before charges, positions with no funds left for them)."""
-    rows, total, unfunded = [], 0.0, 0
-    for t, qty in size_open_positions(positions, mode, amount, funds):
-        entry = float(t["entry"])
-        if qty < 1:
-            unfunded += 1
-            continue
-        short = is_short(t)
-        upts = float(t.get("unrealized_pnl", 0) or 0)
-        ltp = entry - upts if short else entry + upts
-        u = upts * qty
+def _positions_table(positions: list[dict]) -> tuple[str, float]:
+    """(table html, total unrealised ₹ before charges) for the account's open trades."""
+    rows, total = [], 0.0
+    for t in positions:
+        short = t["side"] == "SELL"
+        u = t["unrealized"]
         total += u
-        side = "SELL" if short else "BUY"
         rows.append(
             "<tr>"
             + td("Stock", f'{escape(t["stock"])} <span class="bt-dim">· {escape(t["strategy"])}</span>', "wide")
-            + td("Side", f'<b class="{"bt-down" if short else "bt-up"}">{side}</b>')
+            + td("Side", f'<b class="{"bt-down" if short else "bt-up"}">{t["side"]}</b>')
             + td("Since", t["time"].strftime("%H:%M"), "n")
-            + td("Qty", f"{qty:,}", "n")
-            + td("Entry ₹", f"{entry:,.2f}", "n")
-            + td("Now ₹", f"{ltp:,.2f}", "n")
-            + td("Target", f'{float(t["target"]):,.2f}' if t.get("target") else "—", "n bt-dim")
-            + td("Stop", f'{float(t["stop_loss"]):,.2f}' if t.get("stop_loss") else "—", "n bt-dim")
+            + td("Qty", f'{t["qty"]:,}', "n")
+            + td("Entry ₹", f'{t["entry"]:,.2f}', "n")
+            + td("Now ₹", f'{float(t["last_price"] or t["entry"]):,.2f}', "n")
+            + td("Target", f'{t["target"]:,.2f}', "n bt-dim")
+            + td("Stop", f'{t["stop_loss"]:,.2f}', "n bt-dim")
             + td("Unrealised", f"<b>{rs(u, sign=True)}</b>", f"n {tone(u)}")
             + "</tr>"
         )
     head = ('<tr><th>Stock</th><th>Side</th><th class="n">Since</th><th class="n">Qty</th><th class="n">Entry ₹</th>'
             '<th class="n">Now ₹</th><th class="n">Target</th><th class="n">Stop</th><th class="n">Unrealised</th></tr>')
     html = f'<div class="bt-wrap"><table class="bt-table"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>'
-    return html, total, unfunded
+    return html, total
+
+
+def _skipped_table(skipped: list[dict]) -> str:
+    rows = [
+        "<tr>"
+        + td("Seen", r["decided_at"][11:16], "n")
+        + td("Stock", f'{escape(r["symbol"])} <span class="bt-dim">· {escape(r["strategy"])}</span>', "wide")
+        + td("Side", r["side"])
+        + td("Entry ₹", f'{r["entry"]:,.2f}', "n")
+        + td("Why not taken", escape("; ".join(r["reasons"])), "bt-dim")
+        + "</tr>"
+        for r in sorted(skipped, key=lambda r: r["decided_at"], reverse=True)
+    ]
+    head = '<tr><th class="n">Seen</th><th>Stock</th><th>Side</th><th class="n">Entry ₹</th><th>Why not taken</th></tr>'
+    return f'<div class="bt-wrap"><table class="bt-table"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>'
 
 
 def render_pnl_tab(container):
     """Build the Live P&L tab. Returns an async refresh() closure."""
 
-    st = {"strategy": "All", "date": "All", "stock": "All", "view": "strategy",
-          "mode": DEFAULT_MODE, "amount": DEFAULT_SIZING[DEFAULT_MODE]}
-    data = {"completed": [], "active": [], "notes": {}, "at": None, "account": None}
+    st = {"strategy": "All", "date": "All", "stock": "All", "view": "strategy"}
+    data = {"completed": [], "active": [], "at": None, "account": None}
     is_admin = app.storage.user.get("username") == "nikhil"
 
     with container:
@@ -96,22 +103,14 @@ def render_pnl_tab(container):
         return out
 
     def _status_line():
-        n, parts = data["notes"], []
+        parts = []
         a = data["account"] or {}
         parts.append(f"<b>{len(data['completed'])}</b> closed trades in the account")
-        if a.get("before_start"):
-            parts.append(f"{a['before_start']} from before the account started")
-        skipped = [f"{v} {what}" for what, v in (("overlapping an open position", n.get("overlap", 0)),
-                                                  ("with no exit price", n.get("broken", 0))) if v]
-        fr = a.get("report", {})
-        if fr.get("no_funds"):
-            skipped.append(f'{fr["no_funds"]} with no free funds')
-        if skipped:
-            parts.append("not counted: " + ", ".join(skipped))
-        if fr.get("cut"):
-            parts.append(f'{fr["cut"]} sized down to fit the funds')
-        if n.get("approx"):
-            parts.append(f"{n['approx']} older trades saved without times")
+        if a.get("skipped_today"):
+            parts.append(f"{len(a['skipped_today'])} signals skipped today")
+        cut = sum(1 for t in data["completed"] if t.get("funds_cut"))
+        if cut:
+            parts.append(f"{cut} sized down to fit the funds")
         if data["at"]:
             parts.append(f"updated {data['at'].strftime('%H:%M')}")
         status.set_content(" · ".join(parts))
@@ -131,14 +130,20 @@ def render_pnl_tab(container):
 
             positions = _filtered(data["active"], date=False)
             if positions:
-                html, unreal, unfunded = _positions_table(positions, st["mode"], st["amount"], data["account"]["balance"])
+                html, unreal = _positions_table(positions)
                 with ui.element("div").classes("bt-card w-full mb-3"):
                     ui.html(f'<div class="bt-h">Open now · <span class="{tone(unreal)}">{rs(unreal, sign=True)}</span> '
                             f'unrealised</div><div class="bt-hs">{len(positions)} position'
                             f'{"s" if len(positions) != 1 else ""}, before charges. Not in the totals below until closed.'
-                            + (f' {unfunded} more signal{"s" if unfunded != 1 else ""} had no free funds.' if unfunded else "")
-                            + '</div>')
+                            '</div>')
                     ui.html(html)
+
+            skipped = _filtered(data["account"]["skipped_today"], date=False)
+            if skipped:
+                with ui.element("div").classes("bt-card w-full mb-3"):
+                    ui.html(f'<div class="bt-h">Skipped today · {len(skipped)}</div><div class="bt-hs">Signals the '
+                            'account did not take, with the reason. They are not in any total.</div>')
+                    ui.html(_skipped_table(skipped))
 
             if not data["completed"]:
                 ui.html('<div class="bt-card bt-empty mt-3">No closed trades since the account started. '
@@ -199,12 +204,11 @@ def render_pnl_tab(container):
         if body.client._deleted:
             return
         live_names = get_live_strategy_names()
-        completed, positions, notes = load_live_trades()
-        acct = account_state(completed, positions)
-        start = acct["start"]
-        completed = acct["sized"]
-        positions = [p for p in positions if p["time"] >= start]
-        data.update(completed=completed, active=positions, at=now_ist(), notes=notes, account=acct)
+        acct = await asyncio.get_event_loop().run_in_executor(None, account_state)
+        if body.client._deleted:
+            return
+        completed, positions = acct["sized"], acct["positions"]
+        data.update(completed=completed, active=positions, at=now_ist(), account=acct)
 
         everything = completed + positions
         for sel, key, opts in (

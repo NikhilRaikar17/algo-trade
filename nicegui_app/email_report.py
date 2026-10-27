@@ -62,7 +62,7 @@ def _fetch_all_stocks_for_report():
 
 
 def _to_rupees(trades):
-    """Size every trade like the P&L pages' default (lose ₹1,000 at the stop) and make "pnl" its net ₹
+    """Size every trade like the P&L pages' default (lose the max loss at the stop) and make "pnl" its net ₹
     after charges. The original points move to "pnl_pts"; qty, charges and capital come from size_trades()."""
     from backtest_metrics import DEFAULT_FUNDS, DEFAULT_MODE, DEFAULT_SIZING, size_trades   # noqa: PLC0415
     sized = size_trades(trades, DEFAULT_MODE, DEFAULT_SIZING[DEFAULT_MODE], DEFAULT_FUNDS, compound=True)

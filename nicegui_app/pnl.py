@@ -194,8 +194,8 @@ def send_morning_message():
 
 def send_daily_pnl_summary():
     """Send intraday live-trading P&L summary at 3:30 PM on trading days, in rupees.
-    Trades come from live_trades.load_live_trades(): the engine's memory plus today's
-    persisted records from .trade_history.json, so no trade is missed.
+    Trades come from the paper account's book (account.account_state()): only the signals it took,
+    at the size it took them.
     """
     now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
@@ -208,16 +208,13 @@ def send_daily_pnl_summary():
     if _is_already_sent(summary_key):
         return
 
-    # Same trades and maths as the Live P&L page: the paper account (account.py) — one position per
-    # stock and strategy, sized to lose ₹1,000 at the stop, cut to the free balance, compounding,
-    # net of brokerage and taxes.
+    # Same trades and maths as the Live P&L page: the paper account's book (account.py) — only the
+    # signals it took, at the size it took them, compounding, net of brokerage and taxes.
     from account import account_state
     from backtest_metrics import inr, rupees_text, sizing_label, summarize
     from brokerage import is_short
-    from live_trades import load_live_trades
 
-    completed, positions, _ = load_live_trades()
-    acct = account_state(completed, positions)
+    acct = account_state(now)
     today = [t for t in acct["sized"] if t["trade_date"] == today_str]
     day = summarize(today)
     total_realized = day["net"]
@@ -260,6 +257,7 @@ def send_daily_pnl_summary():
         f"Free funds:     ₹{inr(acct['free'])}\n"
         f"Sizing:         {sizing_label(funds=None)}, compounding\n"
         f"Total Trades:   {total_trades} | Win Rate: {win_rate:.0f}%\n"
+        f"Skipped:        {len(acct['skipped_today'])} signals not taken (limits / funds)\n"
         f"Winners/Losers: {winners}W / {losers}L\n"
         f"\nStocks Monitored: {stock_names}\n"
         f"\nStrategy Breakdown:\n{breakdown}\n\n"

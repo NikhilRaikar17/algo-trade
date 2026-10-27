@@ -1,10 +1,10 @@
 """
-trade_desk.py — size every live signal to the max loss per trade and run it through the
-risk limits (config.RISK_LIMITS). Pure logic, no I/O: pages/trade_desk.py feeds it the
-engine's signals and shows the result.
+trade_desk.py — size a live signal to the max loss per trade and check it against the risk limits
+(config.RISK_LIMITS). Pure logic, no I/O.
 
-Nothing here places an order. Daily limits assume every PASSED signal is taken, so signals
-are checked in signal-time order and each PASS uses up a trade and its max loss.
+account.open_signal() calls check() once, the first time the engine sees a signal, with the account
+as it is at that moment; the verdict (TAKEN / SKIPPED) is saved and never worked out again.
+pages/trade_desk.py shows those saved decisions next to today's signals.
 """
 
 import math
@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
 
 import pandas as pd
+
+TAKEN, SKIPPED = "TAKEN", "SKIPPED"
 
 
 @dataclass
@@ -31,9 +33,20 @@ class DeskRow:
     qty: int = 0
     capital: float = 0.0
     max_loss: float = 0.0
-    verdict: str = ""         # PASS / BLOCK
-    reasons: list = field(default_factory=list)   # why it was blocked
-    warnings: list = field(default_factory=list)  # shown, never block
+    verdict: str = ""         # TAKEN / SKIPPED; "" = the engine hasn't decided it
+    reasons: list = field(default_factory=list)   # why it was skipped
+    warnings: list = field(default_factory=list)  # shown, never skip
+    decided_at: datetime | None = None
+
+
+@dataclass
+class Book:
+    """What the account holds when a signal is checked."""
+    balance: float                 # starting funds + net P&L of every closed trade
+    open_capital: float = 0.0      # capital of taken trades still open
+    open_symbols: set = field(default_factory=set)
+    taken_today: int = 0
+    risk_today: float = 0.0        # sum of the max losses of today's taken trades
 
 
 def _hhmm(s: str) -> time:
@@ -47,118 +60,124 @@ def signal_bar_time(trade: dict):
     return pd.Timestamp(ts) if ts is not None else None
 
 
-def build_rows(active: list[dict], completed: list[dict], bar_minutes: int = 5) -> list[DeskRow]:
-    """Turn the engine's active/completed trades into desk rows, oldest signal first."""
+def signal_key(trade: dict, strategy: str, symbol: str) -> str | None:
+    """One id per signal, shared by the account's book and the Trade Desk."""
+    ts = signal_bar_time(trade)
+    return f"{strategy}|{symbol}|{ts.isoformat()}" if ts is not None else None
+
+
+def to_row(t: dict, strategy: str, symbol: str, status: str = "Active", bar_minutes: int = 5) -> DeskRow | None:
+    ts = signal_bar_time(t)
+    if ts is None or not all(t.get(k) is not None for k in ("entry", "stop_loss", "target")):
+        return None
+    entry, stop, target = float(t["entry"]), float(t["stop_loss"]), float(t["target"])
+    side = "BUY" if target > entry else "SELL"
+    price = None
+    if "unrealized_pnl" in t:  # active trades carry P&L at the last price
+        pnl = float(t["unrealized_pnl"])
+        price = entry + pnl if side == "BUY" else entry - pnl
+    elif t.get("exit_price") is not None:
+        price = float(t["exit_price"])
+    return DeskRow(
+        key=signal_key(t, strategy, symbol), symbol=symbol, strategy=strategy, side=side,
+        signal_time=(ts + timedelta(minutes=bar_minutes)).to_pydatetime(),
+        entry=entry, stop=stop, target=target, status=status, current_price=price,
+    )
+
+
+def build_rows(active: list[dict], completed: list[dict], decisions: dict | None = None) -> list[DeskRow]:
+    """Today's signals as desk rows, oldest first, each with the account's saved decision (if any)."""
+    decisions = decisions or {}
     rows = []
     for status_default, trades in (("Active", active), (None, completed)):
         for t in trades:
-            ts = signal_bar_time(t)
-            if ts is None or not all(k in t for k in ("entry", "stop_loss", "target")):
+            r = to_row(t, t.get("strategy", "?"), t.get("symbol", "?"), status_default or t.get("status", "Closed"))
+            if r is None:
                 continue
-            entry, stop, target = float(t["entry"]), float(t["stop_loss"]), float(t["target"])
-            side = "BUY" if target > entry else "SELL"
-            price = None
-            if "unrealized_pnl" in t:  # active trades carry P&L at the last price
-                pnl = float(t["unrealized_pnl"])
-                price = entry + pnl if side == "BUY" else entry - pnl
-            elif t.get("exit_price") is not None:
-                price = float(t["exit_price"])
-            rows.append(DeskRow(
-                key=f"{t.get('strategy', '?')}|{t.get('symbol', '?')}|{ts.isoformat()}",
-                symbol=t.get("symbol", "?"), strategy=t.get("strategy", "?"), side=side,
-                signal_time=(ts + timedelta(minutes=bar_minutes)).to_pydatetime(),
-                entry=entry, stop=stop, target=target,
-                status=status_default or t.get("status", "Closed"), current_price=price,
-            ))
+            d = decisions.get(r.key)
+            if d:
+                r.verdict, r.reasons, r.warnings = d["verdict"], list(d["reasons"]), list(d["warnings"])
+                r.qty, r.capital, r.max_loss = d["qty"], d["capital"], d["max_loss"]
+                r.risk_per_share, r.reward_risk = d["risk_per_share"], d["reward_risk"]
+                r.decided_at = pd.Timestamp(d["decided_at"]).to_pydatetime()
+                if d["verdict"] == TAKEN and d["status"] == "Day Close":
+                    r.status = "Squared off"
+            rows.append(r)
     rows.sort(key=lambda r: (r.signal_time, r.symbol, r.strategy))
     return rows
 
 
-def evaluate(rows: list[DeskRow], limits: dict) -> list[DeskRow]:
-    """Size each row and PASS/BLOCK it against `limits`, in signal-time order."""
-    before, after = _hhmm(limits["no_entries_before"]), _hhmm(limits["no_entries_after"])
+def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
+    """Size `r` and take or skip it against `limits`, given what the account holds at `now`."""
+    r.reasons, r.warnings = [], []
     max_loss = float(limits["max_loss_per_trade"])
-    passed_count, passed_loss = 0, 0.0
-    open_passed = set()  # (symbol, side) already passed and not closed
-    funds = float(limits.get("funds") or 0)  # 0 = no cash cap
-    funds_used = 0.0                         # capital of PASSED signals that are still open
+    r.risk_per_share = round(abs(r.entry - r.stop), 2)
+    reward = abs(r.target - r.entry)
 
-    for r in rows:
-        r.reasons, r.warnings = [], []
-        r.risk_per_share = round(abs(r.entry - r.stop), 2)
-        reward = abs(r.target - r.entry)
+    stop_ok = (r.stop < r.entry) if r.side == "BUY" else (r.stop > r.entry)
+    if r.risk_per_share <= 0 or not stop_ok:
+        r.reasons.append("stop is missing or on the wrong side of the entry")
+        r.verdict = SKIPPED
+        return r
 
-        stop_ok = (r.stop < r.entry) if r.side == "BUY" else (r.stop > r.entry)
-        if r.risk_per_share <= 0 or not stop_ok:
-            r.reasons.append("stop is missing or on the wrong side of the entry")
-            r.verdict = "BLOCK"
-            continue
+    r.reward_risk = round(reward / r.risk_per_share, 2)
+    want = math.floor(max_loss / r.risk_per_share)
+    free = max(book.balance - book.open_capital, 0.0)
+    cap = book.balance * float(limits.get("max_capital_pct") or 100) / 100
+    r.qty = min(want, math.floor(min(free, cap) / r.entry))
 
-        r.reward_risk = round(reward / r.risk_per_share, 2)
-        r.qty = math.floor(max_loss / r.risk_per_share)
+    if want < 1:
+        r.reasons.append(f"one share risks ₹{r.risk_per_share:,.2f}, over your ₹{max_loss:,.0f} max loss per trade")
+    elif free < r.entry:
+        r.reasons.append(f"no free funds: ₹{book.open_capital:,.0f} of your ₹{book.balance:,.0f} is in open positions")
+    elif r.qty < 1:
+        r.reasons.append(f"one share costs more than the ₹{cap:,.0f} per-trade cap")
+    elif r.qty < want:
+        why = "free funds" if free < cap else f"₹{cap:,.0f} per-trade cap"
+        cut_risk = r.qty * r.risk_per_share
+        if cut_risk < max_loss * float(limits.get("min_risk_pct") or 0) / 100:
+            r.reasons.append(f"the {why} only buys {r.qty} shares, risking ₹{cut_risk:,.0f}: "
+                             f"under {limits['min_risk_pct']}% of your ₹{max_loss:,.0f}")
+        else:
+            r.warnings.append(f"size cut from {want} to {r.qty} shares by the {why} "
+                              f"(risks ₹{cut_risk:,.0f}, not ₹{max_loss:,.0f})")
+    r.qty = max(r.qty, 0)
+    r.capital = round(r.qty * r.entry, 2)
+    r.max_loss = round(r.qty * r.risk_per_share, 2)
 
-        if r.qty < 1:
-            r.reasons.append(
-                f"one share risks ₹{r.risk_per_share:,.2f}, over your ₹{max_loss:,.0f} max loss per trade"
-            )
-        elif funds:
-            # cash cap: open PASSED positions hold their capital; cut the size to what's left
-            affordable = math.floor(max(funds - funds_used, 0) / r.entry)
-            if affordable < 1:
-                r.reasons.append(
-                    f"no free funds: ₹{funds_used:,.0f} of your ₹{funds:,.0f} is in open positions"
-                )
-            elif affordable < r.qty:
-                r.warnings.append(
-                    f"size cut from {r.qty} to {affordable} shares to fit the ₹{funds:,.0f} funds "
-                    f"(risks ₹{affordable * r.risk_per_share:,.0f}, not ₹{max_loss:,.0f})"
-                )
-                r.qty = affordable
-        r.capital = round(r.qty * r.entry, 2)
-        r.max_loss = round(r.qty * r.risk_per_share, 2)
-        if r.reward_risk < limits["min_reward_risk"]:
-            r.reasons.append(f"reward:risk {r.reward_risk:.2f} is under your minimum {limits['min_reward_risk']:.2f}")
-        t = r.signal_time.time()
-        if t < before or t > after:
-            r.reasons.append(
-                f"signal at {t.strftime('%H:%M')} is outside your entry window "
-                f"{limits['no_entries_before']}–{limits['no_entries_after']}"
-            )
-        if (r.symbol, r.side) in open_passed:
-            r.reasons.append(f"a {r.side} on {r.symbol} already passed today and is still open")
-        if passed_count >= limits["max_trades_per_day"]:
-            r.reasons.append(f"daily limit reached: {passed_count} of {limits['max_trades_per_day']} trades already passed")
-        elif passed_loss + r.max_loss > limits["max_daily_loss"]:
-            r.reasons.append(
-                f"daily loss limit: ₹{passed_loss:,.0f} already at risk + ₹{r.max_loss:,.0f} "
-                f"is over ₹{limits['max_daily_loss']:,.0f}"
-            )
+    if r.reward_risk < limits["min_reward_risk"]:
+        r.reasons.append(f"reward:risk {r.reward_risk:.2f} is under your minimum {limits['min_reward_risk']:.2f}")
+    t = now.time()
+    if t < _hhmm(limits["no_entries_before"]) or t > _hhmm(limits["no_entries_after"]):
+        r.reasons.append(f"{t:%H:%M} is outside your entry window "
+                         f"{limits['no_entries_before']}–{limits['no_entries_after']}")
+    if r.symbol in book.open_symbols:
+        r.reasons.append(f"already holding {r.symbol}")
+    if book.taken_today >= limits["max_trades_per_day"]:
+        r.reasons.append(f"daily limit reached: {book.taken_today} of {limits['max_trades_per_day']} trades taken")
+    elif book.risk_today + r.max_loss > limits["max_daily_loss"]:
+        r.reasons.append(f"daily loss limit: ₹{book.risk_today:,.0f} already at risk + ₹{r.max_loss:,.0f} "
+                         f"is over ₹{limits['max_daily_loss']:,.0f}")
 
-        # Warnings: shown next to the verdict, never block
-        if r.current_price is not None and r.status == "Active":
-            moved = (r.current_price - r.entry) if r.side == "BUY" else (r.entry - r.current_price)
-            if reward > 0 and moved / reward >= 0.5:
-                r.warnings.append(f"price already covered {moved / reward * 100:.0f}% of the way to the target")
+    if r.current_price is not None:
+        moved = (r.current_price - r.entry) if r.side == "BUY" else (r.entry - r.current_price)
+        if reward > 0 and moved / reward >= 0.5:
+            r.warnings.append(f"price already covered {moved / reward * 100:.0f}% of the way to the target")
 
-        r.verdict = "BLOCK" if r.reasons else "PASS"
-        if r.verdict == "PASS":
-            passed_count += 1
-            passed_loss += r.max_loss
-            if r.status == "Active":
-                open_passed.add((r.symbol, r.side))
-                funds_used += r.capital
-    return rows
+    r.verdict = SKIPPED if r.reasons else TAKEN
+    return r
 
 
 def day_summary(rows: list[DeskRow], limits: dict) -> dict:
-    passed = [r for r in rows if r.verdict == "PASS"]
+    taken = [r for r in rows if r.verdict == TAKEN]
     return {
         "signals": len(rows),
-        "passed": len(passed),
-        "blocked": len(rows) - len(passed),
-        "trades_used": len(passed),
+        "passed": len(taken),
+        "blocked": sum(1 for r in rows if r.verdict == SKIPPED),
+        "pending": sum(1 for r in rows if not r.verdict),
+        "trades_used": len(taken),
         "trades_limit": limits["max_trades_per_day"],
-        "loss_used": round(sum(r.max_loss for r in passed), 2),
+        "loss_used": round(sum(r.max_loss for r in taken), 2),
         "loss_limit": limits["max_daily_loss"],
-        "capital_passed": round(sum(r.capital for r in passed), 2),
+        "capital_passed": round(sum(r.capital for r in taken), 2),
     }

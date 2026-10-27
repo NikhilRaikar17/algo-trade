@@ -9,14 +9,10 @@ import talib
 
 from config import RSI_PERIOD, SMA_FAST, SMA_SLOW, RSI_OVERSOLD, RSI_OVERBOUGHT, now_ist
 from state import _is_already_sent, _mark_sent, _send_telegram, save_completed_trade
-from backtest_metrics import net_rupees, rupees_text, sizing_label
+from account import close_signal, mark_price, open_signal, pnl_text, size_text
+from trade_desk import TAKEN
 
 _MARKET_CLOSE = _dtime(15, 30)
-
-
-def _pnl_msg(trade):
-    """Telegram P&L line in rupees, net of charges, at the default sizing (risk ₹1,000 at the stop)."""
-    return f"{rupees_text(net_rupees(trade))} net ({sizing_label()}, after charges)"
 _NO_NEW_TRADE_AFTER = _dtime(15, 0)  # no new entries after 3:00 PM IST
 
 
@@ -148,6 +144,35 @@ def _pattern_key(p):
     return f"{p['A']['time']}_{p['D']['time']}_{p['type']}"
 
 
+def _book_open(trade, price, strategy, symbol, alert):
+    """An open signal, every tick: the first time, the paper account takes or skips it and Telegram
+    says which (only a taken trade is a NEW TRADE); after that its price is tracked."""
+    trade["strategy"], trade["symbol"] = strategy, symbol
+    rec, new = open_signal(trade, strategy, symbol, price)
+    if rec is None:
+        return
+    if not new:
+        mark_price(trade, strategy, symbol, price)
+    elif rec["verdict"] == TAKEN:
+        _send_telegram(f"NEW TRADE {alert}\nSize: {size_text(rec)}"
+                       + "".join(f"\nNote: {w}" for w in rec["warnings"]))
+    else:
+        _send_telegram(f"SKIPPED {alert}\nNot taken: " + "; ".join(rec["reasons"]))
+
+
+def _book_close(trade, price, strategy, symbol, history_key, alert):
+    """A signal past its target or stop: saved to the signal history once; TRADE CLOSED only when it
+    closes a trade the account took, with that trade's own size and P&L."""
+    trade["strategy"], trade["symbol"] = strategy, symbol
+    if not _is_already_sent(history_key):
+        trade["trade_date"] = now_ist().strftime("%Y-%m-%d")
+        save_completed_trade(history_key, trade)
+        _mark_sent(history_key)
+    rec = close_signal(trade, strategy, symbol, price, trade["status"])
+    if rec:
+        _send_telegram(f"TRADE CLOSED {alert}\nPnL: {pnl_text(rec)}\nStatus: {trade['status']}")
+
+
 def classify_trades(patterns, current_price, contract_name=""):
     active = []
     completed = []
@@ -155,59 +180,25 @@ def classify_trades(patterns, current_price, contract_name=""):
         entry = p["entry"]
         target = p["target"]
         sl = p["stop_loss"]
-        key = _pattern_key(p)
-        active_key = f"abcd_active_{key}"
-        completed_key = f"abcd_closed_{key}"
-
-        if p["type"] == "Bullish":
-            pnl = entry - current_price
-            if current_price <= target or current_price >= sl:
-                p["exit_price"] = current_price
-                p["pnl"] = round(pnl, 2)
-                p["status"] = "Target Hit" if current_price <= target else "SL Hit"
-                completed.append(p)
-                if not _is_already_sent(completed_key):
-                    p["trade_date"] = now_ist().strftime("%Y-%m-%d")
-                    p["strategy"] = "ABCD"
-                    p["symbol"] = contract_name
-                    save_completed_trade(completed_key, p)
-                    _mark_sent(completed_key)
-                    _send_telegram(
-                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {_pnl_msg(p)}\nStatus: {p['status']}"
-                    )
-            else:
-                p["unrealized_pnl"] = round(pnl, 2)
-                active.append(p)
-                if not _is_already_sent(active_key):
-                    _mark_sent(active_key)
-                    _send_telegram(
-                        f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
-                    )
+        history_key = f"abcd_closed_{contract_name}_{_pattern_key(p)}"
+        short = p["type"] == "Bullish"  # a bullish ABCD completes at D: sell
+        pnl = entry - current_price if short else current_price - entry
+        hit_target = current_price <= target if short else current_price >= target
+        hit_sl = current_price >= sl if short else current_price <= sl
+        about = f"| {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}"
+        if hit_target or hit_sl:
+            p["exit_price"] = current_price
+            p["pnl"] = round(pnl, 2)
+            p["status"] = "Target Hit" if hit_target else "SL Hit"
+            completed.append(p)
+            _book_close(p, current_price, "ABCD", contract_name, history_key,
+                        f"{about}\nEntry: {entry:.2f} | Exit: {current_price:.2f}")
         else:
-            pnl = current_price - entry
-            if current_price >= target or current_price <= sl:
-                p["exit_price"] = current_price
-                p["pnl"] = round(pnl, 2)
-                p["status"] = "Target Hit" if current_price >= target else "SL Hit"
-                completed.append(p)
-                if not _is_already_sent(completed_key):
-                    p["trade_date"] = now_ist().strftime("%Y-%m-%d")
-                    p["strategy"] = "ABCD"
-                    p["symbol"] = contract_name
-                    save_completed_trade(completed_key, p)
-                    _mark_sent(completed_key)
-                    _send_telegram(
-                        f"TRADE CLOSED | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {_pnl_msg(p)}\nStatus: {p['status']}"
-                    )
-            else:
-                p["unrealized_pnl"] = round(pnl, 2)
-                p["symbol"] = contract_name
-                active.append(p)
-                if not _is_already_sent(active_key):
-                    _mark_sent(active_key)
-                    _send_telegram(
-                        f"NEW TRADE | {contract_name}\nPattern: {p['type']} ABCD\nSignal: {p['signal']}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nBC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}"
-                    )
+            p["unrealized_pnl"] = round(pnl, 2)
+            active.append(p)
+            _book_open(p, current_price, "ABCD", contract_name,
+                       f"{about}\nEntry (D): {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
+                       f"BC Retrace: {p['BC_retrace']} | CD/AB: {p['CD_AB_ratio']}")
     return active, completed
 
 
@@ -374,9 +365,7 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
         entry = s["entry"]
         target = s["target"]
         sl = s["stop_loss"]
-        key = _rsi_signal_key(s)
-        active_key = f"rsi_active_{key}"
-        completed_key = f"rsi_closed_{key}"
+        history_key = f"rsi_closed_{contract_name}_{_rsi_signal_key(s)}"
         if s["type"] == "Bullish":
             pnl = current_price - entry
             hit_target = current_price >= target
@@ -386,29 +375,20 @@ def classify_rsi_trades(signals, current_price, contract_name=""):
             hit_target = current_price <= target
             hit_sl = current_price >= sl
         pnl = round(pnl, 2)
+        about = f"[RSI+SMA] | {contract_name}\nSignal: {s['signal']}"
         if hit_target or hit_sl:
             s["exit_price"] = current_price
             s["pnl"] = pnl
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
-            if not _is_already_sent(completed_key):
-                s["trade_date"] = now_ist().strftime("%Y-%m-%d")
-                s["strategy"] = "RSI+SMA"
-                s["symbol"] = contract_name
-                save_completed_trade(completed_key, s)
-                _mark_sent(completed_key)
-                _send_telegram(
-                    f"TRADE CLOSED [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f} | Exit: {current_price:.2f}\nPnL: {_pnl_msg(s)}\nStatus: {s['status']}"
-                )
+            _book_close(s, current_price, "RSI+SMA", contract_name, history_key,
+                        f"{about}\nEntry: {entry:.2f} | Exit: {current_price:.2f}")
         else:
             s["unrealized_pnl"] = pnl
-            s["symbol"] = contract_name
             active.append(s)
-            if not _is_already_sent(active_key):
-                _mark_sent(active_key)
-                _send_telegram(
-                    f"NEW TRADE [RSI+SMA] | {contract_name}\nSignal: {s['signal']}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\nRSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}"
-                )
+            _book_open(s, current_price, "RSI+SMA", contract_name,
+                       f"{about}\nEntry: {entry:.2f}\nTarget: {target:.2f} | SL: {sl:.2f}\n"
+                       f"RSI: {s['rsi']} | SMA {SMA_FAST}/{SMA_SLOW}: {s['sma_fast']}/{s['sma_slow']}")
     return active, completed
 
 
@@ -1097,9 +1077,7 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
         entry = s["entry"]
         target = s["target"]
         sl = s["stop_loss"]
-        sig_key = "{}_{}".format(store_prefix, str(s["time"]))
-        active_key = "live_active_" + sig_key
-        completed_key = "live_closed_" + sig_key
+        history_key = "live_closed_{}_{}_{}".format(store_prefix, contract_name, s["time"])
         is_buy = target > entry
         if is_buy:
             pnl = current_price - entry
@@ -1110,34 +1088,21 @@ def _classify_generic(signals, current_price, contract_name, strategy_name, stor
             hit_target = current_price <= target
             hit_sl = current_price >= sl
         pnl = round(pnl, 2)
+        about = "[{}] | {}\nSignal: {}".format(strategy_name, contract_name, s["signal"])
         if hit_target or hit_sl:
             s["exit_price"] = current_price
             s["pnl"] = pnl
             s["status"] = "Target Hit" if hit_target else "SL Hit"
             completed.append(s)
-            if not _is_already_sent(completed_key):
-                s["trade_date"] = now_ist().strftime("%Y-%m-%d")
-                s["strategy"] = strategy_name
-                s["symbol"] = contract_name
-                save_completed_trade(completed_key, s)
-                _mark_sent(completed_key)
-                _send_telegram(
-                    "TRADE CLOSED [{}] | {}\nSignal: {}\nEntry: {:.2f} | Exit: {:.2f}\nPnL: {}\nStatus: {}".format(
-                        strategy_name, contract_name, s["signal"], entry, current_price, _pnl_msg(s), s["status"]
-                    )
-                )
+            _book_close(s, current_price, strategy_name, contract_name, history_key,
+                        "{}\nEntry: {:.2f} | Exit: {:.2f}".format(about, entry, current_price))
         else:
             s["unrealized_pnl"] = pnl
-            s["symbol"] = contract_name
             active.append(s)
-            if not _is_already_sent(active_key):
-                _mark_sent(active_key)
-                alert = "NEW TRADE [{}] | {}\nSignal: {}\nEntry: {:.2f} | Target: {:.2f} | SL: {:.2f}".format(
-                    strategy_name, contract_name, s["signal"], entry, target, sl
-                )
-                if extra_alert_fn:
-                    alert += extra_alert_fn(s)
-                _send_telegram(alert)
+            alert = "{}\nEntry: {:.2f} | Target: {:.2f} | SL: {:.2f}".format(about, entry, target, sl)
+            if extra_alert_fn:
+                alert += extra_alert_fn(s)
+            _book_open(s, current_price, strategy_name, contract_name, alert)
     return active, completed
 
 

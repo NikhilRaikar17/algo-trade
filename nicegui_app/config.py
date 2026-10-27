@@ -39,9 +39,9 @@ LIVE_STRATEGY_ENABLED = {
     "sma50": True,
 }
 
-# ================= TRADE DESK RISK LIMITS =================
-# Used by trade_desk.py to size each live signal and PASS/BLOCK it. Nothing places orders:
-# daily limits assume every PASSED signal is taken, in signal-time order.
+# ================= LIVE ACCOUNT RISK LIMITS =================
+# trade_desk.check() sizes each live signal and the paper account (account.py) takes or skips it, once,
+# when the engine first sees it. Only taken trades are alerted and counted. Nothing places orders.
 # Strategy Analysis verdicts: a strategy is "Not good" when more than max_loss_rate % of its trades
 # lose money after charges — in the backtest and in live trading (each with at least min_trades trades).
 STRATEGY_REVIEW = {
@@ -50,14 +50,17 @@ STRATEGY_REVIEW = {
 }
 
 RISK_LIMITS = {
-    "funds": 100_000,             # ₹ cash for open positions at any moment; every day starts with it all
-                                  # free (no compounding, no intraday leverage)
-    "max_loss_per_trade": 1000,   # ₹ lost if the stop fills at the stop price; sets the quantity
-    "max_trades_per_day": 3,      # passed signals per day
-    "max_daily_loss": 3000,       # ₹, sum of the max losses of the day's passed signals
+    "funds": 100_000,             # ₹ the paper account starts with; open positions hold their capital
+                                  # until they close (no intraday leverage)
+    "max_loss_per_trade": 250,    # ₹ lost if the stop fills at the stop price; sets the quantity
+    "max_capital_pct": 33,        # % of the balance one trade may use, so one tight stop can't take it all
+    "min_risk_pct": 50,           # skip a trade cut by the funds below this % of max_loss_per_trade
+    "max_trades_per_day": 3,      # taken trades per day
+    "max_daily_loss": 750,        # ₹, sum of the max losses of the day's taken trades
     "min_reward_risk": 1.0,       # (target − entry) / (entry − stop), absolute
     "no_entries_before": "09:20",
     "no_entries_after": "15:00",  # matches algo_strategies._NO_NEW_TRADE_AFTER
+    "square_off": "15:20",        # open trades are closed at the last price (intraday)
 }
 
 # Trade-store prefix / dropdown key → trade["strategy"] name used in P&L

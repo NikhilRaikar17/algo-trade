@@ -150,7 +150,7 @@ def size_open_positions(positions: list[dict], mode: str, amount: float,
 
 def net_rupees(trade: dict, mode: str = DEFAULT_MODE, amount: float | None = None,
                funds: float | None = DEFAULT_FUNDS) -> float | None:
-    """Net ₹ for one finished trade at a sizing (default: risk ₹1,000 at the stop, at most the
+    """Net ₹ for one finished trade at a sizing (default: risk the max loss at the stop, at most the
     funds); None if it has no exit yet or sizes to zero shares."""
     if not trade.get("entry") or not trade.get("exit_price"):
         return None
