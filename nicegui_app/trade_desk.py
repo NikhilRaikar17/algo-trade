@@ -144,10 +144,10 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
         why = "free funds" if free < cap else f"₹{cap:,.0f} per-trade cap"
         cut_risk = lots * lot_risk
         if cut_risk < max_loss * float(limits.get("min_risk_pct") or 0) / 100:
-            r.reasons.append(f"the {why} only buys {lots} {unit}s, risking ₹{cut_risk:,.0f}: "
+            r.reasons.append(f"the {why} only buys {lots} {unit}{'s' if lots != 1 else ''}, risking ₹{cut_risk:,.0f}: "
                              f"under {limits['min_risk_pct']}% of your ₹{max_loss:,.0f}")
         else:
-            r.warnings.append(f"size cut from {want} to {lots} {unit}s by the {why} "
+            r.warnings.append(f"size cut from {want} to {lots} {unit}{'s' if lots != 1 else ''} by the {why} "
                               f"(risks ₹{cut_risk:,.0f}, not ₹{max_loss:,.0f})")
     r.qty = max(lots, 0) * lot
     r.capital = round(r.qty * r.entry, 2)
