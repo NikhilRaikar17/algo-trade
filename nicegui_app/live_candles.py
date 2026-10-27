@@ -4,7 +4,8 @@ live_candles.py — today's 5-minute candles for each stock, built from the webs
 ws_feed calls on_tick() for every equity tick; each tick folds into the bar of its 5-minute slot
 (09:15, 09:20, …), and a bar is complete once its slot has ended. Bars from before a stock was first
 fed (app start, or a stock added mid-day) are seeded from Dhan's REST candles (seed()). That, and a
-re-seed when a stock's ticks stop (needs_seed()), is the only REST use in the live path.
+re-seed when a stock's ticks stop (needs_seed()), is the only REST use in the live path. The seed's
+earlier days are kept too (candles(..., history=True)): long moving averages need them to warm up.
 """
 
 import threading
@@ -23,6 +24,7 @@ _lock = threading.Lock()
 _bars: dict[str, dict[pd.Timestamp, dict]] = {}   # security id → {slot start → {open, high, low, close}}
 _seeded: dict[str, datetime] = {}                  # security id → last REST seed
 _last: dict[str, tuple[float, datetime]] = {}      # security id → (last traded price, when)
+_history: dict[str, pd.DataFrame] = {}             # security id → earlier days' bars from the REST seed
 
 
 def slot(ts: datetime) -> pd.Timestamp:
@@ -55,7 +57,12 @@ def seed(security_id: str, rest: pd.DataFrame, now: datetime | None = None) -> N
     values; the bar still forming keeps the feed's high/low/close, widened by REST's."""
     now = now or now_ist()
     sid, current = str(security_id), slot(now)
+    earlier = pd.DataFrame(columns=["timestamp", "open", "high", "low", "close"])
+    if rest is not None and not rest.empty:
+        old = rest[[slot(t).date() < current.date() for t in rest["timestamp"]]]
+        earlier = old[["timestamp", "open", "high", "low", "close"]].sort_values("timestamp").reset_index(drop=True)
     with _lock:
+        _history[sid] = earlier
         bars = {s: b for s, b in _bars.get(sid, {}).items() if s.date() == current.date()}
         if rest is not None and not rest.empty:
             for row in rest.itertuples(index=False):
@@ -84,15 +91,23 @@ def needs_seed(security_id: str, now: datetime | None = None) -> bool:
     return quiet and (now - seeded).total_seconds() > _RESEED_SECONDS
 
 
-def candles(security_id: str, now: datetime | None = None, forming: bool = False) -> pd.DataFrame:
-    """Today's bars, oldest first (timestamp = bar start, IST). Only finished bars unless `forming`."""
+def candles(security_id: str, now: datetime | None = None, forming: bool = False,
+            history: bool = False) -> pd.DataFrame:
+    """Today's bars, oldest first (timestamp = bar start, IST). Only finished bars unless `forming`.
+    With `history`, the earlier days' bars from the REST seed come first (warm-up for long averages)."""
     now = now or now_ist()
     current = slot(now)
     with _lock:
         items = sorted((s, dict(b)) for s, b in _bars.get(str(security_id), {}).items()
                        if s.date() == current.date() and (forming or s < current))
-    return pd.DataFrame([{"timestamp": s, **b} for s, b in items],
-                        columns=["timestamp", "open", "high", "low", "close"])
+        earlier = _history.get(str(security_id)) if history else None
+    today = pd.DataFrame([{"timestamp": s, **b} for s, b in items],
+                         columns=["timestamp", "open", "high", "low", "close"])
+    if earlier is None or earlier.empty:
+        return today
+    if today.empty:
+        return earlier.copy()
+    return pd.concat([earlier, today], ignore_index=True)
 
 
 def last_price(security_id: str, max_age: float = STALE_SECONDS, now: datetime | None = None) -> float | None:

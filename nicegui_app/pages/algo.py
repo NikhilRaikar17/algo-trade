@@ -30,6 +30,11 @@ from algo_strategies import (
     classify_ema10_trades,
     detect_sma50_signals,
     classify_sma50_trades,
+    # EMA 100 / SMA 100 / SMA 200 / EMA 50-100 cross
+    MA_STRATEGIES,
+    detect_ma_signals,
+    classify_ma_trades,
+    ma_lines,
 )
 from tv_charts import (
     render_tv_abcd_chart,
@@ -37,6 +42,7 @@ from tv_charts import (
     render_tv_double_bottom_chart,
     render_tv_ema10_chart,
     render_tv_sma50_chart,
+    render_tv_ma_chart,
     flush_pending_js,
 )
 from pages.pnl_widgets import account_strip
@@ -193,7 +199,7 @@ def _render_trade_tabs(active, completed, current_price, algo_type):
 
 # ── per-stock strategy dispatch ───────────────────────────────────────────────
 
-def _run_strategy(algo_type, candles, current_price, stock_name):
+def _run_strategy(algo_type, candles, current_price, stock_name, sid=None):
     header = f"{stock_name} — Last: ₹{current_price:.2f} | {len(candles)} candles (5-min, today)"
 
     if algo_type == "abcd":
@@ -251,6 +257,23 @@ def _run_strategy(algo_type, candles, current_price, stock_name):
             ui.label("No SMA50 signals detected today.").classes("text-gray-500 italic")
         active, completed = classify_sma50_trades(signals, current_price, stock_name, book=False)
         _render_trade_tabs(active, completed, current_price, "sma50")
+
+    elif algo_type in MA_STRATEGIES:
+        # the averages run over the earlier days' bars too (live_candles history), as the engine's do
+        full = live_candles.candles(sid, history=True) if sid else candles
+        day = candles["timestamp"].iloc[-1].date()
+        signals, df_ind = detect_ma_signals(full, algo_type)
+        signals = [s for s in signals if s["time"].date() == day]
+        df_ind = df_ind[df_ind["timestamp"].dt.date == day]
+        label = " / ".join(lbl for _, lbl in ma_lines(algo_type))
+        ui.label(header).classes("text-md font-semibold")
+        render_tv_ma_chart(candles, df_ind, signals, ma_lines(algo_type))
+        if df_ind[ma_lines(algo_type)[-1][0]].isna().all():
+            ui.label(f"Not enough earlier bars yet for {label}.").classes("text-orange-500 italic")
+        elif not signals:
+            ui.label(f"No {label} signals detected today.").classes("text-gray-500 italic")
+        active, completed = classify_ma_trades(signals, current_price, stock_name, book=False, key=algo_type)
+        _render_trade_tabs(active, completed, current_price, algo_type)
 
 
 # ── tab entry point ───────────────────────────────────────────────────────────
@@ -380,7 +403,7 @@ def render_algo_tab(container, algo_type="abcd"):
             _state["strategy_container"] = strat_container
 
         with strat_container:
-            _run_strategy(strat, candles, current_price, stock_name)
+            _run_strategy(strat, candles, current_price, stock_name, sid)
 
         await flush_pending_js()
         _state["loaded"] = True
@@ -407,7 +430,7 @@ def render_algo_tab(container, algo_type="abcd"):
             price = round(ltp if ltp is not None else float(updated["close"].iloc[-1]), 2)
             sc.clear()
             with sc:
-                _run_strategy(_state["algo"], updated, price, stock_name)
+                _run_strategy(_state["algo"], updated, price, stock_name, sid_now)
             candle_status.set_text(f"Bar {last_ts:%H:%M} closed")
             asyncio.ensure_future(flush_pending_js())
 

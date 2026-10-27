@@ -1138,6 +1138,90 @@ def classify_sma50_trades(signals, current_price, contract_name="", book=True):
         extra_alert_fn=lambda s: "\nSMA50: {}".format(s.get("sma50", "-")), book=book)
 
 
+# ================= MOVING-AVERAGE STRATEGIES =================
+# One average: BUY when the close crosses above it, SELL when it crosses below ("Price crosses above
+# SMA 200"). Two averages: BUY when the fast one crosses above the slow one, SELL when it crosses
+# below ("EMA 50 crosses above EMA 100"). Same 2% target / 1% stop as SMA 50, no entries after 15:00.
+# The averages run across days, so they need ma_warmup(key) bars before the first one: the live
+# engine, Live Algos and the backtests pass earlier days' bars too and keep only the signals they show.
+MA_STRATEGIES = {
+    "ema100":    [("ema", 100)],
+    "sma100":    [("sma", 100)],
+    "sma200":    [("sma", 200)],
+    "ema50x100": [("ema", 50), ("ema", 100)],
+}
+MA_TARGET_PCT = 0.02
+MA_SL_PCT = 0.01
+
+
+def ma_lines(key):
+    """[(column, label)] of a moving-average strategy's averages, fast first: [("ema50", "EMA 50"), …]."""
+    return [(f"{kind}{n}", f"{kind.upper()} {n}") for kind, n in MA_STRATEGIES[key]]
+
+
+def ma_warmup(key):
+    """Bars needed before the slowest average has a value."""
+    return max(n for _, n in MA_STRATEGIES[key])
+
+
+def detect_ma_signals(candles, key):
+    """Signals of moving-average strategy `key` (MA_STRATEGIES) → (signals, df with the averages)."""
+    df = candles.copy()
+    lines = ma_lines(key)
+    for (kind, n), (col, _) in zip(MA_STRATEGIES[key], lines):
+        df[col] = (compute_ema if kind == "ema" else compute_sma)(df["close"], n)
+    cols = [col for col, _ in lines]
+    df_ind = df.reset_index(drop=True)                          # NaNs kept for the chart lines
+    df_clean = df.dropna(subset=cols).reset_index(drop=True)
+    fast, slow = ("close", cols[0]) if len(cols) == 1 else (cols[0], cols[1])
+    what = "Price" if fast == "close" else lines[0][1]
+    over = lines[-1][1]
+    signals = []
+    for i in range(1, len(df_clean)):
+        prev, curr = df_clean.iloc[i - 1], df_clean.iloc[i]
+        if curr["timestamp"].time() >= _NO_NEW_TRADE_AFTER:
+            continue
+        up = prev[fast] <= prev[slow] and curr[fast] > curr[slow]
+        down = prev[fast] >= prev[slow] and curr[fast] < curr[slow]
+        if not (up or down):
+            continue
+        close = float(curr["close"])
+        signals.append({
+            "type": "Bullish" if up else "Bearish",
+            "signal": f"BUY — {what} crosses above {over}" if up else f"SELL — {what} crosses below {over}",
+            "entry": round(close, 2),
+            "target": round(close * (1 + MA_TARGET_PCT if up else 1 - MA_TARGET_PCT), 2),
+            "stop_loss": round(close * (1 - MA_SL_PCT if up else 1 + MA_SL_PCT), 2),
+            "time": curr["timestamp"],
+            **{col: round(float(curr[col]), 2) for col in cols},
+        })
+    return signals, df_ind
+
+
+def backtest_ma(signals, candles):
+    """Same-day walk-through after each moving-average signal (the SMA 50 rules)."""
+    return backtest_sma50(signals, candles)
+
+
+MA_HISTORY_DAYS = 21  # calendar days of 15-min bars the backtests fetch: 200 bars of warm-up + the 7-day window
+BACKTEST_WINDOW_DAYS = 7  # the other strategies' window (data._fetch_any_stock_candles)
+
+
+def backtest_ma_window(candles, key, since):
+    """Backtest `key` on long `candles` (warm-up included), keeping signals from `since` on.
+    → (signals, df with the averages, trades)."""
+    signals, df_ind = detect_ma_signals(candles, key)
+    signals = [s for s in signals if s["time"] >= since]
+    return signals, df_ind, backtest_ma(signals, candles)
+
+
+def classify_ma_trades(signals, current_price, contract_name="", book=True, key="sma200"):
+    from config import STRATEGY_NAMES  # noqa: PLC0415
+    return _classify_generic(signals, current_price, contract_name, STRATEGY_NAMES[key], key,
+        extra_alert_fn=lambda s: "\n" + " | ".join(f"{label}: {s.get(col, '-')}" for col, label in ma_lines(key)),
+        book=book)
+
+
 # ================= SWING TRADE SIGNAL DETECTION =================
 
 def detect_swing_trade_signals(df) -> dict | None:

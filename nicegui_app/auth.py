@@ -89,6 +89,10 @@ _SEED_STRATEGIES: list[tuple[str, str, str, int]] = [
     ("db",    "Double Bottom",           "Double Bottom",           4),
     ("ema10", "EMA 10",                  "EMA 10",                  5),
     ("sma50", "SMA 50",                  "SMA 50",                  6),
+    ("ema100", "EMA 100",                "EMA 100",                 7),
+    ("sma100", "SMA 100",                "SMA 100",                 8),
+    ("sma200", "SMA 200",                "SMA 200",                 9),
+    ("ema50x100", "EMA 50/100 Cross",    "EMA 50/100 Cross",        10),
 ]
 
 with SessionLocal() as _s:

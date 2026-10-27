@@ -31,7 +31,7 @@ from data import fetch_option_candles, fetch_option_chain_raw, get_expiries
 from option_contracts import lot_size, needs_reselect, pick_expiry, pick_strike
 from state import _send_telegram, get_live_price, is_market_open
 from strategy_registry import get_live_strategy_keys
-from trading_engine import _STRATEGY_RUNNERS, _TICK_MAX_AGE, MONITOR_SECONDS, _seconds_to_next_bar
+from trading_engine import _STRATEGY_RUNNERS, _TICK_MAX_AGE, MONITOR_SECONDS, _seconds_to_next_bar, detect_signals
 
 OPT_TYPES = ("CE", "PE")
 _CHAIN_GAP_SECONDS = 3  # Dhan allows one option-chain call every 3 s
@@ -107,11 +107,12 @@ def _run_contract(c: dict, live_keys: list[str]) -> None:
         return
     live = live_candles.last_price(_key(c["security_id"]))
     price = round(live if live is not None else float(candles["close"].iloc[-1]), 2)
+    full = live_candles.candles(_key(c["security_id"]), history=True)
     results = {}
     for k in live_keys:
-        detect, classify = _STRATEGY_RUNNERS[k]
+        _, classify = _STRATEGY_RUNNERS[k]
         try:
-            buys = [s for s in detect(candles) if float(s["target"]) > float(s["entry"])]
+            buys = [s for s in detect_signals(k, candles, full) if float(s["target"]) > float(s["entry"])]
             active, completed = classify(buys, price, c["symbol"], book=OPTIONS)
             results[k] = {"active": active, "completed": completed}
         except Exception:

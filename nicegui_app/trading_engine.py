@@ -17,6 +17,9 @@ import asyncio
 import time
 import traceback
 from datetime import timedelta
+from functools import partial
+
+import pandas as pd
 
 from dhanhq import marketfeed
 
@@ -41,6 +44,9 @@ from algo_strategies import (
     classify_ema10_trades,
     detect_sma50_signals,
     classify_sma50_trades,
+    MA_STRATEGIES,
+    detect_ma_signals,
+    classify_ma_trades,
 )
 
 
@@ -52,15 +58,27 @@ _STRATEGY_RUNNERS = {
     "db":    (detect_double_bottom_signals, classify_double_bottom_trades),
     "ema10": (lambda c: detect_ema10_signals(c)[0], classify_ema10_trades),
     "sma50": (lambda c: detect_sma50_signals(c)[0], classify_sma50_trades),
+    **{k: (lambda c, k=k: detect_ma_signals(c, k)[0], partial(classify_ma_trades, key=k)) for k in MA_STRATEGIES},
 }
 
 
-def _run_strategies_for_contract(candles, current_price, contract_name, live_keys):
-    """Run every enabled live strategy (Strategies page) for one stock. Updates _trade_store."""
+def detect_signals(key, candles, full=None):
+    """Today's signals of strategy `key` on today's bars `candles`. The moving-average strategies
+    compute their averages over `full` (earlier days' bars + today's) and keep today's signals."""
+    detect = _STRATEGY_RUNNERS[key][0]
+    if key not in MA_STRATEGIES or full is None or candles.empty:
+        return detect(candles)
+    day = candles["timestamp"].iloc[-1].date()
+    return [s for s in detect(full) if pd.Timestamp(s["time"]).date() == day]
+
+
+def _run_strategies_for_contract(candles, current_price, contract_name, live_keys, full=None):
+    """Run every enabled live strategy (Strategies page) for one stock. Updates _trade_store.
+    `full`: today's bars with earlier days' in front, for the moving-average strategies."""
     for key in live_keys:
-        detect, classify = _STRATEGY_RUNNERS[key]
+        _, classify = _STRATEGY_RUNNERS[key]
         try:
-            signals = detect(candles)
+            signals = detect_signals(key, candles, full)
             active, completed = classify(signals, current_price, contract_name)
             _trade_store[f"{key}_trades_{contract_name}"] = {"active": active, "completed": completed}
         except Exception:
@@ -135,7 +153,8 @@ def _run_engine_tick():
                 continue
             live = live_candles.last_price(security_id)
             current_price = round(live if live is not None else float(candles["close"].iloc[-1]), 2)
-            _run_strategies_for_contract(candles, current_price, name, live_keys)
+            _run_strategies_for_contract(candles, current_price, name, live_keys,
+                                         full=live_candles.candles(security_id, history=True))
             print(f"  [engine] {name} @ {current_price:.2f} ({'feed' if live is not None else 'last bar'}) "
                   f"— {len(candles)} bars, strategies updated")
         except Exception as e:

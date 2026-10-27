@@ -864,6 +864,95 @@ def render_tv_sma50_chart(candles, df_ind, signals, height: int = 500) -> str:
     return chart_id
 
 
+_MA_COLORS = ["#f59e0b", "#3b82f6"]  # fast line, slow line
+
+
+def render_tv_ma_chart(candles, df_ind, signals, lines, height: int = 500) -> str:
+    """Candlestick chart with one or two moving-average lines ([(column, label)], fast first) and
+    BUY/SELL signal markers. Returns chart_id; call window._tvShowTrade_<chart_id>(idx)."""
+    chart_id = f"tv_{uuid.uuid4().hex[:10]}"
+    ohlc = _candles_to_tv(candles)
+
+    series = []
+    for (col, label), color in zip(lines, _MA_COLORS):
+        data = []
+        for _, row in df_ind.iterrows():
+            v = _safe_float(row[col])
+            if v is not None:
+                data.append({"time": _to_unix(row["timestamp"]), "value": v})
+        series.append({"title": label, "color": color, "data": data})
+
+    per_signal: list[dict] = []
+    for s in signals:
+        is_buy = s["type"] == "Bullish"
+        ts = _to_unix(s["time"])
+        per_signal.append({
+            "marker": {
+                "time":     ts,
+                "position": "belowBar" if is_buy else "aboveBar",
+                "color":    "#26a69a" if is_buy else "#ef5350",
+                "shape":    "arrowUp" if is_buy else "arrowDown",
+                "text":     "B" if is_buy else "S",
+                "size":     1.2,
+            },
+            "target":    float(s.get("target") or 0),
+            "stop_loss": float(s.get("stop_loss") or 0),
+            "from_time": ts - 3600,
+            "to_time":   ts + 7200,
+        })
+
+    ui.html(f'<div class="at-chart-wrap"><div id="{chart_id}" style="width:100%; height:{height}px;"></div></div>', sanitize=False)
+
+    opts = dict(_BASE_OPTS)
+    opts["height"] = height
+
+    js = f"""
+    (function initMa_{chart_id}() {{
+        var el = document.getElementById('{chart_id}');
+        if (!el) {{ return; }}
+        var opts = {json.dumps(opts)};
+        opts.width = _tvElWidth(el);
+        var chart = LightweightCharts.createChart(el, opts);
+        window._tvChartInstances.push(chart);
+        chart.applyOptions(window._tvThemeOpts(document.body.classList.contains('at-light-theme')));
+
+        var cs = chart.addCandlestickSeries({json.dumps(_CANDLE_OPTS)});
+        cs.setData({json.dumps(ohlc)});
+        cs.setMarkers([]);
+
+        {json.dumps(series)}.forEach(function(ln) {{
+            if (!ln.data.length) return;
+            chart.addLineSeries({{
+                color: ln.color, lineWidth: 2, lineStyle: {_LS_SOLID},
+                crosshairMarkerVisible: false, lastValueVisible: true,
+                priceLineVisible: false, title: ln.title,
+            }}).setData(ln.data);
+        }});
+
+        var perSignal = {json.dumps(per_signal)};
+        var _activePriceLines = [];
+
+        window._tvShowTrade_{chart_id} = function(idx) {{
+            cs.setMarkers([]);
+            _activePriceLines.forEach(function(pl) {{ try {{ cs.removePriceLine(pl); }} catch(e) {{}} }});
+            _activePriceLines = [];
+            if (idx < 0 || idx >= perSignal.length) return;
+            var s = perSignal[idx];
+            cs.setMarkers([s.marker]);
+            if (s.target) _activePriceLines.push(cs.createPriceLine({{ price: s.target,    color: '#26a69a', lineWidth: 1, lineStyle: {_LS_DASHED}, axisLabelVisible: true, title: 'T ' + s.target.toFixed(0) }}));
+            if (s.stop_loss) _activePriceLines.push(cs.createPriceLine({{ price: s.stop_loss, color: '#ef5350', lineWidth: 1, lineStyle: {_LS_DASHED}, axisLabelVisible: true, title: 'SL ' + s.stop_loss.toFixed(0) }}));
+            chart.timeScale().setVisibleRange({{ from: s.from_time, to: s.to_time }});
+        }};
+
+        {_ohlc_tooltip_js("chart", "cs", "el")}
+        chart.timeScale().fitContent();
+        {_resize_listener("chart", "el")}
+    }})();
+    """
+    _schedule_js(js)
+    return chart_id
+
+
 def render_tv_simple_candle_chart(candles, height: int = 300) -> None:
     """Render a plain candlestick chart — used for ATM CE/PE option charts on the dashboard."""
     chart_id = f"tv_{uuid.uuid4().hex[:10]}"

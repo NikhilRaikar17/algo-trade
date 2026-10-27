@@ -37,6 +37,10 @@ LIVE_STRATEGY_ENABLED = {
     "db":    False,  # Double Bottom
     "ema10": False,
     "sma50": True,
+    "ema100": False,
+    "sma100": False,
+    "sma200": False,
+    "ema50x100": False,  # EMA 50 crossing EMA 100
 }
 
 # ================= LIVE ACCOUNT RISK LIMITS =================
@@ -97,6 +101,10 @@ STRATEGY_NAMES = {
     "db":    "Double Bottom",
     "ema10": "EMA10",
     "sma50": "SMA50",
+    "ema100": "EMA100",
+    "sma100": "SMA100",
+    "sma200": "SMA200",
+    "ema50x100": "EMA50x100",
 }
 
 

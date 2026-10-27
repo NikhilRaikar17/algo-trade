@@ -8,6 +8,7 @@ from pages.double_top_standard_only import render_double_top_standard_tab
 from pages.double_bottom_only import render_double_bottom_tab
 from pages.sma50_only import render_sma50_tab
 from pages.ema10_only import render_ema10_tab
+from pages.ma_only import render_ma_tab
 from pages.pnl_tab import render_pnl_tab
 from pages.backtest_pnl_tab import render_backtest_pnl_tab
 from pages.market_closed import render_market_closed
@@ -30,4 +31,8 @@ BACKTEST_PAGES = {
     "db":    ("db_only",   render_double_bottom_tab,        "moving"),
     "sma50": ("sma50",     render_sma50_tab,                "stacked_line_chart"),
     "ema10": ("ema10",     render_ema10_tab,                "show_chart"),
+    "ema100":    ("ema100",    lambda c: render_ma_tab(c, "ema100"),    "show_chart"),
+    "sma100":    ("sma100",    lambda c: render_ma_tab(c, "sma100"),    "stacked_line_chart"),
+    "sma200":    ("sma200",    lambda c: render_ma_tab(c, "sma200"),    "stacked_line_chart"),
+    "ema50x100": ("ema50x100", lambda c: render_ma_tab(c, "ema50x100"), "swap_vert"),
 }

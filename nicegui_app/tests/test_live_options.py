@@ -126,6 +126,7 @@ def opts(tmp_path, monkeypatch):
     monkeypatch.setattr(live_candles, "_bars", {})
     monkeypatch.setattr(live_candles, "_seeded", {})
     monkeypatch.setattr(live_candles, "_last", {})
+    monkeypatch.setattr(live_candles, "_history", {})
     return acct, sent, saved
 
 
@@ -140,8 +141,8 @@ def test_engine_books_only_buy_signals_in_lots_and_alerts_as_options(opts, monke
                          "open": [199.0], "high": [201.0], "low": [198.8], "close": [200.0]})
     monkeypatch.setattr(options_engine, "option_candles", lambda c: bars)
     buy, sell = _sig("10:00", 200, 198.5, 210), _sig("10:00", 200, 201.5, 190)
-    monkeypatch.setattr(options_engine, "_STRATEGY_RUNNERS",
-                        {"ema10": (lambda c: [dict(buy), dict(sell)], algo_strategies.classify_ema10_trades)})
+    monkeypatch.setitem(options_engine._STRATEGY_RUNNERS, "ema10",
+                        (lambda c: [dict(buy), dict(sell)], algo_strategies.classify_ema10_trades))
     acct.meta[CE["symbol"]] = options_engine._meta(CE)
     monkeypatch.setattr(algo_strategies, "now_ist", lambda: _at("10:05"))
     monkeypatch.setattr(account, "now_ist", lambda: _at("10:05"))

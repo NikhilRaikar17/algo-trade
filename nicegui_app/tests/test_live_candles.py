@@ -17,6 +17,7 @@ def fresh(monkeypatch):
     monkeypatch.setattr(lc, "_bars", {})
     monkeypatch.setattr(lc, "_seeded", {})
     monkeypatch.setattr(lc, "_last", {})
+    monkeypatch.setattr(lc, "_history", {})
 
 
 def test_ticks_build_bars_and_only_finished_bars_are_returned():

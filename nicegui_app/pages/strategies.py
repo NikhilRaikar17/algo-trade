@@ -41,6 +41,26 @@ _STRATEGY_INFO = {
         "Trend · Both",
         "Signals when price closes across the 50-period SMA. No new entries after 15:00 IST.",
     ),
+    "ema100": (
+        "Trend · Both",
+        "Signals when price closes across the 100-period EMA (over today and earlier days). "
+        "2% target, 1% stop. No new entries after 15:00 IST.",
+    ),
+    "sma100": (
+        "Trend · Both",
+        "Signals when price closes across the 100-period SMA (over today and earlier days). "
+        "2% target, 1% stop. No new entries after 15:00 IST.",
+    ),
+    "sma200": (
+        "Trend · Both",
+        "Signals when price closes across the 200-period SMA (over today and earlier days). "
+        "2% target, 1% stop. No new entries after 15:00 IST.",
+    ),
+    "ema50x100": (
+        "Trend · Both",
+        "BUY when the 50-period EMA crosses above the 100-period EMA, SELL when it crosses below. "
+        "2% target, 1% stop. No new entries after 15:00 IST.",
+    ),
 }
 
 _CSS = """

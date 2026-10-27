@@ -12,6 +12,7 @@ import traceback
 from datetime import datetime
 from html import escape
 
+import pandas as pd
 from nicegui import ui
 
 from algo_strategies import (
@@ -21,10 +22,11 @@ from algo_strategies import (
     detect_double_bottom_signals, backtest_double_bottom,
     detect_sma50_signals, backtest_sma50,
     detect_ema10_signals, backtest_ema10,
+    BACKTEST_WINDOW_DAYS, MA_HISTORY_DAYS, MA_STRATEGIES, backtest_ma_window,
 )
 from backtest_metrics import DEFAULT_FUNDS, inr, DEFAULT_MODE, DEFAULT_SIZING, finalize_trades, group_by, size_trades, summarize
 from config import now_ist
-from data import _fetch_any_stock_candles
+from data import _fetch_any_stock_candles, fetch_stock_candles_history
 from db import get_active_top_stocks
 from pages.pnl_widgets import (
     CSS, charges_html, equity_figure, kpi_tiles, sizing_controls, strategy_table, summary_table, trades_table,
@@ -73,22 +75,35 @@ _RUNNERS = [
     ("db",    "Double Bottom",         _run_double_bottom),
     ("sma50", "SMA 50",                _run_sma50),
     ("ema10", "EMA 10",                _run_ema10),
+    ("ema100",    "EMA 100",          None),
+    ("sma100",    "SMA 100",          None),
+    ("sma200",    "SMA 200",          None),
+    ("ema50x100", "EMA 50/100 Cross", None),
 ]
+
+
+def _window_start():
+    return pd.Timestamp(now_ist().date(), tz="Asia/Kolkata") - pd.Timedelta(days=BACKTEST_WINDOW_DAYS)
 
 
 def _run_all_backtests(candles, stock_name: str = "", enabled_keys=None, excluded: dict | None = None):
     """Run every backtest-enabled strategy on one stock's candles. Returns the trades an account
-    could have taken (see backtest_metrics.finalize_trades); skipped counts are added to `excluded`."""
+    could have taken (see backtest_metrics.finalize_trades); skipped counts are added to `excluded`.
+    `candles` may reach back further than the 7-day window (MA_HISTORY_DAYS, for the moving-average
+    strategies to warm up): every strategy is scored on the window only."""
     if candles is None or candles.empty or not _REQUIRED_COLS.issubset(candles.columns):
         return []
     if enabled_keys is None:
         enabled_keys = get_backtest_strategy_keys()
+    since = _window_start()
+    window = candles[candles["timestamp"] >= since].reset_index(drop=True)
     raw = []
     for key, name, fn in _RUNNERS:
         if key not in enabled_keys:
             continue
         try:
-            for t in fn(candles):
+            trades = backtest_ma_window(candles, key, since)[2] if key in MA_STRATEGIES else fn(window)
+            for t in trades:
                 t["strategy"] = name
                 t["strategy_key"] = key
                 t["stock"] = stock_name
@@ -118,7 +133,10 @@ def _fetch_all_stocks_trades(stocks: list[dict], report: dict | None = None, key
         if i:
             _time.sleep(0.35)  # Dhan rate limit: back-to-back calls silently fail
         try:
-            candles = _fetch_any_stock_candles(stock["security_id"], retries=3)
+            if any(k in MA_STRATEGIES for k in enabled_keys):  # long averages need earlier days to warm up
+                candles = fetch_stock_candles_history(stock["security_id"], interval=15, days=MA_HISTORY_DAYS)
+            else:
+                candles = _fetch_any_stock_candles(stock["security_id"], retries=3)
             if candles is None or candles.empty:
                 report["missing"].append(stock["name"])
                 continue

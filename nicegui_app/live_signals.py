@@ -30,7 +30,7 @@ _lock = threading.Lock()
 def _scan_today():
     """Rebuild today's live signals from today's 5-minute candles.
     Status comes from walking the bars after each signal bar: stop checked before target."""
-    from trading_engine import _STRATEGY_RUNNERS  # the engine's own detectors
+    from trading_engine import detect_signals  # the engine's own detectors
 
     today = now_ist().date()
     live_keys = get_live_strategy_keys()
@@ -40,13 +40,13 @@ def _scan_today():
         _time.sleep(0.35)  # Dhan rate limit
         if candles is None or candles.empty:
             continue
+        full = candles  # the week's bars: warm-up for the moving-average strategies
         candles = candles[candles["timestamp"].dt.date == today].reset_index(drop=True)
         if candles.empty:
             continue
         for key in live_keys:
-            detect, _ = _STRATEGY_RUNNERS[key]
             try:
-                signals = detect(candles)
+                signals = detect_signals(key, candles, full)
             except Exception:
                 continue
             for sig in signals:

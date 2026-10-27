@@ -78,6 +78,8 @@ Each page has a `render_*_tab(container, ...)` function that returns an async `r
 
 **RSI Only** (`detect_rsi_only_signals`): RSI(14) exits below 30 back above → BUY; exits above 70 back below → SELL. Used for index-level historical backtesting only.
 
+**Moving averages** (`algo_strategies.MA_STRATEGIES`: EMA 100, SMA 100, SMA 200 price crosses; EMA 50/100 cross): one generic detector, classifier, chart (`render_tv_ma_chart`) and backtest page (`pages/ma_only.py`). The averages need earlier days to warm up (a day has ~72 five-minute bars): live code passes `live_candles.candles(..., history=True)` through `trading_engine.detect_signals()` and keeps today's signals; backtests fetch `MA_HISTORY_DAYS` of 15-min bars and score the 7-day window (`backtest_ma_window`). A new MA strategy is one line in `MA_STRATEGIES` plus its entries in `STRATEGY_NAMES`, `LIVE_STRATEGY_ENABLED`, `auth._SEED_STRATEGIES`, `pages/strategies.py`, `BACKTEST_PAGES` and the backtest `_RUNNERS`.
+
 ### Dhan API Constraints
 
 - `dhan.intraday_minute_data(sec_id, segment, instrument_type, from_date, to_date, interval)` — supported intervals: **1, 5, 15, 25, 60** (30 is NOT supported)
