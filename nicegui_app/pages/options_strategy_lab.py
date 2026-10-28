@@ -30,7 +30,12 @@ def render_options_strategy_lab_tab(container):
         enabled = [r for r in get_strategy_rows() if r["key"] in STRATEGY_INFO and r["backtest_enabled"]]
         if not enabled:
             ui.label("No options strategies are enabled for backtesting. Enable one on the Strategies page.").classes("text-amber-700")
-            return None
+
+            async def refresh_empty():
+                container.clear()
+                render_options_strategy_lab_tab(container)
+
+            return refresh_empty
 
         choices = {r["key"]: r["display_name"] for r in enabled}
         with ui.card().classes("w-full"):
@@ -71,7 +76,8 @@ def render_options_strategy_lab_tab(container):
             built = build_strategy(
                 key, strike=float(strike.value), lower_strike=float(lower.value),
                 upper_strike=float(upper.value), spot=s, premium=float(premium.value),
-                long_premium=float(long_p.value), short_premium=float(short_p.value),
+                long_premium=float(short_p.value if key == "opt_bull_put_spread" else long_p.value),
+                short_premium=float(long_p.value if key == "opt_bull_put_spread" else short_p.value),
                 call_premium=float(long_p.value), put_premium=float(short_p.value),
                 put_wing=float(put_wing.value), put_wing_premium=float(put_wing_p.value),
                 short_put_premium=float(ic_short_put.value), short_call_premium=float(ic_short_call.value),
