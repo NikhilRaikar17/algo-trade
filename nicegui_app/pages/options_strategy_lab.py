@@ -27,8 +27,7 @@ def render_options_strategy_lab_tab(container):
             'strikes and premiums you enter. It is not a historical backtest, does not model early exits, IV/theta before '
             'expiry, slippage, brokerage, margin or fills, and cannot place orders. Live trading is intentionally disabled.</div>'
         )
-        rows = [r for r in get_strategy_rows() if r["key"] in STRATEGY_INFO]
-        enabled = [r for r in rows if r["backtest_enabled"]]
+        enabled = [r for r in get_strategy_rows() if r["key"] in STRATEGY_INFO and r["backtest_enabled"]]
         if not enabled:
             ui.label("No options strategies are enabled for backtesting. Enable one on the Strategies page.").classes("text-amber-700")
             return None
@@ -40,22 +39,24 @@ def render_options_strategy_lab_tab(container):
                 spot = ui.number("Current underlying price (₹)", value=25000, min=0.01)
                 multiplier = ui.number("Lot size / quantity multiplier", value=1, min=1, step=1)
                 strike = ui.number("Single strike (Long Call / Straddle)", value=25000, min=0.01)
-                premium = ui.number("Long Call premium / Iron Condor long put premium", value=250, min=0)
-                lower = ui.number("Lower strike / short put strike", value=24800, min=0.01)
-                upper = ui.number("Upper strike / short call strike", value=25200, min=0.01)
-                long_p = ui.number("Spread long premium / straddle call premium / IC long call premium", value=150, min=0)
-                short_p = ui.number("Spread short premium / straddle put premium", value=100, min=0)
+                premium = ui.number("Long Call premium (₹)", value=250, min=0)
+                lower = ui.number("Lower strike / Iron Condor short put strike", value=24800, min=0.01)
+                upper = ui.number("Upper strike / Iron Condor short call strike", value=25200, min=0.01)
+                long_p = ui.number("Spread long premium / Straddle call premium (₹)", value=150, min=0)
+                short_p = ui.number("Spread short premium / Straddle put premium (₹)", value=100, min=0)
                 put_wing = ui.number("Iron Condor long put wing strike", value=24600, min=0.01)
-                ic_short_put = ui.number("Iron Condor short put premium", value=180, min=0)
-                ic_short_call = ui.number("Iron Condor short call premium", value=180, min=0)
+                put_wing_p = ui.number("Iron Condor long put wing premium (₹)", value=40, min=0)
+                ic_short_put = ui.number("Iron Condor short put premium (₹)", value=180, min=0)
+                ic_short_call = ui.number("Iron Condor short call premium (₹)", value=180, min=0)
                 call_wing = ui.number("Iron Condor long call wing strike", value=25400, min=0.01)
+                call_wing_p = ui.number("Iron Condor long call wing premium (₹)", value=40, min=0)
             run = ui.button("Calculate expiry payoff", icon="calculate").props("color=primary no-caps")
         status = ui.label("").classes("text-sm mt-2")
         kpis = ui.row().classes("w-full gap-3 flex-wrap mt-2")
         chart = ui.echart({}).classes("w-full").style("height:360px")
         table = ui.table(columns=[
-            {"name":"underlying","label":"Underlying at expiry (₹)","field":"underlying","align":"right"},
-            {"name":"pnl","label":"Gross P&L (₹)","field":"pnl","align":"right"},
+            {"name": "underlying", "label": "Underlying at expiry (₹)", "field": "underlying", "align": "right"},
+            {"name": "pnl", "label": "Gross P&L (₹)", "field": "pnl", "align": "right"},
         ], rows=[], row_key="underlying").classes("w-full")
 
     def calculate():
@@ -63,43 +64,42 @@ def render_options_strategy_lab_tab(container):
             key = strategy.value
             if key not in choices:
                 raise ValueError("Select an enabled options strategy.")
-            args = dict(
-                strike=float(strike.value), lower_strike=float(lower.value),
-                upper_strike=float(upper.value), spot=float(spot.value),
-                premium=float(premium.value), long_premium=float(long_p.value),
-                short_premium=float(short_p.value), call_premium=float(long_p.value),
-                put_premium=float(short_p.value), put_wing=float(put_wing.value),
-                short_put_premium=float(ic_short_put.value),
-                short_call_premium=float(ic_short_call.value),
-                call_wing_premium=float(call_wing.value),
-            )
-            built = build_strategy(key, **args)
             s = float(spot.value)
             qty = int(multiplier.value)
             if s <= 0 or qty < 1:
                 raise ValueError("Underlying price must be positive and multiplier must be at least 1.")
-            scenarios = sorted({round(s * (0.8 + i * 0.025), 2) for i in range(17)} |
-                               {round(leg.strike, 2) for leg in built.legs})
+            built = build_strategy(
+                key, strike=float(strike.value), lower_strike=float(lower.value),
+                upper_strike=float(upper.value), spot=s, premium=float(premium.value),
+                long_premium=float(long_p.value), short_premium=float(short_p.value),
+                call_premium=float(long_p.value), put_premium=float(short_p.value),
+                put_wing=float(put_wing.value), put_wing_premium=float(put_wing_p.value),
+                short_put_premium=float(ic_short_put.value), short_call_premium=float(ic_short_call.value),
+                call_wing=float(call_wing.value), call_wing_premium=float(call_wing_p.value),
+            )
+            scenarios = sorted(
+                {round(s * (0.8 + i * 0.025), 2) for i in range(17)}
+                | {round(leg.strike, 2) for leg in built.legs}
+            )
             values = [{"underlying": price, "pnl": built.payoff(price, qty)} for price in scenarios]
             pnls = [r["pnl"] for r in values]
-            max_profit = "Unlimited" if key == "opt_long_call" else f"₹{max(pnls):,.2f} in shown range"
             kpis.clear()
             with kpis:
                 for label, value in (
                     ("Strategy", built.name),
-                    ("Max loss", f"₹{abs(min(pnls)):,.2f} in shown range"),
-                    ("Best shown P&L", max_profit),
+                    ("Worst shown P&L", f"₹{min(pnls):,.2f}"),
+                    ("Best shown P&L", f"₹{max(pnls):,.2f}" if key != "opt_long_call" else "Unlimited upside"),
                 ):
                     with ui.element("div").classes("opt-lab-kpi").style("min-width:180px; flex:1"):
                         ui.label(label).classes("opt-lab-label")
                         ui.label(value).classes("opt-lab-value")
             chart.options = {
-                "tooltip": {"trigger":"axis"},
-                "grid": {"left":55,"right":20,"top":25,"bottom":45},
-                "xAxis": {"type":"category","name":"Underlying at expiry (₹)","data":[str(r["underlying"]) for r in values]},
-                "yAxis": {"type":"value","name":"Gross P&L (₹)"},
-                "series": [{"type":"line","smooth":False,"symbol":"circle","data":pnls,
-                            "markLine":{"data":[{"yAxis":0}]}}],
+                "tooltip": {"trigger": "axis"},
+                "grid": {"left": 55, "right": 20, "top": 25, "bottom": 45},
+                "xAxis": {"type": "category", "name": "Underlying at expiry (₹)", "data": [str(r["underlying"]) for r in values]},
+                "yAxis": {"type": "value", "name": "Gross P&L (₹)"},
+                "series": [{"type": "line", "smooth": False, "symbol": "circle", "data": pnls,
+                            "markLine": {"data": [{"yAxis": 0}]}}],
             }
             chart.update()
             table.rows = values
