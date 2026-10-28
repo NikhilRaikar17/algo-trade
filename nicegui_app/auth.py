@@ -61,6 +61,8 @@ with engine.connect() as _conn:
                 text("UPDATE strategies SET live_enabled = :on WHERE key = :key"),
                 {"on": _on, "key": _key},
             )
+    if "options_pnl_enabled" not in _cols:
+        _conn.execute(text("ALTER TABLE strategies ADD COLUMN options_pnl_enabled BOOLEAN NOT NULL DEFAULT 0"))
     _conn.commit()
 
 # ── Seed users (idempotent) ───────────────────────────────────────────────────
@@ -111,6 +113,7 @@ with SessionLocal() as _s:
                 sort_order=_order,
                 backtest_enabled=True,
                 live_enabled=LIVE_STRATEGY_ENABLED.get(_key, False),
+                options_pnl_enabled=False,
             ))
         else:
             exists.display_name = _display
