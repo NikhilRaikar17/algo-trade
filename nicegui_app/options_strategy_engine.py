@@ -1,7 +1,7 @@
-"""Options strategy payoff engine used by the NiceGUI options strategy lab.
+"""Options strategy expiry-payoff engine for the NiceGUI research lab.
 
-This module deliberately models expiry payoff only. It does not generate entry signals,
-price options before expiry, simulate fills, or place broker orders.
+This module does not generate entry signals, price options before expiry, simulate fills,
+or place broker orders.
 """
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Leg:
-    kind: str  # "CE" or "PE"
+    kind: str
     strike: float
-    quantity: int  # +1 long, -1 short
+    quantity: int
     premium: float
 
 
@@ -46,12 +46,15 @@ STRATEGY_INFO = {
 }
 
 
-def build_strategy(key: str, *, strike: float, lower_strike: float, upper_strike: float,
-                   spot: float, premium: float, long_premium: float, short_premium: float,
-                   call_premium: float, put_premium: float, put_wing: float,
-                   short_put_premium: float, short_call_premium: float,
-                   call_wing_premium: float) -> Strategy:
-    """Build a strategy from explicit strikes and premiums; all premiums are per unit."""
+def build_strategy(
+    key: str, *, strike: float, lower_strike: float, upper_strike: float, spot: float,
+    premium: float, long_premium: float, short_premium: float, call_premium: float,
+    put_premium: float, put_wing: float, put_wing_premium: float,
+    short_put_premium: float, short_call_premium: float, call_wing: float,
+    call_wing_premium: float,
+) -> Strategy:
+    """Build one of the supported payoff templates; premiums are per underlying unit."""
+    del spot  # reserved for future spot-relative strategy validation
     if key == "opt_long_call":
         legs = (Leg("CE", strike, 1, premium),)
     elif key == "opt_bull_call_spread":
@@ -71,14 +74,14 @@ def build_strategy(key: str, *, strike: float, lower_strike: float, upper_strike
     elif key == "opt_long_straddle":
         legs = (Leg("CE", strike, 1, call_premium), Leg("PE", strike, 1, put_premium))
     elif key == "opt_iron_condor":
-        if not put_wing < lower_strike < upper_strike < call_wing_premium:
+        if not put_wing < lower_strike < upper_strike < call_wing:
             raise ValueError("Iron Condor strikes must satisfy put wing < short put < short call < call wing.")
-        if short_put_premium + short_call_premium < premium + long_premium:
+        if short_put_premium + short_call_premium < put_wing_premium + call_wing_premium:
             raise ValueError("Iron Condor inputs must produce a net credit.")
-        legs = (Leg("PE", put_wing, 1, premium),
+        legs = (Leg("PE", put_wing, 1, put_wing_premium),
                 Leg("PE", lower_strike, -1, short_put_premium),
                 Leg("CE", upper_strike, -1, short_call_premium),
-                Leg("CE", call_wing_premium, 1, long_premium))
+                Leg("CE", call_wing, 1, call_wing_premium))
     else:
         raise ValueError(f"Unknown options strategy: {key}")
     name, description = STRATEGY_INFO[key]
