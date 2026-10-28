@@ -93,6 +93,11 @@ _SEED_STRATEGIES: list[tuple[str, str, str, int]] = [
     ("sma100", "SMA 100",                "SMA 100",                 8),
     ("sma200", "SMA 200",                "SMA 200",                 9),
     ("ema50x100", "EMA 50/100 Cross",    "EMA 50/100 Cross",        10),
+    ("opt_long_call", "Options · Long Call", "Options · Long Call", 11),
+    ("opt_bull_call_spread", "Options · Bull Call Spread", "Options · Bull Call Spread", 12),
+    ("opt_bull_put_spread", "Options · Bull Put Spread", "Options · Bull Put Spread", 13),
+    ("opt_long_straddle", "Options · Long Straddle", "Options · Long Straddle", 14),
+    ("opt_iron_condor", "Options · Iron Condor", "Options · Iron Condor", 15),
 ]
 
 with SessionLocal() as _s:
