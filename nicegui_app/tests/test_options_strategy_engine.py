@@ -37,10 +37,10 @@ class OptionsStrategyPayoffTests(unittest.TestCase):
         self.assertEqual(strategy.payoff(100), -15)
 
     def test_iron_condor_credit_and_defined_wings(self):
-        strategy = build("opt_iron_condor")
-        self.assertEqual(strategy.payoff(100), 6)
-        self.assertEqual(strategy.payoff(80), -4)
-        self.assertEqual(strategy.payoff(120), -4)
+        strategy = build("opt_iron_condor", short_put_premium=2.5, short_call_premium=2.5)
+        self.assertEqual(strategy.payoff(100), 3)
+        self.assertEqual(strategy.payoff(80), -2)
+        self.assertEqual(strategy.payoff(120), -2)
 
     def test_invalid_iron_condor_ordering_rejected(self):
         with self.assertRaises(ValueError):
