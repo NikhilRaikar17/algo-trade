@@ -584,8 +584,11 @@ async def index():
     )
 
     def _on_strategy_change(key, backtest_enabled, live_enabled):
-        """Rebuild Backtest Algos in the sidebar so it lists only enabled strategies."""
+        """Refresh the sidebar and options lab after registry toggles are saved."""
         refresh_backtest_menu()
+        lab_refresh = refresh_fns.get("options_strategy_lab")
+        if lab_refresh:
+            asyncio.ensure_future(lab_refresh())
 
     # ---- Build Page Content ----
     _pages_built: set = set()  # tracks which pages have been rendered at least once
