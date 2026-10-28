@@ -22,7 +22,7 @@ from pages.pnl_widgets import (
     CSS, account_card, charges_html, equity_figure, kpi_tiles, rs, strategy_table, summary_table, td, tone,
     trades_table,
 )
-from strategy_registry import get_live_strategy_names
+from strategy_registry import get_live_strategy_names, get_options_pnl_strategy_keys, get_strategy_rows
 
 LIVE_SECONDS = 5  # how often the open trades and account card pick up live prices
 
@@ -179,6 +179,26 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
         body.clear()
         live["box"] = None
         with body:
+            if options:
+                options_rows = [
+                    r for r in get_strategy_rows()
+                    if r["key"] in get_options_pnl_strategy_keys()
+                ]
+                if options_rows:
+                    enabled_names = ", ".join(escape(r["display_name"]) for r in options_rows)
+                    ui.html(
+                        '<div class="bt-card w-full mb-3"><div class="bt-h">Enabled options strategy templates</div>'
+                        '<div class="bt-hs">' + enabled_names + '</div>'
+                        '<div class="bt-hs mt-2">These templates are enabled for the Options Strategy Lab and '
+                        'expiry-payoff research. They do not yet generate paper-account trades, so they are not '
+                        'included in realized/unrealized P&amp;L totals below.</div></div>'
+                    )
+                else:
+                    ui.html(
+                        '<div class="bt-card bt-empty mb-3">No options strategy templates are enabled for Options P&amp;L. '
+                        'Enable them on the Strategies page to make them available in the Strategy Lab.</div>'
+                    )
+
             if not get_live_strategy_names():
                 ui.html('<div class="bt-card bt-empty">No strategies are switched on for Live. '
                         'Turn some on in <b>Strategies</b>.</div>')
