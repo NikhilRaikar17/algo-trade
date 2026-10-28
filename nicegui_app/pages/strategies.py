@@ -61,6 +61,31 @@ _STRATEGY_INFO = {
         "BUY when the 50-period EMA crosses above the 100-period EMA, SELL when it crosses below. "
         "2% target, 1% stop. No new entries after 15:00 IST.",
     ),
+    "opt_long_call": (
+        "Options · Bullish · Defined loss",
+        "Buy a call. Maximum expiry loss is the premium paid; upside is theoretically unlimited. "
+        "Available in the Options Strategy Lab for payoff comparison only.",
+    ),
+    "opt_bull_call_spread": (
+        "Options · Bullish · Defined risk",
+        "Buy a lower-strike call and sell a higher-strike call for a net debit. "
+        "Expiry risk and reward are capped; live execution is not enabled.",
+    ),
+    "opt_bull_put_spread": (
+        "Options · Bullish · Defined risk",
+        "Sell a higher-strike put and buy a lower-strike put for a net credit. "
+        "Expiry risk and reward are capped; live execution is not enabled.",
+    ),
+    "opt_long_straddle": (
+        "Options · Long volatility",
+        "Buy a call and put at the same strike. Benefits from a sufficiently large move either way; "
+        "the combined premium is at risk.",
+    ),
+    "opt_iron_condor": (
+        "Options · Range-bound · Defined risk",
+        "Combine a put credit spread and call credit spread. Designed for a range-bound expiry; "
+        "live execution is not enabled.",
+    ),
 }
 
 _CSS = """
@@ -192,8 +217,12 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
                         value=state[field],
                         on_change=lambda e, f=field: _toggle(f, e.value),
                     ).props("color=positive dense")
-                    if not can_edit:
+                    # Options strategies currently have a research/payoff implementation only.
+                    # Never expose a Live toggle until signals, order handling and risk checks exist.
+                    if not can_edit or (field == "live" and key.startswith("opt_")):
                         sw.disable()
+                        if field == "live" and key.startswith("opt_"):
+                            sw.tooltip("Options live trading is not implemented")
 
     _build()
 
