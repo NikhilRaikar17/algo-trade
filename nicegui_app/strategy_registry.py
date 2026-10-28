@@ -73,9 +73,16 @@ def get_live_strategy_names() -> list[str]:
 
 
 def get_backtest_strategy_keys() -> list[str]:
-    return [r["key"] for r in get_strategy_rows() if r["backtest_enabled"]]
+    """Enabled keys for the existing underlying-candle stock backtest runners."""
+    return [
+        r["key"] for r in get_strategy_rows()
+        if r["backtest_enabled"] and not r["key"].startswith("opt_")
+    ]
 
 
 def get_backtest_strategy_names() -> list[str]:
-    """Short names used in backtest trade records, for enabled backtest strategies."""
-    return [r["short_name"] for r in get_strategy_rows() if r["backtest_enabled"]]
+    """Names used in the existing stock backtest trade records and reports."""
+    return [
+        r["short_name"] for r in get_strategy_rows()
+        if r["backtest_enabled"] and not r["key"].startswith("opt_")
+    ]
