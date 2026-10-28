@@ -589,6 +589,9 @@ async def index():
         lab_refresh = refresh_fns.get("options_strategy_lab")
         if lab_refresh:
             asyncio.ensure_future(lab_refresh())
+        pnl_refresh = refresh_fns.get("pnl_options")
+        if pnl_refresh:
+            asyncio.ensure_future(pnl_refresh())
 
     # ---- Build Page Content ----
     _pages_built: set = set()  # tracks which pages have been rendered at least once
