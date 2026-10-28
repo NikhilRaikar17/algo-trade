@@ -47,6 +47,7 @@ from pages import (
     render_trade_replay_tab,
     render_trade_desk_tab,
     render_strategy_analysis_tab,
+    render_options_strategy_lab_tab,
     BACKTEST_PAGES,
 )
 
@@ -74,6 +75,7 @@ ALL_PAGE_IDS = [
     "trade_desk",
     "pnl",
     "pnl_options",
+    "options_strategy_lab",
     "admin",
 ]
 
@@ -607,7 +609,7 @@ async def index():
         # is viewing the page — causing a jarring blank flash.
         _STATIC_ONCE = {
             "markets", "market_news", "top_stocks", "swing_trades", "global_markets",
-            "nifty", "banknifty", "pnl", "pnl_options", "backtest_pnl", "admin", "strategies", "strategy_analysis", "trade_replay", "trade_desk",
+            "nifty", "banknifty", "pnl", "pnl_options", "options_strategy_lab", "backtest_pnl", "admin", "strategies", "strategy_analysis", "trade_replay", "trade_desk",
             *BACKTEST_PAGE_IDS,
         }
         renders = {
@@ -620,6 +622,7 @@ async def index():
             "banknifty":     lambda: render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]),
             "pnl":           lambda: render_pnl_tab(page_containers["pnl"]),
             "pnl_options":   lambda: render_pnl_tab(page_containers["pnl_options"], acct=OPTIONS),
+            "options_strategy_lab": lambda: render_options_strategy_lab_tab(page_containers["options_strategy_lab"]),
             "backtest_pnl":  lambda: render_backtest_pnl_tab(page_containers["backtest_pnl"]),
             "trade_replay":  lambda: render_trade_replay_tab(page_containers["trade_replay"]),
             "trade_desk":    lambda: render_trade_desk_tab(page_containers["trade_desk"]),
