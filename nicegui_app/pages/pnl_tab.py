@@ -180,9 +180,10 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
         live["box"] = None
         with body:
             if options:
+                enabled_option_keys = set(get_options_pnl_strategy_keys())
                 options_rows = [
                     r for r in get_strategy_rows()
-                    if r["key"] in get_options_pnl_strategy_keys()
+                    if r["key"] in enabled_option_keys
                 ]
                 if options_rows:
                     enabled_names = ", ".join(escape(r["display_name"]) for r in options_rows)
