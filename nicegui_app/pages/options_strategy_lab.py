@@ -27,9 +27,9 @@ def render_options_strategy_lab_tab(container):
             'strikes and premiums you enter. It is not a historical backtest, does not model early exits, IV/theta before '
             'expiry, slippage, brokerage, margin or fills, and cannot place orders. Live trading is intentionally disabled.</div>'
         )
-        enabled = [r for r in get_strategy_rows() if r["key"] in STRATEGY_INFO and r["backtest_enabled"]]
+        enabled = [r for r in get_strategy_rows() if r["key"] in STRATEGY_INFO and r["options_pnl_enabled"]]
         if not enabled:
-            ui.label("No options strategies are enabled for backtesting. Enable one on the Strategies page.").classes("text-amber-700")
+            ui.label("No options strategies are enabled for Options P&L. Enable one on the Strategies page.").classes("text-amber-700")
 
             async def refresh_empty():
                 container.clear()
