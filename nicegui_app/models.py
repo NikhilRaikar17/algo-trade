@@ -32,6 +32,7 @@ class Strategy(Base):
     sort_order   = Column(Integer, nullable=False, default=0)
     backtest_enabled = Column(Boolean, nullable=False, default=True)   # run in backtest pages / reports
     live_enabled     = Column(Boolean, nullable=False, default=False)  # run in live engine / algo tab
+    options_pnl_enabled = Column(Boolean, nullable=False, default=False)  # include in options P&L strategy selection
 
 
 class UserSession(Base):
