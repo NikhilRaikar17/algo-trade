@@ -111,4 +111,27 @@ def render_options_strategy_lab_tab(container):
 
     run.on_click(calculate)
     calculate()
-    return None
+
+    async def refresh():
+        latest = [r for r in get_strategy_rows()
+                  if r["key"] in STRATEGY_INFO and r["backtest_enabled"]]
+        new_choices = {r["key"]: r["display_name"] for r in latest}
+        choices.clear()
+        choices.update(new_choices)
+        strategy.options = new_choices
+        if strategy.value not in new_choices:
+            strategy.value = next(iter(new_choices), None)
+        strategy.update()
+        if not new_choices:
+            run.disable()
+            status.set_text("No options strategies enabled. Enable one on the Strategies page.")
+            kpis.clear()
+            chart.options = {}
+            chart.update()
+            table.rows = []
+            table.update()
+            return
+        run.enable()
+        calculate()
+
+    return refresh
