@@ -111,14 +111,18 @@ with SessionLocal() as _s:
                 display_name=_display,
                 short_name=_short,
                 sort_order=_order,
-                backtest_enabled=True,
-                live_enabled=LIVE_STRATEGY_ENABLED.get(_key, False),
+                backtest_enabled=not _key.startswith("opt_"),
+                live_enabled=False if _key.startswith("opt_") else LIVE_STRATEGY_ENABLED.get(_key, False),
                 options_pnl_enabled=False,
             ))
         else:
             exists.display_name = _display
             exists.short_name = _short
             exists.sort_order = _order
+            # Payoff templates must never enter the stock backtest or live engine.
+            if _key.startswith("opt_"):
+                exists.backtest_enabled = False
+                exists.live_enabled = False
     _s.commit()
 
 
