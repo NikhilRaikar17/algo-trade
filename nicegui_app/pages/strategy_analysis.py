@@ -130,7 +130,9 @@ def render_strategy_analysis_tab(container):
 
     def _gather():
         """Runs in a worker thread: backtests for every strategy, plus the live account's trades."""
-        rows = get_strategy_rows()
+        # This page compares strategies using underlying-stock candle signals and the stock paper
+        # account. Options strategies have a separate payoff lab until option-history runners exist.
+        rows = [r for r in get_strategy_rows() if not r["key"].startswith("opt_")]
         report: dict = {}
         bt = _fetch_all_stocks_trades(get_active_top_stocks(), report, keys=[r["key"] for r in rows])
         completed, _, _ = load_live_trades()
