@@ -129,6 +129,18 @@ Detects 4-swing sequences (A→B→C→D) where BC retraces 61.8–78.6% of AB a
 ### Additional Patterns
 Double Top / Double Bottom · Channel Breakout · Channel Down · SMA50 crossover
 
+### Options Strategy Lab (research only)
+
+Five expiry-payoff templates are registered in **Strategies**: Long Call, Bull Call Spread,
+Bull Put Spread, Long Straddle, and Iron Condor. Each has an independent **Options P&L** toggle.
+These templates are deliberately excluded from the stock-candle Backtest and Live algo switches.
+The Options Strategy Lab uses the Options P&L toggle to decide which templates are available.
+
+The current templates calculate theoretical gross expiry payoff from user-entered strikes and
+premiums. They do not create paper-account trades, historical backtests, broker orders, or actual
+realized/unrealized P&L entries. The Live P&L Options page labels these enabled templates separately
+from the existing options paper-account results; they are not counted in account totals.
+
 ---
 
 ## Dhan API Constraints
