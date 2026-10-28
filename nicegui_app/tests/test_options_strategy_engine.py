@@ -29,8 +29,8 @@ class OptionsStrategyPayoffTests(unittest.TestCase):
 
     def test_bull_put_spread_defined_payoff(self):
         strategy = build("opt_bull_put_spread", long_premium=3, short_premium=8)
-        self.assertEqual(strategy.payoff(90), -1)
-        self.assertEqual(strategy.payoff(110), 4)
+        self.assertEqual(strategy.payoff(90), -5)
+        self.assertEqual(strategy.payoff(110), 5)
 
     def test_straddle_cost_is_sum_of_premiums(self):
         strategy = build("opt_long_straddle")
