@@ -93,6 +93,18 @@ def trading_days_held(trade_date: str, today: str) -> int:
     return sum(1 for d in days if not is_nse_holiday(d))
 
 
+def legs_charges(legs: list[dict], qty: int, segment: str) -> dict:
+    """{charge: ₹} for a multi-leg position's round trip, each leg its own pair of orders, from its entry
+    premium to its "last" (the entry until a price is seen)."""
+    parts = dict.fromkeys(_CHARGE_KEYS, 0.0)
+    for leg in legs:
+        b = calculate_brokerage(leg["premium"], leg.get("last") or leg["premium"], lot_size=1, quantity=qty,
+                                segment=segment, short=leg["qty"] < 0)
+        for k in _CHARGE_KEYS:
+            parts[k] += b[k]
+    return parts
+
+
 def _level(r: dict, status: str) -> float:
     """Where a bracket order fills: at the target or at the stop."""
     return float(r["target"] if status == "Target Hit" else r["stop_loss"])
@@ -168,6 +180,11 @@ class PaperAccount:
     def _pnl(self, r: dict, exit_price: float) -> dict:
         b = calculate_brokerage(r["entry"], exit_price, lot_size=1, quantity=r["qty"],
                                 segment=self.segment, short=r["side"] == "SELL")
+        if r.get("legs"):
+            parts = legs_charges(r["legs"], r["qty"], self.segment)
+            charges = round(sum(parts.values()), 2)
+            return {"gross": b["gross_pnl"], "charges": charges, "net": round(b["gross_pnl"] - charges, 2),
+                    "charge_parts": parts}
         return {"gross": b["gross_pnl"], "charges": b["total_charges"], "net": b["net_pnl"],
                 "charge_parts": {k: b[k] for k in _CHARGE_KEYS}}
 
@@ -208,6 +225,9 @@ class PaperAccount:
                 return None, False
             meta = self.meta.get(symbol, {})
             row.current_price, row.lot_size, row.group = price, int(meta.get("lot_size") or 1), meta.get("group", "")
+            row.cost_per_unit = float(meta.get("cost_per_unit") or 0)
+            if meta.get("legs"):
+                row.charges_for = lambda q, legs=meta["legs"]: sum(legs_charges(legs, q, self.segment).values())
             check(row, self._holdings(self._counted(book), now.strftime("%Y-%m-%d")), self.limits, now)
             book[key] = rec = {**meta, **_record(row, trade, now, "Open" if row.verdict == TAKEN else None)}
             self._save_book(book)
@@ -227,15 +247,20 @@ class PaperAccount:
         r.update(status=status, exit_price=float(exit_price), last_price=float(exit_price),
                  exit_time=now.isoformat(timespec="seconds"), **self._pnl(r, float(exit_price)))
 
-    def on_tick(self, key: str, price: float, now: datetime | None = None) -> dict | None:
+    def on_tick(self, key: str, price: float, now: datetime | None = None,
+                legs_last: list[float] | None = None) -> dict | None:
         """A live price for an open taken trade: closes it at the target or stop the moment the price
-        reaches it (→ the book entry), else records the price (→ None)."""
+        reaches it (→ the book entry), else records the price (→ None). A multi-leg position's price is
+        its net premium; legs_last are its legs' prices, kept for their charges."""
         now = now or now_ist()
         with self._lock:
             book = self._load_book()
             r = book.get(key)
             if not r or not _is_open(r):
                 return None
+            if legs_last and r.get("legs"):
+                for leg, p in zip(r["legs"], legs_last):
+                    leg["last"] = float(p)
             buy = r["side"] == "BUY"
             status = ("Target Hit" if (price >= r["target"] if buy else price <= r["target"])
                       else "SL Hit" if (price <= r["stop_loss"] if buy else price >= r["stop_loss"]) else None)

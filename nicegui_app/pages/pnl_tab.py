@@ -69,6 +69,26 @@ def _skipped_table(skipped: list[dict], what: str = "Stock") -> str:
     return f'<div class="bt-wrap"><table class="bt-table"><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table></div>'
 
 
+def _templates_card(rows: list[dict]) -> str:
+    """Live P&L Options: each template switched on for Options P&L, per index, and what it is doing today."""
+    if not rows:
+        return ""
+    body = "".join(
+        "<tr>"
+        + td("Index", escape(r["underlying"]))
+        + td("Strategy", escape(r["name"]), "wide")
+        + td("Today", escape(r["status"]), "bt-dim")
+        + "</tr>"
+        for r in rows
+    )
+    return ('<div class="bt-card w-full mt-3"><div class="bt-h">Options strategies</div>'
+            '<div class="bt-hs">Multi-leg templates switched on for Options P&amp;L: at most one entry a day per '
+            'index, on its rule over the 15-min index bars, booked at the net premium and closed at its target, '
+            'stop or the square-off (config.OPTIONS_TEMPLATES).</div>'
+            '<div class="bt-wrap"><table class="bt-table"><thead><tr><th>Index</th><th>Strategy</th><th>Today</th>'
+            f'</tr></thead><tbody>{body}</tbody></table></div></div>')
+
+
 def _contracts_card(snap: dict) -> str:
     """Live P&L Options: the CE / PE each index is being traded on, and what the selection saw."""
     cfg = OPTIONS_SELECTION
@@ -108,6 +128,10 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
     what = "Contract" if options or longterm else "Stock"
     if longterm:  # the moving-average strategies enabled for Backtest; the others' are switched on for Live
         from longterm import strategy_names  # noqa: PLC0415 — the engine pulls in the Dhan client
+    elif options:  # the Live strategies on option charts, then the templates switched on for Options P&L
+        def strategy_names():
+            on = set(get_options_pnl_strategy_keys())
+            return get_live_strategy_names() + [r["short_name"] for r in get_strategy_rows() if r["key"] in on]
     else:
         strategy_names = get_live_strategy_names
 
@@ -187,30 +211,9 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
         body.clear()
         live["box"] = None
         with body:
-            if options:
-                enabled_option_keys = set(get_options_pnl_strategy_keys())
-                options_rows = [
-                    r for r in get_strategy_rows()
-                    if r["key"] in enabled_option_keys
-                ]
-                if options_rows:
-                    enabled_names = ", ".join(escape(r["display_name"]) for r in options_rows)
-                    ui.html(
-                        '<div class="bt-card w-full mb-3"><div class="bt-h">Enabled options strategy templates</div>'
-                        '<div class="bt-hs">' + enabled_names + '</div>'
-                        '<div class="bt-hs mt-2">These templates are enabled for the Options Strategy Lab and '
-                        'expiry-payoff research. They do not yet generate paper-account trades, so they are not '
-                        'included in realized/unrealized P&amp;L totals below.</div></div>'
-                    )
-                else:
-                    ui.html(
-                        '<div class="bt-card bt-empty mb-3">No options strategy templates are enabled for Options P&amp;L. '
-                        'Enable them on the Strategies page to make them available in the Strategy Lab.</div>'
-                    )
-
             if not strategy_names():
-                ui.html('<div class="bt-card bt-empty">No strategies are switched on for Live. '
-                        'Turn some on in <b>Strategies</b>.</div>')
+                ui.html('<div class="bt-card bt-empty">No strategies are switched on for Live'
+                        + (' or Options P&amp;L' if options else '') + '. Turn some on in <b>Strategies</b>.</div>')
                 return
 
             live["box"] = ui.element("div").classes("w-full")
@@ -305,7 +308,8 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
     def _render_contracts():
         if contracts_box is not None:
             from options_engine import snapshot  # noqa: PLC0415 — the engine pulls in the Dhan client
-            contracts_box.set_content(_contracts_card(snapshot()))
+            from options_templates import snapshot as templates  # noqa: PLC0415
+            contracts_box.set_content(_contracts_card(snapshot()) + _templates_card(templates()))
 
     async def _live_tick():
         """Live prices without redrawing the whole page; a full refresh when a trade opened or closed."""

@@ -1,8 +1,9 @@
 """
 Strategies page — independent Backtest, Live algo, and Options P&L switches.
 
-The five opt_* templates are payoff research templates, not signal-generating strategies.
-They cannot be enabled for the underlying-candle backtest or the live trading engine.
+The five opt_* templates are multi-leg NIFTY / BANKNIFTY option positions: switched on for Options P&L
+they are paper-traded in the options account (options_templates.py, rules in config.OPTIONS_TEMPLATES).
+They cannot be enabled for the stock backtests or the Live algo engine.
 """
 
 from nicegui import ui
@@ -62,28 +63,28 @@ _STRATEGY_INFO = {
     ),
     "opt_long_call": (
         "Options · Bullish · Defined loss",
-        "Buy a call. Maximum expiry loss is the premium paid; upside is theoretically unlimited. "
-        "Available in the Options Strategy Lab for payoff comparison only.",
+        "Buy the ATM call when the index closes a 15-min bar above its opening range. "
+        "Loss limited to the premium; 40% target, 25% stop on the premium.",
     ),
     "opt_bull_call_spread": (
         "Options · Bullish · Defined risk",
-        "Buy a lower-strike call and sell a higher-strike call for a net debit. "
-        "Expiry risk and reward are capped; live execution is not enabled.",
+        "Buy the ATM call and sell the call 2 strikes higher for a net debit, on an opening-range breakout. "
+        "Risk and reward capped; 40% target, 25% stop on the debit.",
     ),
     "opt_bull_put_spread": (
         "Options · Bullish · Defined risk",
-        "Sell a higher-strike put and buy a lower-strike put for a net credit. "
-        "Expiry risk and reward are capped; live execution is not enabled.",
+        "Sell the put 1 strike below the ATM and buy the one 3 strikes below for a net credit, on an "
+        "opening-range breakout. Keeps 50% of the credit as target; stop when closing costs 40% more.",
     ),
     "opt_long_straddle": (
         "Options · Long volatility",
-        "Buy a call and put at the same strike. Benefits from a sufficiently large move either way; "
-        "the combined premium is at risk.",
+        "Buy the ATM call and put when the opening range is narrow (≤ 0.35%), for a move either way. "
+        "The combined premium is at risk; 25% target, 15% stop.",
     ),
     "opt_iron_condor": (
         "Options · Range-bound · Defined risk",
-        "Combine a put credit spread and call credit spread. Designed for a range-bound expiry; "
-        "live execution is not enabled.",
+        "Sell the puts and calls 2 strikes either side of the ATM, buy wings 4 strikes out, from 10:15 when "
+        "the day's range is ≤ 0.6% and the index is inside its opening range. 40% target, 30% stop on the credit.",
     ),
 }
 
@@ -149,8 +150,8 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
         ui.add_head_html(_CSS)
         ui.label("Strategies").classes("text-xl font-bold mb-1")
         ui.label(
-            "Backtest and Live algo control the existing stock strategies. Options templates are "
-            "payoff-only research tools: enable them separately for the Options P&L workspace. "
+            "Backtest and Live algo control the stock strategies. The options templates are traded only "
+            "in the options paper account: switch them on with Options P&L. "
             "Live changes apply on the next engine scan (within 2 minutes)."
         ).classes("text-sm text-gray-500 mb-1")
         summary = ui.label("").classes("st-summary mb-3")
@@ -226,7 +227,7 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
                 controls.append((
                     "options_pnl",
                     "Options P&L",
-                    "Show this template in the Options P&L workspace",
+                    "Paper-traded in the options account (Live P&L Options), shown in the Strategy Lab",
                 ))
 
             for field, label, hint in controls:
@@ -238,13 +239,13 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
                         value=state[field],
                         on_change=lambda e, f=field: _toggle(f, e.value),
                     ).props("color=positive dense")
-                    # Options strategies currently have a research/payoff implementation only.
-                    # Never expose a Live toggle until signals, order handling and risk checks exist.
+                    # Options templates trade only in the options paper account (Options P&L), never in
+                    # the stock backtests or the Live algo engine.
                     if not can_edit or (is_options_template and field in {"backtest", "live"}):
                         sw.disable()
                         if is_options_template and field in {"backtest", "live"}:
                             sw.tooltip(
-                                "This template is payoff-only; it has no backtest runner or live signal engine"
+                                "Options templates trade only in the options paper account: use Options P&L"
                             )
 
     _build()

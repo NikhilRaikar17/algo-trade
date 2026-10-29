@@ -10,7 +10,7 @@ Research-only primitives for Indian listed options, with a NiceGUI payoff-compar
 - Unit tests for payoff, risk, and historical-price validation
 - NiceGUI integration through the existing database-backed Strategies page and Backtest toggles
 
-**Important:** the current NiceGUI Options Strategy Lab is an expiry-payoff comparison tool, not yet a historical options backtester. Historical option-chain data, strategy-specific entry/exit rules, option repricing before expiry, realistic fills, brokerage/slippage and margin simulation still need to be implemented and validated. Options live switches remain disabled.
+**Important:** the current NiceGUI Options Strategy Lab is an expiry-payoff comparison tool, not yet a historical options backtester. Historical option-chain data, strategy-specific entry/exit rules, option repricing before expiry, realistic fills, brokerage/slippage and margin simulation still need to be implemented and validated. The five templates are paper-traded intraday in the app's options account when switched on for Options P&L (`nicegui_app/options_templates.py`); nothing places real orders.
 
 This is a foundation, not a complete transcription of every strategy in Guy Cohen's book and not a claim of profitability. Expand the registry incrementally after validating data and execution assumptions.
 

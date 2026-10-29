@@ -14,6 +14,8 @@ the options paper account (account.OPTIONS). The same feed-driven loop as the st
   One position per index at a time ("NIFTY options"), same risk rules as the stock account.
 - Exits: run_options_monitor() closes an open trade at its target or stop on the first tick there;
   the square-off closes the rest at RISK_LIMITS["square_off"].
+- Templates: the multi-leg opt_* templates switched on for Options P&L trade in the same account and
+  loops (options_templates.run_tick at each bar close, monitor_tick with the monitor).
 """
 
 import asyncio
@@ -24,6 +26,7 @@ import traceback
 from dhanhq import marketfeed
 
 import live_candles
+import options_templates
 import ws_feed
 from account import OPTIONS
 from config import INDICES, OPTIONS_LIMITS, OPTIONS_UNDERLYINGS, now_ist
@@ -154,6 +157,11 @@ def _run_options_tick(now=None) -> None:
         for sym in set(_store) - {c["symbol"] for c in contracts}:
             del _store[sym]
 
+    try:
+        options_templates.run_tick(now)
+    except Exception:
+        print(f"  [templates] tick failed: {traceback.format_exc()}")
+
     for r in OPTIONS.square_off():
         print(f"  [options] squared off {r['symbol']} ({r['strategy']}) at {r['exit_price']:.2f}")
 
@@ -171,6 +179,7 @@ def _options_monitor_tick() -> None:
             print(f"  [options monitor] {rec['symbol']} {rec['status']} at {rec['exit_price']:.2f} (tick {ltp:.2f})")
             _send_telegram(OPTIONS.closed_text(rec))
             OPTIONS.alert_day_stop()
+    options_templates.monitor_tick(_TICK_MAX_AGE)
 
 
 def snapshot() -> dict:

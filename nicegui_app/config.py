@@ -81,6 +81,31 @@ OPTIONS_LIMITS = {
 
 OPTIONS_UNDERLYINGS = ["NIFTY", "BANKNIFTY"]
 
+# The opt_* templates switched on for Options P&L (Strategies page), paper-traded intraday in the options
+# account on NIFTY and BANKNIFTY (options_templates.py), at the same expiry as the options engine
+# (OPTIONS_SELECTION). Each is one position priced at its net premium, sized and checked like any option
+# trade (OPTIONS_LIMITS). Legs: (CE/PE, strike steps from the ATM, +1 bought / −1 sold).
+# Entry, at most once a day per template and index, on the index's 15-min bars (the 09:15 bar is the
+# opening range), inside "window":
+#   breakout  a finished bar closes above the opening range high (bullish)
+#   squeeze   the opening range is at most max_range_pct of the index (a move is due, either way)
+#   range     the day's range so far is at most max_range_pct and the index is inside the opening range
+# Exit on the net premium: target_pct / stop_pct of the entry premium (a debit position's value up / down,
+# a credit position's cost to close down / up), else the square-off.
+OPTIONS_TEMPLATES = {
+    "opt_long_call": {"legs": [("CE", 0, 1)], "entry": "breakout", "window": ("09:30", "14:00"),
+                      "target_pct": 40, "stop_pct": 25},
+    "opt_bull_call_spread": {"legs": [("CE", 0, 1), ("CE", 2, -1)], "entry": "breakout",
+                             "window": ("09:30", "14:00"), "target_pct": 40, "stop_pct": 25},
+    "opt_bull_put_spread": {"legs": [("PE", -1, -1), ("PE", -3, 1)], "entry": "breakout",
+                            "window": ("09:30", "14:00"), "target_pct": 50, "stop_pct": 40},
+    "opt_long_straddle": {"legs": [("CE", 0, 1), ("PE", 0, 1)], "entry": "squeeze", "window": ("09:30", "10:30"),
+                          "max_range_pct": 0.35, "target_pct": 25, "stop_pct": 15},
+    "opt_iron_condor": {"legs": [("PE", -4, 1), ("PE", -2, -1), ("CE", 2, -1), ("CE", 4, 1)], "entry": "range",
+                        "window": ("10:15", "12:30"), "max_range_pct": 0.6, "target_pct": 40, "stop_pct": 30},
+}
+OPTIONS_TEMPLATE_MAX_SPREAD_PCT = 5.0  # each leg's bid-ask spread, % of its premium; wider → not entered
+
 # ================= LONG TERM (SWING) ACCOUNT =================
 # A third paper account (account.LONGTERM) for one-week swing trades in the current NIFTY future
 # (longterm.py): signals from the NIFTY index's daily chart, scanned once a day near the close, long or

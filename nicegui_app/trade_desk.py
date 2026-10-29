@@ -41,6 +41,8 @@ class DeskRow:
     decided_at: datetime | None = None
     lot_size: int = 1         # units per lot: qty is a whole number of lots (options), 1 for shares
     group: str = ""           # holding one position per group, e.g. "NIFTY options" ("" = per symbol)
+    cost_per_unit: float = 0.0  # capital a unit ties up when it is not entry × margin (a credit spread: its max loss)
+    charges_for: object = None  # qty → ₹ round-trip charges when not one instrument's (a multi-leg position)
 
 
 @dataclass
@@ -129,7 +131,8 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
     lot = max(int(r.lot_size or 1), 1)
     unit = "share" if lot == 1 else "lot"
     margin = float(limits.get("margin_pct") or 100) / 100  # futures block a margin, not the contract value
-    lot_risk, lot_cost = r.risk_per_share * lot, r.entry * lot * margin
+    unit_cost = r.cost_per_unit or r.entry * margin
+    lot_risk, lot_cost = r.risk_per_share * lot, unit_cost * lot
     want = math.floor(max_loss / lot_risk)
     free = max(book.balance - book.open_capital, 0.0)
     cap = book.balance * float(limits.get("max_capital_pct") or 100) / 100
@@ -151,7 +154,7 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
             r.warnings.append(f"size cut from {want} to {lots} {unit}{'s' if lots != 1 else ''} by the {why} "
                               f"(risks ₹{cut_risk:,.0f}, not ₹{max_loss:,.0f})")
     r.qty = max(lots, 0) * lot
-    r.capital = round(r.qty * r.entry * margin, 2)
+    r.capital = round(r.qty * unit_cost, 2)
     r.max_loss = round(r.qty * r.risk_per_share, 2)
 
     if limits.get("reward_risk_after_charges") and r.qty:
@@ -159,6 +162,10 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
         seg, short = limits.get("segment", "equity_intraday"), r.side == "SELL"
         won = calculate_brokerage(r.entry, r.target, 1, r.qty, seg, short=short)
         lost = calculate_brokerage(r.entry, r.stop, 1, r.qty, seg, short=short)
+        if r.charges_for:  # every leg is its own pair of orders
+            charges = r.charges_for(r.qty)
+            won = {"net_pnl": won["gross_pnl"] - charges}
+            lost = {"net_pnl": lost["gross_pnl"] - charges}
         net_rr = won["net_pnl"] / -lost["net_pnl"] if lost["net_pnl"] < 0 else 0.0
         if net_rr < limits["min_reward_risk"]:
             r.reasons.append(f"reward:risk after charges is {net_rr:.2f} (₹{won['net_pnl']:,.0f} at the target, "
