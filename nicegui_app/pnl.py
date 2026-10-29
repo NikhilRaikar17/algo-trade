@@ -301,44 +301,59 @@ def _account_summary(acct, now, title: str, what: str) -> str:
     )
 
 
+def _stocks_summary(now):
+    from account import EQUITY
+    from db import get_active_top_stocks
+    stocks = get_active_top_stocks()
+    stock_names = ", ".join(s["name"] for s in stocks) if stocks else "—"
+    return _account_summary(EQUITY, now, "MARKET CLOSED — DAILY SUMMARY", f"Stocks Monitored: {stock_names}")
+
+
+def _options_summary(now):
+    from account import OPTIONS
+    from options_engine import snapshot
+    contracts = ", ".join(c["symbol"] for c in snapshot()["contracts"]) or "—"
+    return _account_summary(OPTIONS, now, "OPTIONS — DAILY SUMMARY", f"Contracts traded: {contracts}")
+
+
+def _longterm_summary(now):
+    from account import LONGTERM, trading_days_held
+    today_str = now.strftime("%Y-%m-%d")
+    held = ", ".join(f"{r['symbol']} (day {trading_days_held(r['trade_date'], today_str)}/"
+                     f"{LONGTERM.limits['max_hold_days']})" for r in LONGTERM.open_trades()) or "—"
+    return _account_summary(LONGTERM, now, "LONG TERM — DAILY SUMMARY", f"Holding: {held}")
+
+
+# (dedup key prefix, minute after 15:00 it is due, builder, label): a minute apart, so Telegram gets them
+# one at a time
+_DAILY_SUMMARIES = [
+    ("daily_pnl", 30, _stocks_summary, "Daily"),
+    ("daily_pnl_options", 31, _options_summary, "Options"),
+    ("daily_pnl_longterm", 32, _longterm_summary, "Long-term"),
+]
+
+
 def send_daily_pnl_summary():
-    """Send live-trading P&L summaries at 3:30 PM on trading days, in rupees: one each for the stock,
-    options and long-term accounts. Trades come from each paper account's book
-    (account.py): only the signals it took, at the size it took them, compounding, net of brokerage
-    and taxes — the same trades and maths as the Live P&L pages.
+    """Send live-trading P&L summaries on trading days, in rupees: the stock account's at 3:30 PM, the
+    options account's at 3:31 and the long-term account's at 3:32. Called every minute; sends at most
+    one per call, so they stay a minute apart even when the app starts late. Trades come from each
+    paper account's book (account.py): only the signals it took, at the size it took them, compounding,
+    net of brokerage and taxes — the same trades and maths as the Live P&L pages.
     """
     now = now_ist()
     today_str = now.strftime("%Y-%m-%d")
 
-    if not _is_trading_day(now):
-        return
-    if now.hour < 15 or (now.hour == 15 and now.minute < 30):
+    if not _is_trading_day(now) or now.hour < 15:
         return
 
-    from account import EQUITY, LONGTERM, OPTIONS, trading_days_held
-
-    summary_key = f"daily_pnl_{today_str}"
-    if not _is_already_sent(summary_key):
-        from db import get_active_top_stocks
-        stocks = get_active_top_stocks()
-        stock_names = ", ".join(s["name"] for s in stocks) if stocks else "—"
-        _send_telegram(_account_summary(EQUITY, now, "MARKET CLOSED — DAILY SUMMARY",
-                                        f"Stocks Monitored: {stock_names}"))
-        _mark_sent(summary_key)
-        print(f"  [telegram] Daily P&L summary sent for {today_str}")
-
-    options_key = f"daily_pnl_options_{today_str}"
-    if not _is_already_sent(options_key):
-        from options_engine import snapshot
-        contracts = ", ".join(c["symbol"] for c in snapshot()["contracts"]) or "—"
-        _send_telegram(_account_summary(OPTIONS, now, "OPTIONS — DAILY SUMMARY", f"Contracts traded: {contracts}"))
-        _mark_sent(options_key)
-        print(f"  [telegram] Options P&L summary sent for {today_str}")
-
-    longterm_key = f"daily_pnl_longterm_{today_str}"
-    if not _is_already_sent(longterm_key):
-        held = ", ".join(f"{r['symbol']} (day {trading_days_held(r['trade_date'], today_str)}/"
-                         f"{LONGTERM.limits['max_hold_days']})" for r in LONGTERM.open_trades()) or "—"
-        _send_telegram(_account_summary(LONGTERM, now, "LONG TERM — DAILY SUMMARY", f"Holding: {held}"))
-        _mark_sent(longterm_key)
-        print(f"  [telegram] Long-term P&L summary sent for {today_str}")
+    for prefix, minute, build, label in _DAILY_SUMMARIES:
+        key = f"{prefix}_{today_str}"
+        if (now.hour == 15 and now.minute < minute) or _is_already_sent(key):
+            continue
+        try:
+            _send_telegram(build(now))
+        except Exception as e:  # one account failing must not hold up the others
+            print(f"  [telegram] {label} P&L summary failed: {e}")
+        _mark_sent(key)
+        print(f"  [telegram] {label} P&L summary sent for {today_str}")
+        return

@@ -2,6 +2,7 @@
 Shared mutable state: cache, dedup, telegram, market hours, API helper.
 """
 
+import html
 import os
 import json
 import time
@@ -130,7 +131,8 @@ def _send_telegram(message):
         return
     try:
         if BOT_TOKEN and RECEIVER_CHAT_IDS:
-            send_alert_to_all(message, RECEIVER_CHAT_IDS, BOT_TOKEN)
+            # sent with parse_mode HTML: a bare & or < (M&M) makes Telegram reject the whole message
+            send_alert_to_all(html.escape(message, quote=False), RECEIVER_CHAT_IDS, BOT_TOKEN)
     except Exception as e:
         print(f"  [telegram] failed: {e}")
 
