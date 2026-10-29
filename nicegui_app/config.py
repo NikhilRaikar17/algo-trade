@@ -81,6 +81,32 @@ OPTIONS_LIMITS = {
 
 OPTIONS_UNDERLYINGS = ["NIFTY", "BANKNIFTY"]
 
+# ================= LONG TERM (SWING) ACCOUNT =================
+# A third paper account (account.LONGTERM) for one-week swing trades in the current NIFTY future
+# (longterm.py): signals from the NIFTY index's daily chart, scanned once a day near the close, long or
+# short, sized in lots on margin, held until the target, the stop or max_hold_days trading days.
+LONGTERM_LIMITS = {
+    **RISK_LIMITS,
+    "funds": 500_000,             # ₹ of its own, separate from the other two accounts
+    "segment": "fno_futures",     # brokerage and taxes as index futures
+    "margin_pct": 12.5,           # % of the contract value blocked as margin per lot (NIFTY SPAN + exposure, approx.)
+    "max_loss_per_trade": 30_000, # ₹ lost at the stop: a 1.5 × ATR stop is ~400 points × 65 ≈ ₹26,000 a lot
+    "max_capital_pct": 100,       # one position at a time (one future), so it may use the whole balance as margin
+    "max_daily_loss": None,       # trades close days apart: no intraday loss limit or losing streak
+    "max_losing_streak": None,
+    "min_reward_risk": 1.5,
+    "no_entries_before": "09:20",
+    "no_entries_after": "15:25",  # the scan runs at scan_at, a few minutes before the close
+    "square_off": "15:20",        # a trade on its last day is closed at its last price from this time
+    "max_hold_days": 5,           # trading days a trade may stay open: one week
+    "scan_at": "15:15",           # when the day's (nearly finished) daily bar is scanned
+}
+LONGTERM_UNDERLYING = "NIFTY"     # the future traded; its index's daily chart gives the signals
+# Strategies: the moving-average ones enabled for Backtest on the Strategies page (longterm.strategy_keys),
+# with daily-chart levels: stop 1.5 × ATR(14), target 3 × ATR(14) of the index.
+LONGTERM_ATR = {"period": 14, "stop": 1.5, "target": 3.0}
+LONGTERM_HISTORY_DAYS = 700       # calendar days of daily bars fetched: SMA 200 warm-up (~290 days) + a year to backtest
+
 # How option_contracts.select_contracts() picks the CE and PE to trade for each index
 OPTIONS_SELECTION = {
     "expiry_skip": 1,             # expiries after today to pass over: 1 = next-to-next (today's expiry never counts)
@@ -279,8 +305,6 @@ RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 
 # Swing trade momentum thresholds (SMA crossover + RSI filter)
-SWING_RSI_BULL = 55  # RSI must be above this for a bullish swing candidate
-SWING_RSI_BEAR = 45  # RSI must be below this for a bearish swing candidate
 
 INDICES = {
     "NIFTY": {

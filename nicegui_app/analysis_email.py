@@ -4,8 +4,8 @@ Daily LIVE report + strategy analysis email. Live results only; the backtest P&L
 
 Sent once per trading day from 15:45 IST, after the close (retried until 20:00 if a build fails or the
 app restarts mid-build; marked sent only once it has gone out). The live report part is the
-two paper accounts — stocks (account.EQUITY) and NIFTY / BANKNIFTY options (account.OPTIONS) — and
-today's live trades in each, trade by trade; the analysis part answers "what went right, what went
+three paper accounts — stocks (account.EQUITY), NIFTY / BANKNIFTY options (account.OPTIONS) and
+long-term NIFTY futures swing trades (account.LONGTERM) — and today's live trades in each, trade by trade; the analysis part answers "what went right, what went
 wrong, which strategies work" from:
 
   * today's live trades in both accounts (compounding, after brokerage and taxes),
@@ -40,7 +40,7 @@ _VERDICT_COLOR = {NOT_GOOD: _RED, WATCH: _AMBER, GOOD: _GREEN, TOO_EARLY: _GREY}
 def gather(now) -> dict:
     """Backtests for every strategy, the live account and its trades. Slow (one candle fetch per
     top stock): run it in a worker thread."""
-    from account import OPTIONS, account_state, in_account              # noqa: PLC0415
+    from account import LONGTERM, OPTIONS, account_state, in_account    # noqa: PLC0415
     from db import get_active_top_stocks                                  # noqa: PLC0415
     from live_trades import load_live_trades                              # noqa: PLC0415
     from pages.backtest_pnl_tab import _fetch_all_stocks_trades          # noqa: PLC0415
@@ -53,6 +53,7 @@ def gather(now) -> dict:
     return {
         "now": now, "rows": rows, "backtest": backtest, "backtest_report": report,
         "live": in_account(completed), "account": account_state(now), "options": OPTIONS.account_state(now),
+        "longterm": LONGTERM.account_state(now),
     }
 
 
@@ -79,18 +80,22 @@ def insights(data: dict) -> dict:
     opt_today = [t for t in opts["sized"] if t["trade_date"] == today]
     live_rows = {name: summarize(ts) for name, ts in _by_strategy(live_today).items()}
     opt_rows = {name: summarize(ts) for name, ts in _by_strategy(opt_today).items()}
+    # long-term trades are held for days: the ones that closed today
+    lt = data["longterm"]
+    lt_today = [t for t in lt["sized"] if t["exit_time"].strftime("%Y-%m-%d") == today]
+    lt_rows = {name: summarize(ts) for name, ts in _by_strategy(lt_today).items()}
 
     reviews = build_reviews(data["backtest"], data["live"], data["rows"], float(acct["initial"]))
 
     right, wrong = [], []
-    if not live_today and not opt_today:
-        wrong.append("No live trades closed today, so neither paper account moved.")
-    for where, rows in (("stocks", live_rows), ("options", opt_rows)):
+    if not live_today and not opt_today and not lt_today:
+        wrong.append("No live trades closed today, so no paper account moved.")
+    for where, rows in (("stocks", live_rows), ("options", opt_rows), ("long term", lt_rows)):
         for name, s in sorted(rows.items(), key=lambda kv: -kv[1]["net"]):
             line = f"{name} {_made_lost(s['net'])} on {where} today ({s['wins']}W/{s['losses']}L)"
             (right if s["net"] > 0 else wrong).append(line)
 
-    every_today = live_today + opt_today
+    every_today = live_today + opt_today + lt_today
     if every_today:
         best = max(every_today, key=lambda t: t["net"])
         worst = min(every_today, key=lambda t: t["net"])
@@ -116,6 +121,7 @@ def insights(data: dict) -> dict:
 
     return {
         "today": today, "account": acct, "options": opts, "live_today": live_today, "opt_today": opt_today,
+        "longterm": lt, "lt_today": lt_today, "lt_rows": lt_rows,
         "live_rows": live_rows, "opt_rows": opt_rows, "reviews": reviews, "right": right, "wrong": wrong,
         "live_on": live_on,
     }
@@ -190,17 +196,14 @@ def _account_section(title: str, a: dict, today: list[dict], what: str) -> str:
 
 
 def build_html(ins: dict, date_label: str) -> str:
-    strategies = sorted(set(ins["live_rows"]) | set(ins["opt_rows"]))
+    strategies = sorted(set(ins["live_rows"]) | set(ins["opt_rows"]) | set(ins["lt_rows"]))
     today_rows = []
     for name in strategies:
-        st, op = ins["live_rows"].get(name), ins["opt_rows"].get(name)
-        today_rows.append([
-            escape(name),
-            f"{st['trades']} ({st['wins']}W/{st['losses']}L)" if st else "—",
-            _money(st["net"]) if st else "—",
-            f"{op['trades']} ({op['wins']}W/{op['losses']}L)" if op else "—",
-            _money(op["net"]) if op else "—",
-        ])
+        row = [escape(name)]
+        for rows in (ins["live_rows"], ins["opt_rows"], ins["lt_rows"]):
+            g = rows.get(name)
+            row += [f"{g['trades']} ({g['wins']}W/{g['losses']}L)" if g else "—", _money(g["net"]) if g else "—"]
+        today_rows.append(row)
 
     limit = STRATEGY_REVIEW["max_loss_rate"]
     verdict_rows = []
@@ -220,6 +223,7 @@ def build_html(ins: dict, date_label: str) -> str:
 <p style="color:{_GREY};margin-top:0;">{escape(date_label)} · the paper accounts' real-time trades (not a backtest)</p>
 {_account_section("Stocks", ins["account"], ins["live_today"], "Stock")}
 {_account_section("Options · NIFTY &amp; BANKNIFTY", ins["options"], ins["opt_today"], "Contract")}
+{_account_section("Long term · NIFTY futures, daily chart", ins["longterm"], ins["lt_today"], "Contract")}
 
 <h2 style="color:#1a5276;margin:26px 0 2px;">Strategy analysis</h2>
 <h3 style="color:{_GREEN};margin-bottom:2px;">What went right</h3>
@@ -228,7 +232,8 @@ def build_html(ins: dict, date_label: str) -> str:
 {_bullets(ins['wrong'], _INK)}
 
 <h3 style="margin-bottom:2px;">Today by strategy (live)</h3>
-{_table(["Strategy", "Stock trades", "Stocks net", "Option trades", "Options net"], today_rows)
+{_table(["Strategy", "Stock trades", "Stocks net", "Option trades", "Options net", "Long-term trades",
+         "Long-term net"], today_rows)
  if today_rows else f'<p style="color:{_GREY};">No live trades closed today.</p>'}
 
 <h3 style="margin-bottom:2px;">Which strategies work</h3>
@@ -252,8 +257,9 @@ def build_subject(ins: dict) -> str:
     flags = f" · {n[NOT_GOOD]} not good" if n[NOT_GOOD] else ""
     stocks = sum(t["net"] for t in ins["live_today"])
     options = sum(t["net"] for t in ins["opt_today"])
+    longterm = sum(t["net"] for t in ins["lt_today"])
     return (f"[AlgoTrading] LIVE report & strategy analysis — {ins['today']} · stocks {rupees_text(stocks)} · "
-            f"options {rupees_text(options)}{flags}")
+            f"options {rupees_text(options)} · long term {rupees_text(longterm)}{flags}")
 
 
 # ── scheduler entry point ─────────────────────────────────────────────────────

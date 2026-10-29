@@ -14,13 +14,13 @@ from pages.backtest_pnl_tab import render_backtest_pnl_tab
 from pages.market_closed import render_market_closed
 from pages.market_news import render_market_news_tab
 from pages.top_stocks import render_top_stocks_tab
-from pages.swing_trades import render_swing_trades_tab
 from pages.global_markets import render_global_markets_tab
 from pages.admin import render_admin_tab
 from pages.strategies import render_strategies_tab
 from pages.trade_replay import render_trade_replay_tab
 from pages.trade_desk import render_trade_desk_tab
 from pages.strategy_analysis import render_strategy_analysis_tab
+from pages.longterm import render_longterm_backtest_tab, render_longterm_signals_tab
 
 # Strategy key → its backtest page: (page_id, render_fn(container) -> refresh, sidebar icon).
 # The sidebar lists only backtest-enabled strategies, using their display name from algo.db.

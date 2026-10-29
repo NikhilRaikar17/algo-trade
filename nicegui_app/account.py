@@ -5,6 +5,10 @@ trade's net P&L, i.e. after brokerage, STT, exchange, GST, SEBI and stamp charge
 - EQUITY: the stocks the live engine trades (config.RISK_LIMITS, .live_account.json / .live_book.json).
 - OPTIONS: NIFTY / BANKNIFTY options the options engine buys (config.OPTIONS_LIMITS,
   .live_account_options.json / .live_book_options.json), sized in whole lots, charged as F&O.
+- LONGTERM: one-week swing trades in the current NIFTY future on daily-chart signals (longterm.py,
+  config.LONGTERM_LIMITS, .live_account_longterm.json / .live_book_longterm.json), in whole lots on margin
+  ("capital" is the margin blocked), charged as futures. A trade is held across days and closed after
+  limits["max_hold_days"] trading days instead of at the day's square-off.
 
 Each account's book holds one decision per live signal, made once, the first time the engine sees the
 signal (open_signal): trade_desk.check() sizes it to risk the max loss at the stop and takes or skips it
@@ -29,7 +33,7 @@ import pandas as pd
 
 from backtest_metrics import _CHARGE_KEYS, inr, rupees_text
 from brokerage import calculate_brokerage
-from config import IST, OPTIONS_LIMITS, RISK_LIMITS, now_ist
+from config import IST, LONGTERM_LIMITS, OPTIONS_LIMITS, RISK_LIMITS, is_nse_holiday, now_ist
 from trade_desk import SKIPPED, TAKEN, Book, _hhmm, check, day_stop, signal_key, to_row
 
 _DIR = os.path.dirname(__file__)
@@ -45,9 +49,10 @@ def qty_text(r: dict) -> str:
 
 
 def size_text(r: dict) -> str:
-    """'BUY 10 × ₹2,303.70 = ₹23,037 · risks ₹230 at the stop' for alerts."""
-    return (f"{r['side']} {qty_text(r)} × ₹{r['entry']:,.2f} = ₹{inr(r['capital'])} · "
-            f"risks ₹{inr(r['max_loss'])} at the stop")
+    """'BUY 10 × ₹2,303.70 = ₹23,037 · risks ₹230 at the stop' for alerts; a future adds the margin it blocks."""
+    value = r["qty"] * r["entry"]
+    cost = f"₹{inr(value)}" + (f" (₹{inr(r['capital'])} margin)" if r["capital"] < value - 1 else "")
+    return f"{r['side']} {qty_text(r)} × ₹{r['entry']:,.2f} = {cost} · risks ₹{inr(r['max_loss'])} at the stop"
 
 
 def pnl_text(r: dict) -> str:
@@ -80,6 +85,12 @@ def _record(row, trade: dict, now: datetime, status: str | None) -> dict:
         "status": status, "last_price": row.current_price,
         "exit_price": None, "exit_time": None, "gross": 0.0, "charges": 0.0, "net": 0.0,
     }
+
+
+def trading_days_held(trade_date: str, today: str) -> int:
+    """Trading days after the entry day, up to and including `today` (0 on the entry day)."""
+    days = pd.bdate_range(pd.Timestamp(trade_date) + pd.Timedelta(days=1), pd.Timestamp(today))
+    return sum(1 for d in days if not is_nse_holiday(d))
 
 
 def _level(r: dict, status: str) -> float:
@@ -269,25 +280,38 @@ class PaperAccount:
             self._save_book(book)
         return r
 
+    def _due(self, r: dict, today: str, late: bool) -> bool:
+        """Is an open trade due to be closed? Intraday: from the square-off time, or left open on an
+        earlier day (the app was down). With max_hold_days: from the square-off time of its last day,
+        or any time after that day."""
+        hold = self.limits.get("max_hold_days")
+        if not hold:
+            return late or r["trade_date"] < today
+        held = trading_days_held(r["trade_date"], today)
+        return held > hold or (held == hold and late)
+
     def square_off(self, now: datetime | None = None) -> list[dict]:
-        """Close every open taken trade at its last price once it is limits["square_off"], or if it was
-        left open on an earlier day (the app was down), and Telegram each one. → the trades closed."""
+        """Close every open taken trade that is due (_due) at its last price and Telegram each one.
+        → the trades closed."""
         from state import _send_telegram  # noqa: PLC0415 — state pulls in the Dhan client; keep imports light
 
         now = now or now_ist()
         today, late = now.strftime("%Y-%m-%d"), now.time() >= _hhmm(self.limits["square_off"])
+        hold = self.limits.get("max_hold_days")
         closed = []
         with self._lock:
             book = self._load_book()
             for r in book.values():
-                if _is_open(r) and (late or r["trade_date"] < today):
-                    self._close(r, r["last_price"] or r["entry"], "Day Close", now)
+                if _is_open(r) and self._due(r, today, late):
+                    self._close(r, r["last_price"] or r["entry"], "Time Exit" if hold else "Day Close", now)
                     closed.append(r)
             if closed:
                 self._save_book(book)
         for r in closed:
-            _send_telegram(f"{self.tag}SQUARED OFF [{r['strategy']}] | {r['symbol']}\n{r['side']} {qty_text(r)} @ "
-                           f"{r['entry']:,.2f} → {r['exit_price']:,.2f} at {self.limits['square_off']}\n"
+            what = (f"after {trading_days_held(r['trade_date'], today)} trading days" if hold
+                    else f"at {self.limits['square_off']}")
+            _send_telegram(f"{self.tag}{'TIME EXIT' if hold else 'SQUARED OFF'} [{r['strategy']}] | {r['symbol']}\n"
+                           f"{r['side']} {qty_text(r)} @ {r['entry']:,.2f} → {r['exit_price']:,.2f} {what}\n"
                            f"PnL: {pnl_text(r)}")
         return closed
 
@@ -372,6 +396,9 @@ EQUITY = PaperAccount("Stocks", os.path.join(_DIR, ".live_account.json"), os.pat
                       RISK_LIMITS)
 OPTIONS = PaperAccount("Options", os.path.join(_DIR, ".live_account_options.json"),
                        os.path.join(_DIR, ".live_book_options.json"), OPTIONS_LIMITS, tag="OPTIONS ", history=False)
+LONGTERM = PaperAccount("Long term", os.path.join(_DIR, ".live_account_longterm.json"),
+                        os.path.join(_DIR, ".live_book_longterm.json"), LONGTERM_LIMITS, tag="LONGTERM ",
+                        history=False)
 
 # the stock account's functions, as before
 get_settings, reset_account, start_time, in_account = (

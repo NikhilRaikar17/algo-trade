@@ -33,8 +33,13 @@ def _data():
         t["lot_size"], t["qty"] = 65, 130
     opts = dict(acct, initial=200_000, balance=200_000 + opt_sized[0]["net"], free=200_000,
                 return_pct=opt_sized[0]["net"] / 2000, sized=opt_sized)
+    # long term: entered last week, closed today (counted on its exit day, not its entry day)
+    lt = [_trade("2026-10-20 15:15", "2026-10-26 10:30", 1000, 1060, 970, 1060, "LT 20D Breakout", "lt_breakout",
+                 "RELIANCE")]
+    lt_sized = size_trades(lt, "risk", 2000, 100_000, compound=True)
+    lts = dict(acct, balance=100_000 + lt_sized[0]["net"], return_pct=lt_sized[0]["net"] / 1000, sized=lt_sized)
     return {"now": now, "rows": rows, "backtest": backtest + [loser], "backtest_report": {"loaded": ["X"], "missing": []},
-            "live": live, "account": acct, "options": opts}
+            "live": live, "account": acct, "options": opts, "longterm": lts}
 
 
 def test_live_results_only_stocks_and_options():
@@ -42,6 +47,7 @@ def test_live_results_only_stocks_and_options():
     assert any(x.startswith("ABCD made ₹") and "on stocks today" in x for x in ins["right"])
     assert any(x.startswith("SMA50 lost ₹") and "on options today" in x for x in ins["wrong"])
     assert any("Worst trade: NIFTY 09NOV 22750 CE BUY" in x for x in ins["wrong"])
+    assert any(x.startswith("LT 20D Breakout made ₹") and "on long term today" in x for x in ins["right"])
     lines = " ".join(ins["right"] + ins["wrong"])
     assert "WIPRO" not in lines and "TCS" not in lines and "backtest" not in lines.lower().replace("backtest losing", "")
     assert not any("−₹" in x and "lost" in x for x in ins["right"] + ins["wrong"])   # no "lost −₹…"
@@ -51,12 +57,13 @@ def test_email_has_live_report_and_analysis_and_subject():
     ins = ae.insights(_data())
     html = ae.build_html(ins, "Monday, 26 Oct 2026")
     for part in ("LIVE report", "Stocks", "INFY", "Options · NIFTY", "NIFTY 09NOV 22750 CE", "2 lots (130)",
+                 "Long term · NIFTY futures", "RELIANCE", "Long-term net",
                  "Strategy analysis", "What went right", "Which strategies work", "BACKTEST email"):
         assert part in html
     assert "Backtest net" not in html and "TCS" not in html          # no backtest ₹ in the live email
     subject = ae.build_subject(ins)
     assert subject.startswith("[AlgoTrading] LIVE report & strategy analysis — 2026-10-26")
-    assert "stocks +₹" in subject and "options −₹" in subject
+    assert "stocks +₹" in subject and "options −₹" in subject and "long term +₹" in subject
 
 
 def test_sends_only_in_the_window_and_once(monkeypatch):

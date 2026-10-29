@@ -24,7 +24,8 @@ from strategy_registry import get_backtest_strategy_keys
 from pnl import send_daily_pnl_summary, send_morning_blessing, send_morning_message, send_premarket_alert
 from trading_engine import run_position_monitor, run_trading_engine
 from options_engine import run_options_engine, run_options_monitor
-from account import OPTIONS
+from longterm import run_longterm_engine, run_longterm_monitor
+from account import LONGTERM, OPTIONS
 from email_report import send_backtest_email_report
 from analysis_email import send_strategy_analysis_email
 from ws_feed import start_ws_feed
@@ -40,13 +41,14 @@ from pages import (
     render_market_closed,
     render_market_news_tab,
     render_top_stocks_tab,
-    render_swing_trades_tab,
     render_global_markets_tab,
     render_admin_tab,
     render_strategies_tab,
     render_trade_replay_tab,
     render_trade_desk_tab,
     render_strategy_analysis_tab,
+    render_longterm_signals_tab,
+    render_longterm_backtest_tab,
     BACKTEST_PAGES,
 )
 
@@ -61,7 +63,6 @@ ALL_PAGE_IDS = [
     "markets",
     "market_news",
     "top_stocks",
-    "swing_trades",
     "global_markets",
     "nifty",
     "banknifty",
@@ -74,6 +75,9 @@ ALL_PAGE_IDS = [
     "trade_desk",
     "pnl",
     "pnl_options",
+    "longterm_signals",
+    "longterm_backtest",
+    "pnl_longterm",
     "admin",
 ]
 
@@ -133,6 +137,8 @@ async def _start_scheduler():
     asyncio.create_task(run_position_monitor())
     asyncio.create_task(run_options_engine())
     asyncio.create_task(run_options_monitor())
+    asyncio.create_task(run_longterm_engine())
+    asyncio.create_task(run_longterm_monitor())
     asyncio.create_task(_top_stocks_loop())
     asyncio.create_task(start_ws_feed())
     asyncio.create_task(start_global_feed())
@@ -606,20 +612,23 @@ async def index():
         # Clearing them on every market-state change wipes content while the user
         # is viewing the page — causing a jarring blank flash.
         _STATIC_ONCE = {
-            "markets", "market_news", "top_stocks", "swing_trades", "global_markets",
-            "nifty", "banknifty", "pnl", "pnl_options", "backtest_pnl", "admin", "strategies", "strategy_analysis", "trade_replay", "trade_desk",
+            "markets", "market_news", "top_stocks", "global_markets",
+            "nifty", "banknifty", "pnl", "pnl_options", "pnl_longterm", "longterm_signals", "longterm_backtest",
+            "backtest_pnl", "admin", "strategies", "strategy_analysis", "trade_replay", "trade_desk",
             *BACKTEST_PAGE_IDS,
         }
         renders = {
             "markets":       lambda: render_markets_tab(page_containers["markets"]),
             "market_news":   lambda: render_market_news_tab(page_containers["market_news"]),
             "top_stocks":    lambda: render_top_stocks_tab(page_containers["top_stocks"]),
-            "swing_trades":  lambda: render_swing_trades_tab(page_containers["swing_trades"]),
             "global_markets":lambda: render_global_markets_tab(page_containers["global_markets"]),
             "nifty":         lambda: render_index_tab(page_containers["nifty"], "NIFTY", INDICES["NIFTY"]),
             "banknifty":     lambda: render_index_tab(page_containers["banknifty"], "BANKNIFTY", INDICES["BANKNIFTY"]),
             "pnl":           lambda: render_pnl_tab(page_containers["pnl"]),
             "pnl_options":   lambda: render_pnl_tab(page_containers["pnl_options"], acct=OPTIONS),
+            "pnl_longterm":  lambda: render_pnl_tab(page_containers["pnl_longterm"], acct=LONGTERM),
+            "longterm_signals":  lambda: render_longterm_signals_tab(page_containers["longterm_signals"]),
+            "longterm_backtest": lambda: render_longterm_backtest_tab(page_containers["longterm_backtest"]),
             "backtest_pnl":  lambda: render_backtest_pnl_tab(page_containers["backtest_pnl"]),
             "trade_replay":  lambda: render_trade_replay_tab(page_containers["trade_replay"]),
             "trade_desk":    lambda: render_trade_desk_tab(page_containers["trade_desk"]),

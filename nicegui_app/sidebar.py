@@ -8,6 +8,13 @@ from config import now_ist, get_next_holiday
 from pages import BACKTEST_PAGES
 from strategy_registry import get_strategy_rows
 
+# Long Term drop-down: page_id → (label, icon)
+LONGTERM_PAGES = {
+    "longterm_signals":  ("Signals", "radar"),
+    "longterm_backtest": ("Backtest", "history_edu"),
+    "pnl_longterm":      ("Live P&L Long Term", "account_balance_wallet"),
+}
+
 # ---- Inline styles for terminal sidebar ---- #
 _S = {
     "section": (
@@ -87,6 +94,42 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
     def _section_label(text):
         ui.html(f'<div style="{_S["section"]}">{text}</div>')
 
+    def _fold(label, icon, icon_color, page_ids):
+        """A nav-styled header that folds the sub-list below it (not a q-expansion, whose own padding
+        and background never matched the other nav buttons); open at start if the page is in it.
+        → the sub-list's element, to fill."""
+        is_open = {"value": active_page["value"] in page_ids}
+        toggle = (
+            ui.button(label, icon=icon)
+            .props("flat no-caps align=left")
+            .classes(f"nav-btn {icon_color} mx-2 mb-0")
+            .style(
+                "border-radius:0 !important;"
+                "font-family:var(--at-sans) !important;"
+                "font-size:12px !important; font-weight:500 !important;"
+                "color:var(--at-nav-fg) !important; height:32px !important;"
+                "border-left: 2px solid transparent;"
+            )
+        )
+        with toggle:
+            chevron = ui.icon("expand_more").style(
+                "margin-left:auto; font-size:16px; color:var(--at-nav-meta);"
+                "transition:transform .15s;"
+            )
+        menu = ui.element("div")
+
+        def _apply():
+            menu.set_visibility(is_open["value"])
+            chevron.style(f"transform:rotate({180 if is_open['value'] else 0}deg);")
+
+        def _toggle():
+            is_open["value"] = not is_open["value"]
+            _apply()
+
+        toggle.on_click(_toggle)
+        _apply()
+        return menu
+
     def refresh_backtest_menu():
         """Rebuild Backtest Algos from the strategies table: enabled ones only, live ones dotted."""
         rows = [r for r in get_strategy_rows() if r["backtest_enabled"] and r["key"] in BACKTEST_PAGES]
@@ -120,7 +163,6 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
             _nav_button("markets",        "Overview",       "bar_chart",       icon_color="icon-orange")
             _nav_button("market_news",    "Market News",    "newspaper",       icon_color="icon-orange")
             _nav_button("top_stocks",     "Top Stocks",     "rocket_launch",   icon_color="icon-amber")
-            _nav_button("swing_trades",   "Swing Trades",   "trending_up",     icon_color="icon-orange")
             _nav_button("global_markets", "Global Markets", "public",          icon_color="icon-orange")
 
             ui.separator().style(_S["sep"])
@@ -133,42 +175,20 @@ def build_sidebar(drawer, active_page, nav_btn_refs, page_containers, on_navigat
 
             ui.separator().style(_S["sep"])
 
+            # LONG TERM — one-week swing trades on daily charts, in a drop-down
+            _section_label("LONG TERM")
+            with _fold("Long Term", "event_note", "icon-green", set(LONGTERM_PAGES)):
+                for page_id, (label, icon) in LONGTERM_PAGES.items():
+                    _nav_button(page_id, label, icon, indent=True, icon_color="icon-green")
+
+            ui.separator().style(_S["sep"])
+
             # STRATEGIES
             _section_label("STRATEGIES")
             _nav_button("strategies", "Strategies", "tune", icon_color="icon-purple")
             _nav_button("strategy_analysis", "Strategy Analysis", "grading", icon_color="icon-purple")
-            # Backtest Algos: a nav-styled header that folds its sub-list (not a q-expansion,
-            # whose own padding and background never matched the other nav buttons)
-            backtest_open = {"value": active_page["value"] in {pid for pid, _, _ in BACKTEST_PAGES.values()}}
-            backtest_toggle = (
-                ui.button("Backtest Algos", icon="history_edu")
-                .props("flat no-caps align=left")
-                .classes("nav-btn icon-purple mx-2 mb-0")
-                .style(
-                    "border-radius:0 !important;"
-                    "font-family:var(--at-sans) !important;"
-                    "font-size:12px !important; font-weight:500 !important;"
-                    "color:var(--at-nav-fg) !important; height:32px !important;"
-                    "border-left: 2px solid transparent;"
-                )
-            )
-            with backtest_toggle:
-                backtest_chevron = ui.icon("expand_more").style(
-                    "margin-left:auto; font-size:16px; color:var(--at-nav-meta);"
-                    "transition:transform .15s;"
-                )
-            backtest_menu = ui.element("div")
-
-            def _apply_backtest_open():
-                backtest_menu.set_visibility(backtest_open["value"])
-                backtest_chevron.style(f"transform:rotate({180 if backtest_open['value'] else 0}deg);")
-
-            def _toggle_backtest():
-                backtest_open["value"] = not backtest_open["value"]
-                _apply_backtest_open()
-
-            backtest_toggle.on_click(_toggle_backtest)
-            _apply_backtest_open()
+            backtest_menu = _fold("Backtest Algos", "history_edu", "icon-purple",
+                                  {pid for pid, _, _ in BACKTEST_PAGES.values()})
             _nav_button("backtest_pnl", "Backtest P&L", "analytics", icon_color="icon-amber")
 
             ui.separator().style(_S["sep"])

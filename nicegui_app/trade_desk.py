@@ -128,7 +128,8 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
     # sized in whole lots: a lot is one share for stocks, lot_size units for options
     lot = max(int(r.lot_size or 1), 1)
     unit = "share" if lot == 1 else "lot"
-    lot_risk, lot_cost = r.risk_per_share * lot, r.entry * lot
+    margin = float(limits.get("margin_pct") or 100) / 100  # futures block a margin, not the contract value
+    lot_risk, lot_cost = r.risk_per_share * lot, r.entry * lot * margin
     want = math.floor(max_loss / lot_risk)
     free = max(book.balance - book.open_capital, 0.0)
     cap = book.balance * float(limits.get("max_capital_pct") or 100) / 100
@@ -150,7 +151,7 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
             r.warnings.append(f"size cut from {want} to {lots} {unit}{'s' if lots != 1 else ''} by the {why} "
                               f"(risks ₹{cut_risk:,.0f}, not ₹{max_loss:,.0f})")
     r.qty = max(lots, 0) * lot
-    r.capital = round(r.qty * r.entry, 2)
+    r.capital = round(r.qty * r.entry * margin, 2)
     r.max_loss = round(r.qty * r.risk_per_share, 2)
 
     if limits.get("reward_risk_after_charges") and r.qty:

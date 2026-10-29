@@ -1,7 +1,8 @@
 """
 Live P&L — what the live engine's trades made, after charges, for the strategies switched on for Live.
 The same page serves the options account (Live P&L Options: render_pnl_tab(..., acct=OPTIONS)), with
-the contracts the options engine is trading on top.
+the contracts the options engine is trading on top, and the long-term account (Live P&L Long Term:
+acct=LONGTERM), whose trades are held for days.
 
 Trades come from the paper account's book (account.py): each live signal was taken or skipped once,
 when the engine first saw it, sized to risk the max loss at the stop within the free balance. The
@@ -15,9 +16,9 @@ from html import escape
 
 from nicegui import app, ui
 
-from account import EQUITY, OPTIONS, PaperAccount, qty_text
+from account import EQUITY, LONGTERM, OPTIONS, PaperAccount, qty_text
 from backtest_metrics import group_by, sizing_label, summarize
-from config import OPTIONS_SELECTION, now_ist
+from config import LONGTERM_UNDERLYING, OPTIONS_SELECTION, now_ist
 from pages.pnl_widgets import (
     CSS, account_card, charges_html, equity_figure, kpi_tiles, rs, strategy_table, summary_table, td, tone,
     trades_table,
@@ -27,7 +28,7 @@ from strategy_registry import get_live_strategy_names
 LIVE_SECONDS = 5  # how often the open trades and account card pick up live prices
 
 
-def _positions_table(positions: list[dict], what: str = "Stock") -> tuple[str, float]:
+def _positions_table(positions: list[dict], what: str = "Stock", since: str = "%H:%M") -> tuple[str, float]:
     """(table html, total unrealised ₹ before charges) for the account's open trades."""
     rows, total = [], 0.0
     for t in positions:
@@ -38,7 +39,7 @@ def _positions_table(positions: list[dict], what: str = "Stock") -> tuple[str, f
             "<tr>"
             + td(what, f'{escape(t["stock"])} <span class="bt-dim">· {escape(t["strategy"])}</span>', "wide")
             + td("Side", f'<b class="{"bt-down" if short else "bt-up"}">{t["side"]}</b>')
-            + td("Since", t["time"].strftime("%H:%M"), "n")
+            + td("Since", t["time"].strftime(since), "n")
             + td("Qty", qty_text(t), "n")
             + td("Entry ₹", f'{t["entry"]:,.2f}', "n")
             + td("Now ₹", f'{float(t["last_price"] or t["entry"]):,.2f}', "n")
@@ -101,9 +102,14 @@ def _contracts_card(snap: dict) -> str:
 
 
 def render_pnl_tab(container, acct: PaperAccount = EQUITY):
-    """Build the Live P&L tab (Live P&L Options with acct=OPTIONS). Returns an async refresh() closure."""
-    options = acct is OPTIONS
-    what = "Contract" if options else "Stock"
+    """Build the Live P&L tab (Live P&L Options with acct=OPTIONS, Live P&L Long Term with acct=LONGTERM).
+    Returns an async refresh() closure."""
+    options, longterm = acct is OPTIONS, acct is LONGTERM
+    what = "Contract" if options or longterm else "Stock"
+    if longterm:  # the moving-average strategies enabled for Backtest; the others' are switched on for Live
+        from longterm import strategy_names  # noqa: PLC0415 — the engine pulls in the Dhan client
+    else:
+        strategy_names = get_live_strategy_names
 
     st = {"strategy": "All", "date": "All", "stock": "All", "view": "strategy"}
     data = {"completed": [], "active": [], "at": None, "account": None}
@@ -114,8 +120,10 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
         ui.add_head_html(CSS)
         with ui.row().classes("w-full items-end justify-between gap-2 mb-1"):
             with ui.column().classes("gap-0"):
-                ui.label("Live P&L Options" if options else "Live P&L").classes("text-xl font-bold")
+                ui.label("Live P&L Options" if options else "Live P&L Long Term" if longterm else "Live P&L")                     .classes("text-xl font-bold")
                 ui.label(("NIFTY & BANKNIFTY options, bought in whole lots · " if options else "")
+                         + (f"{LONGTERM_UNDERLYING} futures, swing trades on the daily chart, held up to "
+                            f"{acct.limits['max_hold_days']} trading days, in lots on margin · " if longterm else "")
                          + f"Paper account · {sizing_label(funds=None)} · compounding · after brokerage "
                          "and taxes · nothing here is a real order").classes("bt-sub")
             with ui.row().classes("gap-1"):
@@ -162,7 +170,7 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
         positions = _filtered(data["active"], date=False)
         if not positions:
             return
-        html, unreal = _positions_table(positions, what)
+        html, unreal = _positions_table(positions, what, since="%d %b" if longterm else "%H:%M")
         with live["box"], ui.element("div").classes("bt-card w-full mb-3"):
             ui.html(f'<div class="bt-h">Open now · <span class="{tone(unreal)}">{rs(unreal, sign=True)}</span> '
                     f'unrealised</div><div class="bt-hs">{len(positions)} position'
@@ -179,7 +187,7 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
         body.clear()
         live["box"] = None
         with body:
-            if not get_live_strategy_names():
+            if not strategy_names():
                 ui.html('<div class="bt-card bt-empty">No strategies are switched on for Live. '
                         'Turn some on in <b>Strategies</b>.</div>')
                 return
@@ -227,7 +235,7 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
 
             if st["view"] == "strategy":
                 groups = dict(group_by(_filtered(sized_all, strategy=False), "strategy"))
-                strategy_table(groups, get_live_strategy_names(), st["strategy"], _pick_strategy)
+                strategy_table(groups, strategy_names(), st["strategy"], _pick_strategy)
             elif st["view"] == "day":
                 groups = sorted(group_by(trades, "trade_date"), key=lambda kv: kv[0], reverse=True)
                 ui.html(summary_table([(datetime.strptime(d, "%Y-%m-%d").strftime("%a %d %b"), g) for d, g in groups], "Day"))
@@ -252,7 +260,7 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
     async def refresh():
         if body.client._deleted:
             return
-        live_names = get_live_strategy_names()
+        live_names = strategy_names()
         state = await asyncio.get_event_loop().run_in_executor(None, acct.account_state)
         if body.client._deleted:
             return

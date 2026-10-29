@@ -34,7 +34,8 @@ def pf(v) -> str:
     return "—" if v is None else f"{v:.2f}"
 
 
-STATUS = {"Open": ("Open", "bt-dim"), "Target Hit": ("Target", "bt-up"), "SL Hit": ("Stop", "bt-down"), "Day Close": ("Day close", "bt-dim")}
+STATUS = {"Open": ("Open", "bt-dim"), "Target Hit": ("Target", "bt-up"), "SL Hit": ("Stop", "bt-down"), "Day Close": ("Day close", "bt-dim"),
+          "Time Exit": ("Time exit", "bt-dim")}
 
 CSS = """
 <style>
@@ -156,11 +157,14 @@ def trades_table(trades: list[dict], show_stock: bool) -> str:
         exit_t = None if t.get("approx_time") else t.get("exit_time")
         exit_txt = f'<span class="bt-badge {cls}">{label}</span>'
         if hasattr(exit_t, "strftime"):
-            exit_txt += f' <span class="bt-dim">{exit_t.strftime("%H:%M")}</span>'
+            same_day = exit_t.date() == t["time"].date()  # long-term trades close on a later day
+            exit_txt += f' <span class="bt-dim">{exit_t.strftime("%H:%M" if same_day else "%d %b")}</span>'
         side_cls = "bt-up" if t["side"] == "BUY" else "bt-down"
         body.append(
             "<tr>"
-            + td("Entry", t["time"].strftime("%d %b" if t.get("approx_time") else "%d %b · %H:%M"), "wide")
+            # no time for old live records without one, or a daily bar's signal (long term: stamped 00:00)
+            + td("Entry", t["time"].strftime("%d %b" if t.get("approx_time") or t["time"].hour == t["time"].minute == 0
+                                             else "%d %b · %H:%M"), "wide")
             + (td("Stock", escape(t.get("stock", ""))) if show_stock else "")
             + td("Strategy", escape(t["strategy"]))
             + td("Side", f'<b class="{side_cls}">{t["side"]}</b>')

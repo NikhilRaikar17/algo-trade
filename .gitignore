@@ -28,6 +28,7 @@ launch.json
 .live_account*.json
 .live_book*.json
 .lot_sizes.json
+.nifty_futures.json
 
 # Working files from the trader-* Claude skills
 trader/

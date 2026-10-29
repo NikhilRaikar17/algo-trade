@@ -1,9 +1,11 @@
 """
 Dhan brokerage and taxes calculator.
 
-Supports two segments:
+Supports four segments:
   - "equity_intraday"  — NSE equity intraday (MIS)
+  - "equity_delivery"  — NSE equity delivery (CNC)
   - "fno"              — NSE F&O (options)
+  - "fno_futures"      — NSE index futures, the long-term account
 
 Reference: https://dhan.co/charges/
 
@@ -22,6 +24,16 @@ _IPFT_PCT       = 0.000000001   # 0.0000001% of turnover (IPFT contribution), sh
 _EQ_STT_PCT        = 0.00025      # 0.025% on sell-side turnover
 _EQ_EXCHANGE_PCT   = 0.000030699  # 0.0030699% NSE transaction charge, as Dhan lists it
 _EQ_STAMP_PCT      = 0.00003      # 0.003% on buy-side turnover
+
+# Equity delivery (CNC) rates — no brokerage at Dhan; the DP charge is paid on the sell day
+_DEL_STT_PCT       = 0.001        # 0.1% on buy and sell turnover
+_DEL_STAMP_PCT     = 0.00015      # 0.015% on buy-side turnover
+_DEL_DP_CHARGE     = 12.5         # ₹ per scrip sold (CDSL + Dhan), GST on top
+
+# Index futures rates (on the contract value, not the margin)
+_FUT_STT_PCT       = 0.0005     # 0.05% on sell-side turnover (Finance Act 2026, from 1 Apr 2026)
+_FUT_EXCHANGE_PCT  = 0.0000173  # 0.00173% NSE futures transaction charge
+_FUT_STAMP_PCT     = 0.00002    # 0.002% on buy-side turnover
 
 # F&O (options) rates
 _FNO_STT_PCT       = 0.0015     # 0.15% on sell-side premium (Finance Act 2026, from 1 Apr 2026)
@@ -57,7 +69,7 @@ def calculate_brokerage(
     exit_price: float,
     lot_size: int = DEFAULT_LOT_SIZE,
     quantity: int = 1,
-    segment: str = "fno",        # "fno" | "equity_intraday"
+    segment: str = "fno",        # "fno" | "fno_futures" | "equity_intraday" | "equity_delivery"
     short: bool = False,         # True: sold at entry, bought back at exit
 ) -> dict:
     """
@@ -69,7 +81,7 @@ def calculate_brokerage(
     exit_price  : float   price at exit  (₹ per unit)
     lot_size    : int     units per lot (1 for equity shares)
     quantity    : int     number of lots / shares traded
-    segment     : str     "fno" or "equity_intraday"
+    segment     : str     "fno", "fno_futures", "equity_intraday" or "equity_delivery"
 
     Returns
     -------
@@ -88,6 +100,14 @@ def calculate_brokerage(
         stt_pct      = _EQ_STT_PCT
         exchange_pct = _EQ_EXCHANGE_PCT
         stamp_pct    = _EQ_STAMP_PCT
+    elif segment == "equity_delivery":
+        stt_pct      = _DEL_STT_PCT
+        exchange_pct = _EQ_EXCHANGE_PCT
+        stamp_pct    = _DEL_STAMP_PCT
+    elif segment == "fno_futures":
+        stt_pct      = _FUT_STT_PCT
+        exchange_pct = _FUT_EXCHANGE_PCT
+        stamp_pct    = _FUT_STAMP_PCT
     else:  # fno
         stt_pct      = _FNO_STT_PCT
         exchange_pct = _FNO_EXCHANGE_PCT
@@ -102,12 +122,14 @@ def calculate_brokerage(
     if segment == "equity_intraday":
         brokerage_buy  = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * buy_turnover)
         brokerage_sell = min(_BROKERAGE_FLAT, _BROKERAGE_PCT * sell_turnover)
+    elif segment == "equity_delivery":
+        brokerage_buy, brokerage_sell = 0.0, _DEL_DP_CHARGE  # shown under brokerage, so GST applies to it
     else:
         brokerage_buy = brokerage_sell = _BROKERAGE_FLAT
     brokerage = brokerage_buy + brokerage_sell
 
-    # STT — only on sell side, rounded to the rupee as on the contract note
-    stt = _rupee(stt_pct * sell_turnover)
+    # STT — sell side only (delivery: both sides), rounded to the rupee as on the contract note
+    stt = _rupee(stt_pct * (buy_turnover + sell_turnover if segment == "equity_delivery" else sell_turnover))
 
     # Exchange transaction charge + IPFT (both sides)
     total_turnover = buy_turnover + sell_turnover
