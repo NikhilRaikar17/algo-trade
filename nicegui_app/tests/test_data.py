@@ -77,3 +77,69 @@ def test_get_expiries_uses_cache(mocker):
 
     mock_api.assert_not_called()
     assert len(result) == 2
+
+
+# ── nifty50_stocks ───────────────────────────────────────────────────────────
+
+def _index(n=50):
+    return [{"Symbol": f"S{i}", "ISIN Code": f"INE{i:05d}"} for i in range(n)]
+
+
+def _instruments(n=50, **override):
+    rows = [{"INSTRUMENT": "EQUITY", "SERIES": "EQ", "ISIN": f"INE{i:05d}",
+             "UNDERLYING_SYMBOL": f"S{i}", "SECURITY_ID": str(1000 + i)} for i in range(n)]
+    rows[0].update(override)
+    return rows
+
+
+def test_map_nifty50_matches_on_isin():
+    from data import map_nifty50
+    stocks = map_nifty50(_index(), _instruments() + [
+        {"INSTRUMENT": "EQUITY", "SERIES": "BE", "ISIN": "INE00000", "UNDERLYING_SYMBOL": "S0", "SECURITY_ID": "9"},
+    ])
+    assert stocks[0] == {"name": "S0", "security_id": "1000"}   # the BE-series row is ignored
+    assert len(stocks) == 50
+
+
+@pytest.mark.parametrize("override", [{"UNDERLYING_SYMBOL": "OTHER"}, {"ISIN": "INE99999"}])
+def test_map_nifty50_rejects_a_symbol_it_cannot_match_exactly(override):
+    from data import map_nifty50
+    with pytest.raises(ValueError, match="S0"):
+        map_nifty50(_index(), _instruments(**override))
+
+
+def test_map_nifty50_rejects_a_list_that_is_not_50():
+    from data import map_nifty50
+    with pytest.raises(ValueError, match="49"):
+        map_nifty50(_index(49), _instruments(49))
+
+
+@pytest.fixture
+def nifty50(mocker, tmp_path):
+    import data
+    mocker.patch.object(data, "_NIFTY50_FILE", str(tmp_path / ".nifty50.json"))
+    mocker.patch.dict(data._nifty50, {"day": None, "list": [], "retry_at": 0.0})
+    return data
+
+
+def test_nifty50_downloads_once_a_day_and_saves(nifty50, mocker):
+    fresh = [{"name": "JPL", "security_id": "766830"}]
+    dl = mocker.patch.object(nifty50, "_download_nifty50", return_value=fresh)
+    assert nifty50.nifty50_stocks() == fresh
+    assert nifty50.nifty50_stocks() == fresh
+    assert dl.call_count == 1
+    nifty50._nifty50.update(day=None)          # a restart the same day reads the file
+    assert nifty50.nifty50_stocks() == fresh
+    assert dl.call_count == 1
+
+
+def test_nifty50_falls_back_to_saved_then_builtin_list(nifty50, mocker):
+    import json
+    mocker.patch.object(nifty50, "_download_nifty50", side_effect=OSError("offline"))
+    assert nifty50.nifty50_stocks() == nifty50.NIFTY50_STOCKS
+
+    saved = [{"name": "OLD", "security_id": "1"}]
+    with open(nifty50._NIFTY50_FILE, "w") as f:
+        json.dump({"day": "2000-01-01", "list": saved}, f)
+    nifty50._nifty50.update(retry_at=0.0)
+    assert nifty50.nifty50_stocks() == saved

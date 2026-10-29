@@ -28,7 +28,7 @@ import ws_feed
 from account import alert_day_stop, closed_text, on_tick, open_trades, square_off
 from config import now_ist
 from state import _send_telegram, _trade_store, is_market_open
-from data import _fetch_any_stock_candles, NIFTY50_STOCKS, STOCK_WATCH_GROUPS
+from data import _fetch_any_stock_candles, nifty50_stocks, STOCK_WATCH_GROUPS
 from strategy_registry import get_live_strategy_keys
 from algo_strategies import (
     find_swing_points,
@@ -96,7 +96,7 @@ def _security_ids() -> dict[str, str]:
 
     if time.time() - _sid_cache["at"] > 60:
         sid_by_name = {s["name"]: str(s["security_id"]) for s in get_active_top_stocks()}
-        for s in NIFTY50_STOCKS:
+        for s in nifty50_stocks():
             sid_by_name.setdefault(s["name"], str(s["security_id"]))
         for grp in STOCK_WATCH_GROUPS:
             for s in grp["stocks"]:

@@ -2,6 +2,13 @@
 Data fetching: expiries, option chains, candles, trend analysis.
 """
 
+import csv
+import io
+import json
+import os
+import threading
+import time
+import urllib.request
 import pandas as pd
 from datetime import datetime
 
@@ -360,10 +367,10 @@ def _fetch_any_stock_candles(security_id: str, interval: int = 15, retries: int 
     return df
 
 
-# NIFTY 50 constituents — the Top Stocks universe. Symbols from NSE's official list
+# NIFTY 50 constituents as of 2026-10-29 — only the fallback: the Top Stocks universe is
+# nifty50_stocks(), which downloads the current list once a day. Symbols from NSE's official list
 # (https://niftyindices.com/IndexConstituent/ind_nifty50list.csv), security_id from Dhan's scrip
-# master (NSE / E / EQ), every id checked to return candles — all on 2026-10-26.
-# NSE rebalances the index in March and September: refresh this list then.
+# master (NSE / E / EQ), every id checked to return candles.
 NIFTY50_STOCKS = [
     {"name": "ADANIENT",     "security_id": "25"},
     {"name": "ADANIPORTS",   "security_id": "15083"},
@@ -416,6 +423,90 @@ NIFTY50_STOCKS = [
     {"name": "TRENT",        "security_id": "1964"},
     {"name": "ULTRACEMCO",   "security_id": "11532"},
 ]
+
+_NIFTY50_URLS = (
+    "https://niftyindices.com/IndexConstituent/ind_nifty50list.csv",
+    "https://nsearchives.nseindia.com/content/indices/ind_nifty50list.csv",
+)
+_NSE_EQ_URL = "https://api.dhan.co/v2/instrument/NSE_EQ"  # redirects to a ~1.6 MB CSV
+_NIFTY50_FILE = os.path.join(os.path.dirname(__file__), ".nifty50.json")
+_NIFTY50_RETRY_SECONDS = 1800  # after a failed download, keep the fallback this long before retrying
+_nifty50_lock = threading.Lock()
+_nifty50: dict = {"day": None, "list": [], "retry_at": 0.0}
+
+
+def map_nifty50(index_rows: list[dict], instrument_rows) -> list[dict]:
+    """[{"name", "security_id"}] for NSE's constituent rows (Symbol, ISIN Code) from Dhan's NSE_EQ
+    instruments, matched on ISIN: exactly one EQ-series equity with the same symbol, or ValueError.
+    A wrong id silently returns another company's candles, so nothing is guessed."""
+    by_isin: dict[str, list[dict]] = {}
+    for row in instrument_rows:
+        if row.get("INSTRUMENT") == "EQUITY" and row.get("SERIES") == "EQ":
+            by_isin.setdefault(row["ISIN"], []).append(row)
+    stocks = []
+    for r in index_rows:
+        symbol, isin = r["Symbol"].strip(), r["ISIN Code"].strip()
+        found = by_isin.get(isin, [])
+        if len(found) != 1 or found[0]["UNDERLYING_SYMBOL"] != symbol:
+            raise ValueError(f"{symbol} ({isin}): {len(found)} Dhan EQ rows match")
+        stocks.append({"name": symbol, "security_id": str(found[0]["SECURITY_ID"])})
+    if len(stocks) != 50:
+        raise ValueError(f"NSE list has {len(stocks)} stocks, expected 50")
+    return stocks
+
+
+def _download_nifty50() -> list[dict]:
+    index_rows, errors = None, []
+    for url in _NIFTY50_URLS:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                index_rows = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8-sig"))))
+            break
+        except Exception as e:
+            errors.append(f"{url}: {e}")
+    if index_rows is None:
+        raise RuntimeError("; ".join(errors))
+    with urllib.request.urlopen(_NSE_EQ_URL, timeout=60) as resp:
+        return map_nifty50(index_rows, csv.DictReader(io.TextIOWrapper(resp, encoding="utf-8", newline="")))
+
+
+def nifty50_stocks() -> list[dict]:
+    """The current NIFTY 50 as [{"name", "security_id"}]: NSE's list mapped to Dhan ids, downloaded
+    once a day and kept in .nifty50.json across restarts. If the download fails: the last saved list,
+    else NIFTY50_STOCKS (retried every 30 min)."""
+    today = now_ist().strftime("%Y-%m-%d")
+    with _nifty50_lock:
+        if _nifty50["day"] == today or time.time() < _nifty50["retry_at"]:
+            return _nifty50["list"]
+        saved = {}
+        try:
+            with open(_NIFTY50_FILE) as f:
+                saved = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        if saved.get("day") == today and saved.get("list"):
+            _nifty50.update(day=today, list=saved["list"])
+            return saved["list"]
+        try:
+            stocks = _download_nifty50()
+        except Exception as e:
+            fallback = saved.get("list") or NIFTY50_STOCKS
+            print(f"  [nifty50] download failed ({e}), using the "
+                  f"{'list saved on ' + saved['day'] if saved.get('list') else 'built-in list'}")
+            _nifty50.update(list=fallback, retry_at=time.time() + _NIFTY50_RETRY_SECONDS)
+            return fallback
+        before = {s["name"] for s in saved.get("list") or NIFTY50_STOCKS}
+        after = {s["name"] for s in stocks}
+        if before != after:
+            print(f"  [nifty50] index changed — added {sorted(after - before)}, removed {sorted(before - after)}")
+        try:
+            with open(_NIFTY50_FILE, "w") as f:
+                json.dump({"day": today, "list": stocks}, f)
+        except OSError as e:
+            print(f"  [nifty50] could not save {_NIFTY50_FILE}: {e}")
+        _nifty50.update(day=today, list=stocks, retry_at=0.0)
+        return stocks
 
 
 def fetch_stock_candles_history(security_id: str, interval: int = 5, days: int = 60) -> pd.DataFrame:

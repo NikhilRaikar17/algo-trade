@@ -13,9 +13,10 @@ import uuid
 
 from nicegui import ui, context
 
-from config import now_ist
-from data import NIFTY50_STOCKS, _fetch_any_stock_candles, _candles_to_daily_change
+from config import dhan, now_ist
+from data import nifty50_stocks, _fetch_any_stock_candles, _candles_to_daily_change
 from db import sync_top_stocks
+from state import api_call, is_market_open
 from tv_charts import _BASE_OPTS, _CANDLE_OPTS, _schedule_js, _candles_to_tv, _resize_listener, _ohlc_tooltip_js
 
 
@@ -25,19 +26,47 @@ MIN_COVERAGE = 45    # of 50: below this the ranking is too partial to replace t
 _PAUSE_SECONDS = 0.35  # between per-stock requests; back-to-back calls get rate-limited
 
 
-def _fetch_top_stocks(top_n: int = TOP_N) -> tuple[list[dict], list[dict], dict]:
-    """
-    Rank all NIFTY 50 stocks by today's % change vs the previous close (15-min candles).
-    Returns (top_gainers, top_losers, meta); meta = {"fetched", "universe", "updated", "synced"}.
-
-    The DB list (what the trading engine scans) is only replaced when at least MIN_COVERAGE
-    stocks loaded, and a stock already on it stays while it ranks within KEEP_RANK on its
-    side, so a #5/#6 swap of 0.01% doesn't churn the engine's universe every 5 minutes.
-    """
-    from db import get_active_top_stocks
-
+def quote_changes(quotes: dict, universe: list[dict]) -> list[dict]:
+    """Today's change for each stock from Dhan's quote payload ({security_id: quote}); "close" there is
+    the official previous close, as broker apps use. Stocks without a price yet are left out."""
     results = []
-    for stock in NIFTY50_STOCKS:
+    for stock in universe:
+        q = quotes.get(str(stock["security_id"])) or {}
+        ohlc, ltp = q.get("ohlc") or {}, q.get("last_price")
+        prev = ohlc.get("close")
+        if not ltp or not prev:
+            continue
+        ltp, prev = float(ltp), float(prev)
+        change = ltp - prev
+        results.append({
+            "name":        stock["name"],
+            "security_id": stock["security_id"],
+            "data": {
+                "current":    round(ltp, 2),
+                "prev_close": round(prev, 2),
+                "open":       round(float(ohlc.get("open") or ltp), 2),
+                "high":       round(max(float(ohlc.get("high") or ltp), ltp), 2),
+                "low":        round(min(float(ohlc.get("low") or ltp), ltp), 2),
+                "change":     round(change, 2),
+                "change_pct": round(change / prev * 100, 2),
+                "is_green":   change >= 0,
+            },
+        })
+    return results
+
+
+def _quote_results(universe: list[dict]) -> list[dict]:
+    """The whole universe from one bulk quote call (Dhan takes up to 1000 instruments)."""
+    r = api_call(dhan.quote_data, securities={"NSE_EQ": [int(s["security_id"]) for s in universe]}, retries=3)
+    data = r.get("data") if isinstance(r, dict) else None
+    data = (data or {}).get("data", data) or {}  # dhanhq wraps the payload in "data" twice
+    return quote_changes(data.get("NSE_EQ") or {}, universe)
+
+
+def _candle_results(universe: list[dict]) -> list[dict]:
+    """The universe one stock at a time from 15-min candles (~30 s): previous close = the last trade."""
+    results = []
+    for stock in universe:
         try:
             df = _fetch_any_stock_candles(stock["security_id"], interval=15, retries=3)
             data = _candles_to_daily_change(df)
@@ -50,6 +79,35 @@ def _fetch_top_stocks(top_n: int = TOP_N) -> tuple[list[dict], list[dict], dict]
         except Exception as e:
             print(f"  [top_stocks] {stock['name']} error: {e}")
         time.sleep(_PAUSE_SECONDS)
+    return results
+
+
+def _fetch_top_stocks(top_n: int = TOP_N) -> tuple[list[dict], list[dict], dict]:
+    """
+    Rank all NIFTY 50 stocks by today's % change vs the previous close.
+    Returns (top_gainers, top_losers, meta); meta = {"fetched", "universe", "updated", "synced"}.
+
+    In market hours one bulk quote call prices all 50; outside them (the closing ranking, a start
+    after hours), or if the quotes come back short, the 15-min candles, stock by stock.
+
+    The DB list (what the trading engine scans) is only replaced when at least MIN_COVERAGE
+    stocks loaded, and a stock already on it stays while it ranks within KEEP_RANK on its
+    side, so a #5/#6 swap of 0.01% doesn't churn the engine's universe every 5 minutes.
+    """
+    from db import get_active_top_stocks
+
+    universe = nifty50_stocks()
+    results = []
+    if is_market_open():
+        try:
+            results = _quote_results(universe)
+        except Exception as e:
+            print(f"  [top_stocks] bulk quote error: {e}")
+        if len(results) < MIN_COVERAGE:
+            print(f"  [top_stocks] bulk quote priced {len(results)}/{len(universe)} — using candles")
+            results = _candle_results(universe)
+    else:
+        results = _candle_results(universe)
 
     gainers = sorted(
         [r for r in results if r["data"]["change_pct"] >= 0],
@@ -63,11 +121,11 @@ def _fetch_top_stocks(top_n: int = TOP_N) -> tuple[list[dict], list[dict], dict]
 
     top_gainers = gainers[:top_n]
     top_losers  = losers[:top_n]
-    meta = {"fetched": len(results), "universe": len(NIFTY50_STOCKS),
+    meta = {"fetched": len(results), "universe": len(universe),
             "updated": now_ist().strftime("%H:%M:%S"), "synced": False}
 
     if len(results) < MIN_COVERAGE:
-        print(f"  [top_stocks] only {len(results)}/{len(NIFTY50_STOCKS)} loaded — keeping the previous list")
+        print(f"  [top_stocks] only {len(results)}/{len(universe)} loaded — keeping the previous list")
         return top_gainers, top_losers, meta
 
     # Persist to DB with hysteresis: keep current members still within KEEP_RANK on their side
