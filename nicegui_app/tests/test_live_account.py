@@ -89,9 +89,12 @@ def test_day_stops_on_three_losses_in_a_row_or_750_down():
 
 def test_decision_is_made_once_and_never_redone(acct):
     sigs = [("A", "10:00", 500, 495, 510)] + [(s, f"10:{m}", 200, 198, 204) for s, m in (("B", 10), ("C", 15), ("D", 20))]
-    for sym, hhmm, entry, stop, target in sigs:               # four trades of ₹25,000: the ₹1L is used up
+    capitals = []
+    for sym, hhmm, entry, stop, target in sigs:               # ₹25,000 each, run together, out of the ₹70,000 (70%)
         rec, new = account.open_signal(_sig(hhmm, entry, stop, target, "BUY"), "S", sym, entry, now=_at(hhmm))
-        assert new and rec["verdict"] == TAKEN and rec["capital"] == pytest.approx(25_000)
+        assert new
+        capitals.append(rec["capital"] if rec["verdict"] == TAKEN else None)
+    assert capitals == [pytest.approx(25_000), pytest.approx(25_000), pytest.approx(20_000), None]  # C cut, D skipped
     e = _sig("10:30", 100, 99, 102, "BUY")
     rec, _ = account.open_signal(e, "S", "E", 100, now=_at("10:35"))
     assert rec["verdict"] == SKIPPED and "no free funds" in rec["reasons"][0]
@@ -131,7 +134,7 @@ def test_square_off_and_account_state(acct):
     account.mark_price(a, "S", "A", 503)
     s = account.account_state(now=_at("14:00"))
     assert s["open"] == 1 and s["in_positions"] == pytest.approx(25_000)
-    assert s["unrealized"] == pytest.approx(150) and s["free"] == pytest.approx(75_000)
+    assert s["unrealized"] == pytest.approx(150) and s["free"] == pytest.approx(45_000)   # 70% of ₹1L, less A
     assert account.square_off(now=_at("15:20"))[0]["status"] == "Day Close"
     assert acct and acct[0].startswith("SQUARED OFF")
     s = account.account_state(now=_at("15:30"))
@@ -151,10 +154,10 @@ def test_telegram_only_alerts_taken_trades_and_the_day_stop(acct, monkeypatch):
     monkeypatch.setattr(algo_strategies, "now_ist", lambda: _at("11:00"))
     monkeypatch.setattr(account, "now_ist", lambda: _at("10:30"))
     sigs = [dict(_sig(f"10:{m:02d}", 100, 99, 102, "BUY"), signal="BUY") for m in (0, 5, 10, 15, 20)]
-    for i, s in enumerate(sigs):  # five stocks at ₹25,000 each: the fifth has no free funds
+    for i, s in enumerate(sigs):  # five stocks at ₹16,683 each: the fifth has no room in the ₹70,000
         algo_strategies._classify_generic([s], 100.5, f"STK{i}", "EMA10", "ema10")
     assert [m.split(" [")[0] for m in sent] == ["NEW TRADE"] * 4   # the fifth is skipped, quietly
-    assert "Size: BUY 250 × ₹100.00" in sent[0]
+    assert "Size: BUY 166 × ₹100.50" in sent[0]                   # filled at the live price, not the signal's 100
 
     sent.clear()
     monkeypatch.setattr(account, "now_ist", lambda: _at("11:00"))
@@ -162,7 +165,7 @@ def test_telegram_only_alerts_taken_trades_and_the_day_stop(acct, monkeypatch):
         algo_strategies._classify_generic([dict(s)], 99, f"STK{i}", "EMA10", "ema10")
     heads = [m.splitlines()[0].split(" [")[0] for m in sent]
     assert heads == ["TRADE CLOSED"] * 3 + ["TRADING STOPPED FOR TODAY"] + ["TRADE CLOSED"]
-    assert "on 250 shares" in sent[0] and "3 losing trades in a row" in sent[3]
+    assert "on 166 shares" in sent[0] and "3 losing trades in a row" in sent[3]
 
 
 def test_ticks_close_at_the_target_or_stop_level(acct):
@@ -212,3 +215,12 @@ def test_feed_carries_the_union_of_every_watcher(monkeypatch):
     import ws_feed
     monkeypatch.setattr(ws_feed, "_eq_watch", {"algo": frozenset({(1, "5")}), "positions": frozenset({(1, "7"), (1, "5")})})
     assert ws_feed._wanted() == {(1, "5"), (1, "7")}
+
+
+def test_a_late_signal_is_filled_at_the_live_price_and_sized_from_there(acct):
+    rec, _ = account.open_signal(_sig("10:00", 500, 495, 510, "BUY"), "S", "A", 502, now=_at("12:25"))
+    assert rec["verdict"] == TAKEN and rec["entry"] == 502 and rec["signal_entry"] == 500
+    assert rec["qty"] == 35 and rec["max_loss"] == pytest.approx(245)   # ₹250 / ₹7 risk from 502 to the stop
+    assert account.account_state(now=_at("12:30"))["positions"][0]["time"] == _at("12:25")  # held since 12:25
+    past, _ = account.open_signal(_sig("10:00", 300, 297, 306, "BUY"), "S", "B", 307, now=_at("12:25"))
+    assert past["verdict"] == SKIPPED and past["reasons"] == ["the price is already past the target"]

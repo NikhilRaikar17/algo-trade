@@ -113,6 +113,11 @@ def build_rows(active: list[dict], completed: list[dict], decisions: dict | None
     return rows
 
 
+def deployable(balance: float, limits: dict) -> float:
+    """₹ of the balance open trades may use together (limits["deploy_pct"]); the rest stays idle."""
+    return balance * float(limits.get("deploy_pct") or 100) / 100
+
+
 def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
     """Size `r` and take or skip it against `limits`, given what the account holds at `now`."""
     r.reasons, r.warnings = [], []
@@ -121,8 +126,12 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
     reward = abs(r.target - r.entry)
 
     stop_ok = (r.stop < r.entry) if r.side == "BUY" else (r.stop > r.entry)
+    target_ok = (r.target > r.entry) if r.side == "BUY" else (r.target < r.entry)
     if r.risk_per_share <= 0 or not stop_ok:
         r.reasons.append("stop is missing or on the wrong side of the entry")
+    elif not target_ok:
+        r.reasons.append("the price is already past the target")
+    if r.reasons:
         r.verdict = SKIPPED
         return r
 
@@ -134,14 +143,16 @@ def check(r: DeskRow, book: Book, limits: dict, now: datetime) -> DeskRow:
     unit_cost = r.cost_per_unit or r.entry * margin
     lot_risk, lot_cost = r.risk_per_share * lot, unit_cost * lot
     want = math.floor(max_loss / lot_risk)
-    free = max(book.balance - book.open_capital, 0.0)
+    tradable = deployable(book.balance, limits)
+    free = max(tradable - book.open_capital, 0.0)
     cap = book.balance * float(limits.get("max_capital_pct") or 100) / 100
     lots = min(want, math.floor(min(free, cap) / lot_cost))
 
     if want < 1:
         r.reasons.append(f"one {unit} risks ₹{lot_risk:,.2f}, over your ₹{max_loss:,.0f} max loss per trade")
     elif free < lot_cost:
-        r.reasons.append(f"no free funds: ₹{book.open_capital:,.0f} of your ₹{book.balance:,.0f} is in open positions")
+        r.reasons.append(f"no free funds: ₹{book.open_capital:,.0f} of the ₹{tradable:,.0f} you trade with "
+                         f"is in open positions")
     elif lots < 1:
         r.reasons.append(f"one {unit} costs more than the ₹{cap:,.0f} per-trade cap")
     elif lots < want:

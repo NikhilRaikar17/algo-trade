@@ -11,8 +11,9 @@ trade's net P&L, i.e. after brokerage, STT, exchange, GST, SEBI and stamp charge
   limits["max_hold_days"] trading days instead of at the day's square-off.
 
 Each account's book holds one decision per live signal, made once, the first time the engine sees the
-signal (open_signal): trade_desk.check() sizes it to risk the max loss at the stop and takes or skips it
-against the account at that moment. A taken trade holds its capital until it hits its target or stop
+signal (open_signal): it is filled at the live price at that moment, and trade_desk.check() sizes it to
+risk the max loss at the stop and takes or skips it against the account at that moment (open trades
+together use at most limits["deploy_pct"] of the balance). A taken trade holds its capital until it hits its target or stop
 (on_tick / close_signal) or is squared off at limits["square_off"] (square_off). Decisions are never
 worked out again, so nothing changes after the fact. Only taken trades are alerted on Telegram and count
 in the balance. Nothing here places an order.
@@ -34,7 +35,7 @@ import pandas as pd
 from backtest_metrics import _CHARGE_KEYS, inr, rupees_text
 from brokerage import calculate_brokerage
 from config import IST, LONGTERM_LIMITS, OPTIONS_LIMITS, RISK_LIMITS, is_nse_holiday, now_ist
-from trade_desk import SKIPPED, TAKEN, Book, _hhmm, check, day_stop, signal_key, to_row
+from trade_desk import SKIPPED, TAKEN, Book, _hhmm, check, day_stop, deployable, signal_key, to_row
 
 _DIR = os.path.dirname(__file__)
 
@@ -224,12 +225,16 @@ class PaperAccount:
             if row is None:
                 return None, False
             meta = self.meta.get(symbol, {})
+            signal_entry = row.entry
+            if price is not None:  # filled now, at the live price, not at the signal bar's (it may be minutes old)
+                row.entry = round(float(price), 2)
             row.current_price, row.lot_size, row.group = price, int(meta.get("lot_size") or 1), meta.get("group", "")
             row.cost_per_unit = float(meta.get("cost_per_unit") or 0)
             if meta.get("legs"):
                 row.charges_for = lambda q, legs=meta["legs"]: sum(legs_charges(legs, q, self.segment).values())
             check(row, self._holdings(self._counted(book), now.strftime("%Y-%m-%d")), self.limits, now)
-            book[key] = rec = {**meta, **_record(row, trade, now, "Open" if row.verdict == TAKEN else None)}
+            book[key] = rec = {**meta, **_record(row, trade, now, "Open" if row.verdict == TAKEN else None),
+                               "signal_entry": signal_entry}
             self._save_book(book)
         return rec, True
 
@@ -392,16 +397,19 @@ class PaperAccount:
             if _is_open(r):
                 price = float(r["last_price"] or r["entry"])
                 move = (price - r["entry"]) if r["side"] == "BUY" else (r["entry"] - price)
-                positions.append({**r, "stock": r["symbol"], "time": _ts(r["time"]), "unrealized": move * r["qty"]})
+                positions.append({**r, "stock": r["symbol"], "time": _ts(r["decided_at"]),
+                                  "unrealized": move * r["qty"]})
         balance = initial + s["net"]
         in_positions = sum(p["capital"] for p in positions)
+        tradable = deployable(balance, self.limits)
         today = now.strftime("%Y-%m-%d")
         return {
             "initial": initial, "start": self.start_time(), "balance": balance,
             "realized": s["net"], "gross": s["gross"], "charges": s["charges"],
             "trades": s["trades"], "wins": s["wins"], "losses": s["losses"],
             "return_pct": (balance - initial) / initial * 100,
-            "in_positions": in_positions, "free": max(balance - in_positions, 0.0),
+            "tradable": tradable, "deploy_pct": float(self.limits.get("deploy_pct") or 100),
+            "in_positions": in_positions, "free": max(tradable - in_positions, 0.0),
             "unrealized": sum(p["unrealized"] for p in positions), "open": len(positions),
             "sized": sized, "positions": positions,
             "skipped_today": [{**r, "stock": r["symbol"]} for r in recs
@@ -416,7 +424,7 @@ def _as_trade(r: dict) -> dict:
     """A closed taken trade in the shape size_trades() gives the P&L widgets."""
     entry, exit_px = float(r["entry"]), float(r["exit_price"])
     return {
-        **r, "stock": r["symbol"], "time": _ts(r["time"]), "exit_time": _ts(r["exit_time"]),
+        **r, "stock": r["symbol"], "time": _ts(r["decided_at"]), "exit_time": _ts(r["exit_time"]),
         "pnl": (exit_px - entry) if r["side"] == "BUY" else (entry - exit_px),
         "funds_cut": any("size cut" in w for w in r["warnings"]),
         "ret_pct": r["net"] / r["capital"] * 100 if r["capital"] else 0.0,

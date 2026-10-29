@@ -57,6 +57,7 @@ RISK_LIMITS = {
     "funds": 100_000,             # ₹ the paper account starts with; open positions hold their capital
                                   # until they close (no intraday leverage)
     "max_loss_per_trade": 1000,   # ₹ lost if the stop fills at the stop price; sets the quantity
+    "deploy_pct": 70,             # % of the balance all open trades together may use; the rest stays idle
     "max_capital_pct": 30,        # % of the balance one trade may use, leaving room for other trades;
                                   # the quantity is cut to fit it, or to the free funds if less is left
     "min_risk_pct": 0,            # skip a trade cut by the funds below this % of max_loss_per_trade (0 = never)
@@ -117,6 +118,7 @@ LONGTERM_LIMITS = {
     "margin_pct": 12.5,           # % of the contract value blocked as margin per lot (NIFTY SPAN + exposure, approx.)
     "max_loss_per_trade": 30_000, # ₹ lost at the stop: a 1.5 × ATR stop is ~400 points × 65 ≈ ₹26,000 a lot
     "max_capital_pct": 100,       # one position at a time (one future), so it may use the whole balance as margin
+    "deploy_pct": 100,
     "max_daily_loss": None,       # trades close days apart: no intraday loss limit or losing streak
     "max_losing_streak": None,
     "min_reward_risk": 1.5,

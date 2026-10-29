@@ -247,11 +247,13 @@ def strategy_table(groups: dict, names: list[str], selected: str, on_pick):
 
 def account_card(a: dict, compact: bool = False) -> str:
     """The live paper account (account.account_state()): balance, free funds, what's in open positions."""
-    used_pct = 0 if a["balance"] <= 0 else min(100, a["in_positions"] / a["balance"] * 100)
+    tradable = a.get("tradable", a["balance"])
+    used_pct = 0 if tradable <= 0 else min(100, a["in_positions"] / tradable * 100)
     started = a["start"].strftime("%d %b %Y, %H:%M")
+    idle = (f' · {rs(a["balance"] - tradable)} kept idle' if a["balance"] - tradable >= 1 else "")
     bar = (f'<div class="bt-fundsbar"><span style="width:{used_pct:.1f}%"></span></div>'
            f'<div class="bt-s">{rs(a["in_positions"])} in {a["open"]} open position{"s" if a["open"] != 1 else ""}'
-           f' · {rs(a["free"])} free</div>')
+           f' of {rs(tradable)} to trade ({a.get("deploy_pct", 100):.0f}% of the balance){idle}</div>')
     if compact:
         return f"""
         <div class="bt-card bt-acct-compact">

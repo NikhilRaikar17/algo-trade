@@ -5,7 +5,9 @@ the contracts the options engine is trading on top, and the long-term account (L
 acct=LONGTERM), whose trades are held for days.
 
 Trades come from the paper account's book (account.py): each live signal was taken or skipped once,
-when the engine first saw it, sized to risk the max loss at the stop within the free balance. The
+when the engine first saw it, filled at the live price and sized to risk the max loss at the stop
+within the free funds (deploy_pct of the balance, less what open trades hold). Several trades run at
+once. The
 account starts with RISK_LIMITS["funds"] and compounds every closed trade's net P&L after brokerage
 and taxes.
 """
@@ -219,6 +221,15 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
             live["box"] = ui.element("div").classes("w-full")
             _render_live()
 
+            sized_all = data["completed"]  # sized and compounded by the account
+            trades = _filtered(sized_all)
+            if sized_all:
+                with ui.element("div").classes("bt-card w-full mb-3"):
+                    ui.html(f'<div class="bt-h">Completed trades · {len(trades)}</div><div class="bt-hs">Closed at '
+                            'their target, stop or the square-off, newest first. Net is after brokerage and taxes.</div>')
+                    ui.html(trades_table(trades, show_stock=True) if trades
+                            else '<div class="bt-hs">No trades match these filters.</div>')
+
             skipped = _filtered(data["account"]["skipped_today"], date=False)
             if skipped:
                 with ui.element("div").classes("bt-card w-full mb-3"):
@@ -226,13 +237,11 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
                             'account did not take, with the reason. They are not in any total.</div>')
                     ui.html(_skipped_table(skipped, what))
 
-            if not data["completed"]:
+            if not sized_all:
                 ui.html('<div class="bt-card bt-empty mt-3">No closed trades since the account started. '
                         'The balance will move as the live engine\'s trades close.</div>')
                 return
 
-            sized_all = data["completed"]  # sized and compounded by the account
-            trades = _filtered(sized_all)
             unfiltered = len(trades) == len(sized_all)
             s = summarize(trades)
             ui.html(kpi_tiles(s))
@@ -253,7 +262,7 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
 
             with ui.row().classes("w-full items-center justify-between mt-4 mb-2 gap-2"):
                 ui.label("Breakdown").classes("bt-h")
-                ui.toggle({"strategy": "By strategy", "day": "By day", "stock": "By stock", "trades": "Trades"},
+                ui.toggle({"strategy": "By strategy", "day": "By day", "stock": "By stock"},
                           value=st["view"], on_change=lambda e: (st.update(view=e.value), _render())) \
                     .props("dense no-caps unelevated toggle-color=primary").classes("bt-seg")
 
@@ -263,10 +272,8 @@ def render_pnl_tab(container, acct: PaperAccount = EQUITY):
             elif st["view"] == "day":
                 groups = sorted(group_by(trades, "trade_date"), key=lambda kv: kv[0], reverse=True)
                 ui.html(summary_table([(datetime.strptime(d, "%Y-%m-%d").strftime("%a %d %b"), g) for d, g in groups], "Day"))
-            elif st["view"] == "stock":
-                ui.html(summary_table(group_by(trades, "stock"), what))
             else:
-                ui.html(trades_table(trades, show_stock=True))
+                ui.html(summary_table(group_by(trades, "stock"), what))
 
     def _pick_strategy(name):
         strat_sel.set_value("All" if st["strategy"] == name else name)  # fires _on_filter → _render
