@@ -3,9 +3,9 @@ Long term: one-week swing trades in the current NIFTY future, in their own paper
 (account.LONGTERM). Not intraday — a trade is held across days. The same loop as the other engines, on a
 daily clock, independent of any browser connection:
 
-- Contract: the current-month NIFTY future from Dhan's NSE_FNO instrument list (read once a day) —
-  the next month's once the current one expires within max_hold_days trading days, so a trade never
-  outlives its contract.
+- Contract: always the nearest-expiry NIFTY future (the one trading closest to the spot) from Dhan's
+  NSE_FNO instrument list (read once a day); on its expiry day, the next month's. A trade still open on
+  its contract's expiry day is closed at the square-off time ("Expiry", PaperAccount.square_off).
 - Candles: the NIFTY index's daily bars (Dhan historical, fetched once a day; the future's own history
   has gaps at each roll) plus today's bar from one bulk quote call that also prices the future.
 - Signals: the moving-average strategies enabled for Backtest on the Strategies page (strategy_keys),
@@ -39,7 +39,7 @@ from dhanhq import marketfeed
 
 import live_candles
 import ws_feed
-from account import LONGTERM, trading_days_held
+from account import LONGTERM
 from algo_strategies import (
     MA_STRATEGIES, _classify_generic, detect_ema10_signals, detect_ma_signals, detect_sma50_signals, ma_lines,
 )
@@ -116,15 +116,13 @@ def futures_list() -> list[dict]:
     return found
 
 
-def pick_future(futures: list[dict], today: str, hold: int = LONGTERM_LIMITS["max_hold_days"]) -> dict:
-    """The current-month future, or the next month's if the current one expires within `hold` trading days."""
+def pick_future(futures: list[dict], today: str) -> dict:
+    """The nearest-expiry future — the one trading closest to the spot. On its expiry day it is no longer
+    a choice (it stops trading at the close), so the next month's."""
     live = sorted((c for c in futures if c["expiry"] > today), key=lambda c: c["expiry"])
     if not live:
         raise RuntimeError(f"no {LONGTERM_UNDERLYING} future expiring after {today}")
-    for c in live:
-        if trading_days_held(today, c["expiry"]) > hold:
-            return c
-    return live[-1]
+    return live[0]
 
 
 def current_future() -> dict:

@@ -35,7 +35,7 @@ def pf(v) -> str:
 
 
 STATUS = {"Open": ("Open", "bt-dim"), "Target Hit": ("Target", "bt-up"), "SL Hit": ("Stop", "bt-down"), "Day Close": ("Day close", "bt-dim"),
-          "Time Exit": ("Time exit", "bt-dim")}
+          "Time Exit": ("Time exit", "bt-dim"), "Expiry": ("Expiry", "bt-dim")}
 
 CSS = """
 <style>

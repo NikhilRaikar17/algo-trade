@@ -37,8 +37,8 @@ def _rules_card(names: list[str], contract: dict | None, fut_price: float | None
             f'{LONGTERM_ATR["stop"]} × ATR(14), target {LONGTERM_ATR["target"]} × ATR(14) · out at the target, '
             f'the stop, or after {lim["max_hold_days"]} trading days at {lim["square_off"]} · whole lots, '
             f'{lim["margin_pct"]}% margin, risks up to {rs(lim["max_loss_per_trade"])} a trade, one position at a '
-            f'time · rolls to the next month when the current one expires within {lim["max_hold_days"]} trading '
-            f'days.</div><div class="bt-hs">Strategies (the moving-average ones enabled for Backtest on the '
+            f'time · always the nearest-expiry future (closest to the spot); a trade still open on its expiry '
+            f'day is closed at {lim["square_off"]}.</div><div class="bt-hs">Strategies (the moving-average ones enabled for Backtest on the '
             f'Strategies page): {strategies}</div></div>')
 
 

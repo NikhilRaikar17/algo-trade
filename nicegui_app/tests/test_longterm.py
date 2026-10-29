@@ -51,10 +51,21 @@ def _sig(day, entry=22_800.0, stop=22_400.0, target=23_600.0):
             "signal": "BUY — test" if target > entry else "SELL — test"}
 
 
-def test_trades_the_current_month_and_rolls_before_expiry():
-    assert longterm.pick_future(FUTURES, "2026-10-28")["symbol"] == "NIFTY NOV FUT"   # Oct expired yesterday
-    assert longterm.pick_future(FUTURES, "2026-11-13")["symbol"] == "NIFTY NOV FUT"   # 6 trading days left
-    assert longterm.pick_future(FUTURES, "2026-11-16")["symbol"] == "NIFTY DEC FUT"   # 5 left: would outlive it
+def test_always_trades_the_nearest_expiry_closest_to_the_spot():
+    assert longterm.pick_future(FUTURES, "2026-10-27")["symbol"] == "NIFTY NOV FUT"   # Oct expires today
+    assert longterm.pick_future(FUTURES, "2026-10-28")["symbol"] == "NIFTY NOV FUT"
+    assert longterm.pick_future(FUTURES, "2026-11-20")["symbol"] == "NIFTY NOV FUT"   # 1 trading day left
+    assert longterm.pick_future(FUTURES, "2026-11-23")["symbol"] == "NIFTY DEC FUT"   # Nov's expiry day
+
+
+def test_a_trade_still_open_on_its_expiry_day_is_closed_then(lt):
+    acct, sent = lt
+    rec, _ = acct.open_signal(_sig("2026-11-19"), "SMA50", NOV["symbol"], 22_800, now=_at("2026-11-19"))
+    assert rec["expiry"] == "2026-11-23"
+    assert not acct.square_off(_at("2026-11-23", "15:00"))           # expiry day, before the square-off time
+    closed = acct.square_off(_at("2026-11-23", "15:20"))             # 2 trading days held, but it expires
+    assert [r["status"] for r in closed] == ["Expiry"]
+    assert sent[-1].startswith("LONGTERM EXPIRY EXIT [SMA50] | NIFTY NOV FUT") and "2026-11-23" in sent[-1]
 
 
 def test_futures_charges_are_on_the_contract_value():

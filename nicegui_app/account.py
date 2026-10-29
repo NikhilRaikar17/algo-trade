@@ -287,6 +287,8 @@ class PaperAccount:
         hold = self.limits.get("max_hold_days")
         if not hold:
             return late or r["trade_date"] < today
+        if r.get("expiry") and (r["expiry"] < today or (r["expiry"] == today and late)):
+            return True  # a future is closed on its expiry day, whatever its holding period
         held = trading_days_held(r["trade_date"], today)
         return held > hold or (held == hold and late)
 
@@ -303,14 +305,18 @@ class PaperAccount:
             book = self._load_book()
             for r in book.values():
                 if _is_open(r) and self._due(r, today, late):
-                    self._close(r, r["last_price"] or r["entry"], "Time Exit" if hold else "Day Close", now)
+                    expiry = bool(hold and r.get("expiry") and r["expiry"] <= today)
+                    status = "Expiry" if expiry else "Time Exit" if hold else "Day Close"
+                    self._close(r, r["last_price"] or r["entry"], status, now)
                     closed.append(r)
             if closed:
                 self._save_book(book)
         for r in closed:
-            what = (f"after {trading_days_held(r['trade_date'], today)} trading days" if hold
+            what = (f"on its expiry day ({r['expiry']})" if r["status"] == "Expiry"
+                    else f"after {trading_days_held(r['trade_date'], today)} trading days" if hold
                     else f"at {self.limits['square_off']}")
-            _send_telegram(f"{self.tag}{'TIME EXIT' if hold else 'SQUARED OFF'} [{r['strategy']}] | {r['symbol']}\n"
+            label = {"Expiry": "EXPIRY EXIT", "Time Exit": "TIME EXIT"}.get(r["status"], "SQUARED OFF")
+            _send_telegram(f"{self.tag}{label} [{r['strategy']}] | {r['symbol']}\n"
                            f"{r['side']} {qty_text(r)} @ {r['entry']:,.2f} → {r['exit_price']:,.2f} {what}\n"
                            f"PnL: {pnl_text(r)}")
         return closed
