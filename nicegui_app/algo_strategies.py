@@ -151,7 +151,7 @@ def _account(book):
 
 def _book_open(book, trade, price, strategy, symbol, alert):
     """An open signal, every tick: the first time, the paper account takes or skips it and Telegram
-    says which (only a taken trade is a NEW TRADE); after that its price is tracked."""
+    announces a taken one as a NEW TRADE (a skipped one stays quiet); after that its price is tracked."""
     acct = _account(book)
     trade["strategy"], trade["symbol"] = strategy, symbol
     rec, new = acct.open_signal(trade, strategy, symbol, price)
@@ -162,8 +162,6 @@ def _book_open(book, trade, price, strategy, symbol, alert):
     elif rec["verdict"] == TAKEN:
         _send_telegram(f"{acct.tag}NEW TRADE {alert}\nSize: {size_text(rec)}"
                        + "".join(f"\nNote: {w}" for w in rec["warnings"]))
-    else:
-        _send_telegram(f"{acct.tag}SKIPPED {alert}\nNot taken: " + "; ".join(rec["reasons"]))
 
 
 def _book_close(book, trade, price, strategy, symbol, history_key):

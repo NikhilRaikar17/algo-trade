@@ -153,8 +153,8 @@ def test_telegram_only_alerts_taken_trades_and_the_day_stop(acct, monkeypatch):
     sigs = [dict(_sig(f"10:{m:02d}", 100, 99, 102, "BUY"), signal="BUY") for m in (0, 5, 10, 15, 20)]
     for i, s in enumerate(sigs):  # five stocks at ₹25,000 each: the fifth has no free funds
         algo_strategies._classify_generic([s], 100.5, f"STK{i}", "EMA10", "ema10")
-    assert [m.split(" [")[0] for m in sent] == ["NEW TRADE"] * 4 + ["SKIPPED"]
-    assert "Size: BUY 250 × ₹100.00" in sent[0] and "no free funds" in sent[4]
+    assert [m.split(" [")[0] for m in sent] == ["NEW TRADE"] * 4   # the fifth is skipped, quietly
+    assert "Size: BUY 250 × ₹100.00" in sent[0]
 
     sent.clear()
     monkeypatch.setattr(account, "now_ist", lambda: _at("11:00"))

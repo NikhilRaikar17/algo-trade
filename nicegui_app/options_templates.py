@@ -210,8 +210,6 @@ def _enter(underlying: str, key: str, name: str, cfg: dict, fired: pd.Timestamp,
     if rec["verdict"] == TAKEN:
         _send_telegram(f"{OPTIONS.tag}NEW TRADE {head}\nSize: {size_text(rec)} · capital ₹{rec['capital']:,.0f}"
                        + "".join(f"\nNote: {w}" for w in rec["warnings"]))
-    else:
-        _send_telegram(f"{OPTIONS.tag}SKIPPED {head}\nNot taken: " + "; ".join(rec["reasons"]))
 
 
 def run_tick(now: datetime | None = None) -> None:

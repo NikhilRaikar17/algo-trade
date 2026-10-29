@@ -18,7 +18,7 @@ daily clock, independent of any browser connection:
   future there (market hours, any day it is held); LONGTERM.square_off() closes the rest after
   max_hold_days trading days at their last price ("Time Exit").
 
-Telegram: the same NEW TRADE / SKIPPED / TRADE CLOSED alerts as the other accounts, tagged LONGTERM,
+Telegram: the same NEW TRADE / TRADE CLOSED alerts as the other accounts (none for a skipped signal), tagged LONGTERM,
 and a daily summary at 3:30 PM (pnl.send_daily_pnl_summary).
 """
 

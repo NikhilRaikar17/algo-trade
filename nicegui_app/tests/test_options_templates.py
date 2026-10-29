@@ -177,4 +177,4 @@ def test_a_position_the_limits_reject_is_booked_as_skipped(opts, monkeypatch):
     assert not acct.open_trades()
     [rec] = acct.decisions("2026-10-29").values()
     assert rec["verdict"] == SKIPPED and "max loss per trade" in rec["reasons"][0]
-    assert sent[0].startswith("OPTIONS SKIPPED")
+    assert not sent
