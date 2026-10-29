@@ -99,14 +99,15 @@ def render_options_strategy_lab_tab(container):
                     with ui.element("div").classes("opt-lab-kpi").style("min-width:180px; flex:1"):
                         ui.label(label).classes("opt-lab-label")
                         ui.label(value).classes("opt-lab-value")
-            chart.options = {
+            chart.options.clear()  # ui.echart's options can't be reassigned (NiceGUI 3), only changed in place
+            chart.options.update({
                 "tooltip": {"trigger": "axis"},
                 "grid": {"left": 55, "right": 20, "top": 25, "bottom": 45},
                 "xAxis": {"type": "category", "name": "Underlying at expiry (₹)", "data": [str(r["underlying"]) for r in values]},
                 "yAxis": {"type": "value", "name": "Gross P&L (₹)"},
                 "series": [{"type": "line", "smooth": False, "symbol": "circle", "data": pnls,
                             "markLine": {"data": [{"yAxis": 0}]}}],
-            }
+            })
             chart.update()
             table.rows = values
             table.update()
@@ -132,7 +133,7 @@ def render_options_strategy_lab_tab(container):
             run.disable()
             status.set_text("No options strategies enabled. Enable one on the Strategies page.")
             kpis.clear()
-            chart.options = {}
+            chart.options.clear()
             chart.update()
             table.rows = []
             table.update()
