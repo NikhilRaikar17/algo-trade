@@ -19,6 +19,9 @@ dependencies = [
     "xlwings>=0.33.16",
 ]
 
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
 [tool.uv.workspace]
 members = [
     "dhan_v2",

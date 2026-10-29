@@ -1,9 +1,8 @@
 """
-Strategies page — one card per strategy with Backtest / Live toggles.
+Strategies page — independent Backtest, Live algo, and Options P&L switches.
 
-Flags live in the strategies table (strategy_registry.py). Backtest pages, Backtest P&L
-and the email report run only backtest-enabled strategies; the trading engine, Live Algos
-dropdown and Live P&L use only live-enabled ones. Only the admin can change toggles.
+The five opt_* templates are payoff research templates, not signal-generating strategies.
+They cannot be enabled for the underlying-candle backtest or the live trading engine.
 """
 
 from nicegui import ui
@@ -60,6 +59,31 @@ _STRATEGY_INFO = {
         "Trend · Both",
         "BUY when the 50-period EMA crosses above the 100-period EMA, SELL when it crosses below. "
         "2% target, 1% stop. No new entries after 15:00 IST.",
+    ),
+    "opt_long_call": (
+        "Options · Bullish · Defined loss",
+        "Buy a call. Maximum expiry loss is the premium paid; upside is theoretically unlimited. "
+        "Available in the Options Strategy Lab for payoff comparison only.",
+    ),
+    "opt_bull_call_spread": (
+        "Options · Bullish · Defined risk",
+        "Buy a lower-strike call and sell a higher-strike call for a net debit. "
+        "Expiry risk and reward are capped; live execution is not enabled.",
+    ),
+    "opt_bull_put_spread": (
+        "Options · Bullish · Defined risk",
+        "Sell a higher-strike put and buy a lower-strike put for a net credit. "
+        "Expiry risk and reward are capped; live execution is not enabled.",
+    ),
+    "opt_long_straddle": (
+        "Options · Long volatility",
+        "Buy a call and put at the same strike. Benefits from a sufficiently large move either way; "
+        "the combined premium is at risk.",
+    ),
+    "opt_iron_condor": (
+        "Options · Range-bound · Defined risk",
+        "Combine a put credit spread and call credit spread. Designed for a range-bound expiry; "
+        "live execution is not enabled.",
     ),
 }
 
@@ -125,7 +149,8 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
         ui.add_head_html(_CSS)
         ui.label("Strategies").classes("text-xl font-bold mb-1")
         ui.label(
-            "Choose which strategies run in backtests and in live trading. "
+            "Backtest and Live algo control the existing stock strategies. Options templates are "
+            "payoff-only research tools: enable them separately for the Options P&L workspace. "
             "Live changes apply on the next engine scan (within 2 minutes)."
         ).classes("text-sm text-gray-500 mb-1")
         summary = ui.label("").classes("st-summary mb-3")
@@ -138,7 +163,11 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
     def _update_summary(rows):
         n_bt = sum(r["backtest_enabled"] for r in rows)
         n_live = sum(r["live_enabled"] for r in rows)
-        summary.set_text(f"{len(rows)} STRATEGIES · {n_bt} IN BACKTEST · {n_live} LIVE")
+        n_options = sum(r["options_pnl_enabled"] for r in rows)
+        summary.set_text(
+            f"{len(rows)} STRATEGIES · {n_bt} IN BACKTEST · {n_live} LIVE · "
+            f"{n_options} IN OPTIONS P&L"
+        )
 
     def _build():
         rows = get_strategy_rows()
@@ -151,21 +180,30 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
     def _build_card(row):
         key = row["key"]
         direction, desc = _STRATEGY_INFO.get(key, ("", ""))
-        state = {"backtest": row["backtest_enabled"], "live": row["live_enabled"]}
+        is_options_template = key.startswith("opt_")
+        state = {
+            "backtest": row["backtest_enabled"],
+            "live": row["live_enabled"],
+            "options_pnl": row["options_pnl_enabled"],
+        }
 
         card = ui.element("div").classes("st-card")
-        if not (state["backtest"] or state["live"]):
+        if not (state["backtest"] or state["live"] or state["options_pnl"]):
             card.classes(add="st-off")
 
         def _toggle(field, value):
             state[field] = value
             set_strategy_enabled(key, **{field: value})
-            if state["backtest"] or state["live"]:
+            if state["backtest"] or state["live"] or state["options_pnl"]:
                 card.classes(remove="st-off")
             else:
                 card.classes(add="st-off")
             _update_summary(get_strategy_rows())
-            label = "Backtest" if field == "backtest" else "Live algo"
+            label = {
+                "backtest": "Backtest",
+                "live": "Live algo",
+                "options_pnl": "Options P&L",
+            }[field]
             ui.notify(
                 f"{row['display_name']}: {label} {'enabled' if value else 'disabled'}",
                 type="positive" if value else "warning",
@@ -180,10 +218,18 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
                 ui.label(direction).classes("st-meta")
             ui.label(desc).classes("st-desc")
 
-            for field, label, hint in (
+            controls = [
                 ("backtest", "Backtest", "Backtest page, Backtest P&L, email report"),
                 ("live", "Live algo", "Trading engine, Live Algos, Live P&L"),
-            ):
+            ]
+            if is_options_template:
+                controls.append((
+                    "options_pnl",
+                    "Options P&L",
+                    "Show this template in the Options P&L workspace",
+                ))
+
+            for field, label, hint in controls:
                 with ui.element("div").classes("st-row"):
                     with ui.column().classes("gap-0"):
                         ui.label(label).classes("st-row-label")
@@ -192,8 +238,14 @@ def render_strategies_tab(container, can_edit: bool = False, on_change=None):
                         value=state[field],
                         on_change=lambda e, f=field: _toggle(f, e.value),
                     ).props("color=positive dense")
-                    if not can_edit:
+                    # Options strategies currently have a research/payoff implementation only.
+                    # Never expose a Live toggle until signals, order handling and risk checks exist.
+                    if not can_edit or (is_options_template and field in {"backtest", "live"}):
                         sw.disable()
+                        if is_options_template and field in {"backtest", "live"}:
+                            sw.tooltip(
+                                "This template is payoff-only; it has no backtest runner or live signal engine"
+                            )
 
     _build()
 

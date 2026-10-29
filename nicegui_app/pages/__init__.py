@@ -36,3 +36,5 @@ BACKTEST_PAGES = {
     "sma200":    ("sma200",    lambda c: render_ma_tab(c, "sma200"),    "stacked_line_chart"),
     "ema50x100": ("ema50x100", lambda c: render_ma_tab(c, "ema50x100"), "swap_vert"),
 }
+
+from pages.options_strategy_lab import render_options_strategy_lab_tab

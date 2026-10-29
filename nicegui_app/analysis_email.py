@@ -46,7 +46,8 @@ def gather(now) -> dict:
     from pages.backtest_pnl_tab import _fetch_all_stocks_trades          # noqa: PLC0415
     from strategy_registry import get_strategy_rows                       # noqa: PLC0415
 
-    rows = get_strategy_rows()
+    # Stock strategies only, as on the Strategy Analysis page: the opt_* payoff templates have no runner
+    rows = [r for r in get_strategy_rows() if not r["key"].startswith("opt_")]
     report: dict = {}
     backtest = _fetch_all_stocks_trades(get_active_top_stocks(), report, keys=[r["key"] for r in rows])
     completed, _, _ = load_live_trades()

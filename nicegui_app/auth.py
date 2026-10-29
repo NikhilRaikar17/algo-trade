@@ -61,6 +61,8 @@ with engine.connect() as _conn:
                 text("UPDATE strategies SET live_enabled = :on WHERE key = :key"),
                 {"on": _on, "key": _key},
             )
+    if "options_pnl_enabled" not in _cols:
+        _conn.execute(text("ALTER TABLE strategies ADD COLUMN options_pnl_enabled BOOLEAN NOT NULL DEFAULT 0"))
     _conn.commit()
 
 # ── Seed users (idempotent) ───────────────────────────────────────────────────
@@ -93,6 +95,11 @@ _SEED_STRATEGIES: list[tuple[str, str, str, int]] = [
     ("sma100", "SMA 100",                "SMA 100",                 8),
     ("sma200", "SMA 200",                "SMA 200",                 9),
     ("ema50x100", "EMA 50/100 Cross",    "EMA 50/100 Cross",        10),
+    ("opt_long_call", "Options · Long Call", "Options · Long Call", 11),
+    ("opt_bull_call_spread", "Options · Bull Call Spread", "Options · Bull Call Spread", 12),
+    ("opt_bull_put_spread", "Options · Bull Put Spread", "Options · Bull Put Spread", 13),
+    ("opt_long_straddle", "Options · Long Straddle", "Options · Long Straddle", 14),
+    ("opt_iron_condor", "Options · Iron Condor", "Options · Iron Condor", 15),
 ]
 
 with SessionLocal() as _s:
@@ -104,13 +111,18 @@ with SessionLocal() as _s:
                 display_name=_display,
                 short_name=_short,
                 sort_order=_order,
-                backtest_enabled=True,
-                live_enabled=LIVE_STRATEGY_ENABLED.get(_key, False),
+                backtest_enabled=not _key.startswith("opt_"),
+                live_enabled=False if _key.startswith("opt_") else LIVE_STRATEGY_ENABLED.get(_key, False),
+                options_pnl_enabled=False,
             ))
         else:
             exists.display_name = _display
             exists.short_name = _short
             exists.sort_order = _order
+            # Payoff templates must never enter the stock backtest or live engine.
+            if _key.startswith("opt_"):
+                exists.backtest_enabled = False
+                exists.live_enabled = False
     _s.commit()
 
 

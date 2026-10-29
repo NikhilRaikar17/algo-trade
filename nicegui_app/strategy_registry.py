@@ -45,12 +45,13 @@ def get_strategy_rows() -> list[dict]:
                 "short_name": r.short_name,
                 "backtest_enabled": bool(r.backtest_enabled),
                 "live_enabled": bool(r.live_enabled),
+                "options_pnl_enabled": bool(r.options_pnl_enabled),
             }
             for r in rows
         ]
 
 
-def set_strategy_enabled(key: str, *, backtest: bool | None = None, live: bool | None = None) -> None:
+def set_strategy_enabled(key: str, *, backtest: bool | None = None, live: bool | None = None, options_pnl: bool | None = None) -> None:
     """Update one strategy's backtest and/or live flag."""
     with SessionLocal() as s:
         row = s.query(Strategy).filter(Strategy.key == key).first()
@@ -60,11 +61,14 @@ def set_strategy_enabled(key: str, *, backtest: bool | None = None, live: bool |
             row.backtest_enabled = backtest
         if live is not None:
             row.live_enabled = live
+        if options_pnl is not None:
+            row.options_pnl_enabled = options_pnl
         s.commit()
 
 
 def get_live_strategy_keys() -> list[str]:
-    return [r["key"] for r in get_strategy_rows() if r["live_enabled"]]
+    """Enabled keys for the live engines; the opt_* payoff templates never trade, whatever the flag says."""
+    return [r["key"] for r in get_strategy_rows() if r["live_enabled"] and not r["key"].startswith("opt_")]
 
 
 def get_live_strategy_names() -> list[str]:
@@ -73,9 +77,24 @@ def get_live_strategy_names() -> list[str]:
 
 
 def get_backtest_strategy_keys() -> list[str]:
-    return [r["key"] for r in get_strategy_rows() if r["backtest_enabled"]]
+    """Enabled keys for the existing underlying-candle stock backtest runners."""
+    return [
+        r["key"] for r in get_strategy_rows()
+        if r["backtest_enabled"] and not r["key"].startswith("opt_")
+    ]
 
 
 def get_backtest_strategy_names() -> list[str]:
-    """Short names used in backtest trade records, for enabled backtest strategies."""
-    return [r["short_name"] for r in get_strategy_rows() if r["backtest_enabled"]]
+    """Names used in the existing stock backtest trade records and reports."""
+    return [
+        r["short_name"] for r in get_strategy_rows()
+        if r["backtest_enabled"] and not r["key"].startswith("opt_")
+    ]
+
+
+def get_options_pnl_strategy_keys() -> list[str]:
+    """Options strategies explicitly enabled for the Options P&L view."""
+    return [
+        r["key"] for r in get_strategy_rows()
+        if r["key"].startswith("opt_") and r["options_pnl_enabled"]
+    ]

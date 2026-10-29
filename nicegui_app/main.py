@@ -49,6 +49,7 @@ from pages import (
     render_strategy_analysis_tab,
     render_longterm_signals_tab,
     render_longterm_backtest_tab,
+    render_options_strategy_lab_tab,
     BACKTEST_PAGES,
 )
 
@@ -78,6 +79,7 @@ ALL_PAGE_IDS = [
     "longterm_signals",
     "longterm_backtest",
     "pnl_longterm",
+    "options_strategy_lab",
     "admin",
 ]
 
@@ -588,8 +590,14 @@ async def index():
     )
 
     def _on_strategy_change(key, backtest_enabled, live_enabled):
-        """Rebuild Backtest Algos in the sidebar so it lists only enabled strategies."""
+        """Refresh the sidebar and options lab after registry toggles are saved."""
         refresh_backtest_menu()
+        lab_refresh = refresh_fns.get("options_strategy_lab")
+        if lab_refresh:
+            asyncio.ensure_future(lab_refresh())
+        pnl_refresh = refresh_fns.get("pnl_options")
+        if pnl_refresh:
+            asyncio.ensure_future(pnl_refresh())
 
     # ---- Build Page Content ----
     _pages_built: set = set()  # tracks which pages have been rendered at least once
@@ -613,7 +621,7 @@ async def index():
         # is viewing the page — causing a jarring blank flash.
         _STATIC_ONCE = {
             "markets", "market_news", "top_stocks", "global_markets",
-            "nifty", "banknifty", "pnl", "pnl_options", "pnl_longterm", "longterm_signals", "longterm_backtest",
+            "nifty", "banknifty", "pnl", "pnl_options", "options_strategy_lab", "pnl_longterm", "longterm_signals", "longterm_backtest",
             "backtest_pnl", "admin", "strategies", "strategy_analysis", "trade_replay", "trade_desk",
             *BACKTEST_PAGE_IDS,
         }
@@ -629,6 +637,7 @@ async def index():
             "pnl_longterm":  lambda: render_pnl_tab(page_containers["pnl_longterm"], acct=LONGTERM),
             "longterm_signals":  lambda: render_longterm_signals_tab(page_containers["longterm_signals"]),
             "longterm_backtest": lambda: render_longterm_backtest_tab(page_containers["longterm_backtest"]),
+            "options_strategy_lab": lambda: render_options_strategy_lab_tab(page_containers["options_strategy_lab"]),
             "backtest_pnl":  lambda: render_backtest_pnl_tab(page_containers["backtest_pnl"]),
             "trade_replay":  lambda: render_trade_replay_tab(page_containers["trade_replay"]),
             "trade_desk":    lambda: render_trade_desk_tab(page_containers["trade_desk"]),
